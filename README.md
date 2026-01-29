@@ -41,7 +41,7 @@ npm install
 cp backend/.env.example backend/.env
 # Edit backend/.env with your credentials
 
-# Start development server
+# Start development serverr
 npm run dev
 ```
 
