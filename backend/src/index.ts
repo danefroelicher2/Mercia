@@ -4,6 +4,12 @@ import dotenv from 'dotenv';
 import { initializeOasisCore } from './services/oasisCore';
 import { errorHandler } from './middleware/errorHandler';
 
+// Import routes
+import authRoutes from './routes/auth';
+import questionRoutes from './routes/questions';
+import memoryRoutes from './routes/memory';
+import chatRoutes from './routes/chat';
+
 // Load environment variables
 dotenv.config();
 
@@ -24,7 +30,7 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// API routes (will add in next prompt)
+// API info
 app.get('/api', (req: Request, res: Response) => {
   res.json({
     message: 'Oasis AI API',
@@ -38,6 +44,12 @@ app.get('/api', (req: Request, res: Response) => {
   });
 });
 
+// Register routes
+app.use('/api/auth', authRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/memory', memoryRoutes);
+app.use('/api/chat', chatRoutes);
+
 // Error handler (must be last)
 app.use(errorHandler);
 
@@ -50,7 +62,23 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`\n  Oasis AI Backend running on port ${PORT}`);
       console.log(`  Health check: http://localhost:${PORT}/health`);
-      console.log(`  API info: http://localhost:${PORT}/api\n`);
+      console.log(`  API info: http://localhost:${PORT}/api`);
+      console.log(`\n  Available endpoints:`);
+      console.log(`   POST /api/auth/register`);
+      console.log(`   POST /api/auth/login`);
+      console.log(`   POST /api/auth/refresh`);
+      console.log(`   GET  /api/questions/daily`);
+      console.log(`   POST /api/questions/answer`);
+      console.log(`   POST /api/questions/skip`);
+      console.log(`   GET  /api/questions/progress`);
+      console.log(`   GET  /api/questions/history`);
+      console.log(`   GET  /api/memory/profile`);
+      console.log(`   GET  /api/memory/summary`);
+      console.log(`   POST /api/memory/feedback`);
+      console.log(`   POST /api/chat/new`);
+      console.log(`   GET  /api/chat/list`);
+      console.log(`   GET  /api/chat/:chatId/messages`);
+      console.log(`   POST /api/chat/message\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
