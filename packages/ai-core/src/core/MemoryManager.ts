@@ -43,9 +43,15 @@ export class MemoryManager {
    */
   async processQuestionResponse(
     userId: string,
-    questionText: string,
     questionResponse: QuestionResponse
   ): Promise<MemoryProfile> {
+    // Fetch the question text from the database
+    const question = await this.storage.getQuestionById(questionResponse.question_id);
+    if (!question) {
+      throw new Error(`Question not found: ${questionResponse.question_id}`);
+    }
+    const questionText = question.question_text;
+
     // Get current profile
     const profile = await this.getProfile(userId);
 

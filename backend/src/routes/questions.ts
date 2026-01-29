@@ -72,13 +72,13 @@ router.post(
         questionId,
         responseText
       );
-
-      // Process response to update memory profile (async, don't wait)
-      // Note: We need the question text for proper insight extraction
-      memoryManager
-        .processQuestionResponse(userId, 'Question text', response)
-        .catch((err: Error) => console.error('Failed to process response:', err));
-
+      // Process response to update memory profile (synchronous for debugging)
+      try {
+        await memoryManager.processQuestionResponse(userId, response);
+        console.log('✅ Memory profile updated successfully');
+      } catch (err) {
+        console.error('❌ Failed to process response:', err);
+      }
       // Get updated progress
       const progress = await questionEngine.getProgress(userId);
 

@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { StorageAdapter } from './StorageAdapter';
 import {
+  DailyQuestion,
   DailyQuestionForUser,
   QuestionResponse,
   MemoryProfile,
@@ -10,12 +11,15 @@ import {
 } from '../../types';
 
 export class SupabaseStorageAdapter implements StorageAdapter {
-  private client: SupabaseClient;
+  private client: SupabaseClient<any, 'oasis'>; // ← Specify schema type
 
   constructor(supabaseUrl: string, supabaseKey: string) {
     this.client = createClient(supabaseUrl, supabaseKey, {
       auth: {
         persistSession: false,
+      },
+      db: {
+        schema: 'oasis',
       },
     });
   }
@@ -26,18 +30,79 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
   async getDailyQuestionForUser(userId: string): Promise<DailyQuestionForUser | null> {
     try {
-      const { data, error } = await this.client.rpc('get_daily_question_for_user', {
-        p_user_id: userId,
-      });
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-      if (error) {
-        console.error('Error getting daily question:', error);
-        return null;
+      // Check if user has unanswered question for today
+      const { data: existingQuestion } = await this.client
+        .from('user_daily_questions')
+        .select('question_id, skipped_on')
+        .eq('user_id', userId)
+        .eq('assigned_date', today)
+        .eq('answered', false)
+        .maybeSingle();
+
+      if (existingQuestion) {
+        // Return existing question
+        const { data: question } = await this.client
+          .from('daily_questions')
+          .select('*')
+          .eq('id', existingQuestion.question_id)
+          .single();
+
+        return {
+          question_id: question.id,
+          question_text: question.question_text,
+          category: question.category,
+          assigned_date: new Date(today),
+          skip_count: existingQuestion.skipped_on?.length || 0,
+        };
       }
 
-      return data && data.length > 0 ? data[0] : null;
+      // Get random unanswered question
+      const { data: answeredIds } = await this.client
+        .from('user_question_responses')
+        .select('question_id')
+        .eq('user_id', userId);
+
+      const answeredQuestionIds = answeredIds?.map(r => r.question_id) || [];
+
+      let query = this.client
+        .from('daily_questions')
+        .select('*')
+        .eq('active', true);
+
+      if (answeredQuestionIds.length > 0) {
+        query = query.not('id', 'in', `(${answeredQuestionIds.join(',')})`);
+      }
+
+      const { data: questions } = await query.limit(10);
+
+      if (!questions || questions.length === 0) {
+        return null; // All questions answered
+      }
+
+      // Pick random question
+      const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+
+      // Assign to user
+      await this.client
+        .from('user_daily_questions')
+        .insert({
+          user_id: userId,
+          question_id: randomQuestion.id,
+          assigned_date: today,
+          answered: false,
+        });
+
+      return {
+        question_id: randomQuestion.id,
+        question_text: randomQuestion.question_text,
+        category: randomQuestion.category,
+        assigned_date: new Date(today),
+        skip_count: 0,
+      };
     } catch (error) {
-      console.error('Exception in getDailyQuestionForUser:', error);
+      console.error('Error getting daily question:', error);
       return null;
     }
   }
@@ -114,29 +179,33 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         .eq('question_id', questionId);
     }
   }
-
   async getUserQuestionStats(userId: string): Promise<UserProgress> {
-    const { count: answeredCount } = await this.client
+    // Count answered questions
+    const { data: answeredData, error: answeredError } = await this.client
       .from('user_question_responses')
-      .select('*', { count: 'exact', head: true })
+      .select('id')
       .eq('user_id', userId);
 
-    const { count: totalCount } = await this.client
+    // Count total active questions
+    const { data: totalData, error: totalError } = await this.client
       .from('daily_questions')
-      .select('*', { count: 'exact', head: true })
+      .select('id')
       .eq('active', true);
 
-    const answered = answeredCount || 0;
-    const total = totalCount || 0;
+    console.log('DEBUG - answered rows:', answeredData?.length);
+    console.log('DEBUG - total rows:', totalData?.length);
+    console.log('DEBUG - errors:', answeredError, totalError);
+
+    const answered = answeredData?.length || 0;
+    const total = totalData?.length || 0;
 
     return {
       answered,
       total,
       percentage: total > 0 ? Math.round((answered / total) * 100) : 0,
-      streak_days: 0, // TODO: Calculate streak
+      streak_days: 0,
     };
   }
-
   async getQuestionHistory(userId: string, limit: number = 50): Promise<QuestionResponse[]> {
     const { data, error } = await this.client
       .from('user_question_responses')
@@ -151,6 +220,21 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
 
     return data || [];
+  }
+
+  async getQuestionById(questionId: string): Promise<DailyQuestion | null> {
+    const { data, error } = await this.client
+      .from('daily_questions')
+      .select('*')
+      .eq('id', questionId)
+      .single();
+
+    if (error) {
+      console.error('Error getting question by ID:', error);
+      return null;
+    }
+
+    return data;
   }
 
   // ============================================

@@ -1,10 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import jwt, { SignOptions } from 'jsonwebtoken';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+// Lazy-initialized Supabase client
+let supabaseClient: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient {
+  if (!supabaseClient) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!url || !key) {
+      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY are required in .env');
+    }
+
+    supabaseClient = createClient(url, key);
+  }
+
+  return supabaseClient;
+}
 
 export interface AuthTokens {
   accessToken: string;
@@ -26,6 +39,8 @@ export async function registerUser(
   password: string,
   username?: string
 ): Promise<{ user: User; tokens: AuthTokens }> {
+  const supabase = getSupabase();
+
   // Validate input
   if (!email || !password) {
     throw new Error('Email and password are required');
@@ -51,6 +66,7 @@ export async function registerUser(
 
   // Create user profile
   const { error: profileError } = await supabase
+    .schema('oasis')  // ← Add schema method
     .from('user_profiles')
     .insert({
       id: authData.user.id,
@@ -79,6 +95,8 @@ export async function loginUser(
   email: string,
   password: string
 ): Promise<{ user: User; tokens: AuthTokens }> {
+  const supabase = getSupabase();
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,

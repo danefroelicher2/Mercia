@@ -1,4 +1,5 @@
 import {
+  DailyQuestion,
   DailyQuestionForUser,
   QuestionResponse,
   MemoryProfile,
@@ -46,6 +47,11 @@ export interface StorageAdapter {
    * Get user's question history (answered questions)
    */
   getQuestionHistory(userId: string, limit?: number): Promise<QuestionResponse[]>;
+
+  /**
+   * Get a single question by ID
+   */
+  getQuestionById(questionId: string): Promise<DailyQuestion | null>;
 
   // ============================================
   // MEMORY PROFILE OPERATIONS
