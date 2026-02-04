@@ -1,5 +1,8 @@
 // TypeScript types for Oasis AI mobile app
 
+// Re-export question types
+export * from './question';
+
 export interface User {
   id: string;
   email: string;
