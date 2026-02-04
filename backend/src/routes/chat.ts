@@ -16,6 +16,8 @@ router.use(authenticateToken);
 // Validation schemas
 const newChatSchema = z.object({
   title: z.string().optional(),
+  chatType: z.enum(['question', 'general']).optional(),
+  linkedQuestionId: z.string().uuid().optional(),
 });
 
 const messageSchema = z.object({
@@ -33,10 +35,17 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { title } = req.body;
+      const { title, chatType, linkedQuestionId } = req.body;
 
       const storage = getStorage();
-      const chat = await storage.createChat(userId, title);
+      const chat = await storage.createChat(
+        userId,
+        title,
+        chatType || 'general',
+        linkedQuestionId || null
+      );
+
+      console.log(`[Chat] Created ${chatType || 'general'} chat: ${chat.id}${linkedQuestionId ? ` (linked to question: ${linkedQuestionId})` : ''}`);
 
       res.status(201).json({
         success: true,

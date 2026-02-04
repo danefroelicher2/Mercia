@@ -4,6 +4,8 @@ export interface Chat {
   id: string;
   user_id: string;
   title: string;
+  chat_type: 'question' | 'general';
+  linked_question_id: string | null;
   created_at: string;
   updated_at: string;
 }

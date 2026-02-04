@@ -281,12 +281,19 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   // CHAT OPERATIONS
   // ============================================
 
-  async createChat(userId: string, title: string = 'New Chat'): Promise<Chat> {
+  async createChat(
+    userId: string,
+    title: string = 'New Chat',
+    chatType: 'question' | 'general' = 'general',
+    linkedQuestionId: string | null = null
+  ): Promise<Chat> {
     const { data, error } = await this.client
       .from('chats')
       .insert({
         user_id: userId,
         title,
+        chat_type: chatType,
+        linked_question_id: linkedQuestionId,
       })
       .select()
       .single();

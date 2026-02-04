@@ -259,9 +259,10 @@ const OasisHomeScreen: React.FC = () => {
     try {
       setIsCreatingChat(true);
 
-      console.log('[OasisHomeScreen] Creating new chat...');
+      console.log('[OasisHomeScreen] Creating new general chat...');
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: 'New Chat',
+        chatType: 'general', // Explicitly mark as general chat
       });
       console.log('[OasisHomeScreen] New chat created:', response.data);
 
@@ -307,17 +308,19 @@ const OasisHomeScreen: React.FC = () => {
 
       // Create chat with title based on question
       const chatTitle = question.question_text.length > 50
-        ? question.question_text.substring(0, 47) + '...'
-        : question.question_text;
+        ? `Q: ${question.question_text.substring(0, 44)}...`
+        : `Q: ${question.question_text}`;
 
-      console.log('[OasisHomeScreen] Creating discussion chat for question:', question.question_id);
+      console.log('[OasisHomeScreen] Creating question chat for:', question.question_id);
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: chatTitle,
+        chatType: 'question',                    // Mark as question-based chat
+        linkedQuestionId: question.question_id,  // Link to source question
       });
 
       if (response.data.success && response.data.data) {
         const newChat = response.data.data;
-        console.log(`[OasisHomeScreen] Navigating to chat with question context: ${newChat.id}`);
+        console.log(`[OasisHomeScreen] Question chat created: ${newChat.id} (type: ${newChat.chat_type}, linked: ${newChat.linked_question_id})`);
 
         // Navigate with question context - this will auto-trigger AI response
         navigation.navigate('ChatScreen', {
@@ -334,7 +337,7 @@ const OasisHomeScreen: React.FC = () => {
         throw new Error('Failed to create chat');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error creating discussion chat:', error);
+      console.error('[OasisHomeScreen] Error creating question chat:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Failed to create chat. Please try again.';

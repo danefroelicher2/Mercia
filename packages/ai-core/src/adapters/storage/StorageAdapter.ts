@@ -77,8 +77,17 @@ export interface StorageAdapter {
 
   /**
    * Create a new chat
+   * @param userId - User creating the chat
+   * @param title - Chat title (optional)
+   * @param chatType - 'question' for question-based chats, 'general' for free-form (default)
+   * @param linkedQuestionId - UUID of the linked question (for question-based chats)
    */
-  createChat(userId: string, title?: string): Promise<Chat>;
+  createChat(
+    userId: string,
+    title?: string,
+    chatType?: 'question' | 'general',
+    linkedQuestionId?: string | null
+  ): Promise<Chat>;
 
   /**
    * Get user's chats
