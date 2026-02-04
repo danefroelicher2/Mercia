@@ -9,7 +9,7 @@ const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   // Show loading screen while checking auth state
-  if (isLoading === true) {
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -19,7 +19,7 @@ const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      {isAuthenticated === true ? <MainNavigator /> : <AuthNavigator />}
+      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
 };

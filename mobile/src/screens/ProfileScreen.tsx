@@ -58,9 +58,9 @@ const ProfileScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          style={[styles.signOutButton, isLoading === true && styles.signOutButtonDisabled]}
+          style={[styles.signOutButton, isLoading && styles.signOutButtonDisabled]}
           onPress={handleSignOut}
-          disabled={isLoading === true}
+          disabled={isLoading}
         >
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>

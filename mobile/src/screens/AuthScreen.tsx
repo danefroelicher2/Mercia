@@ -132,11 +132,11 @@ const AuthScreen: React.FC = () => {
             )}
 
             <TouchableOpacity
-              style={[styles.button, isLoading === true && styles.buttonDisabled]}
+              style={[styles.button, isLoading && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isLoading === true}
+              disabled={isLoading}
             >
-              {isLoading === true ? (
+              {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.buttonText}>
