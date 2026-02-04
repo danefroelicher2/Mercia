@@ -1,24 +1,28 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, StyleSheet } from 'react-native';
-import OasisScreen from '../screens/OasisScreen';
+import OasisHomeScreen from '../screens/OasisHomeScreen';
+import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import { OasisStackParamList } from '../types/navigation';
 
 // Main tab param list
 export type MainTabParamList = {
-  Oasis: undefined;
+  OasisTab: undefined;
   Routine: undefined;
   Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const OasisStack = createNativeStackNavigator<OasisStackParamList>();
 
 // Simple icon component using text/emoji (we can replace with proper icons later)
 const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }) => {
   let icon = '';
   switch (name) {
-    case 'Oasis':
+    case 'OasisTab':
       icon = '🏠';
       break;
     case 'Routine':
@@ -37,6 +41,40 @@ const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }
   );
 };
 
+// Oasis Stack Navigator (contains OasisHome and ChatScreen)
+const OasisStackNavigator: React.FC = () => {
+  return (
+    <OasisStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <OasisStack.Screen
+        name="OasisHome"
+        component={OasisHomeScreen}
+        options={{ headerShown: false }}
+      />
+      <OasisStack.Screen
+        name="ChatScreen"
+        component={ChatScreen}
+        options={({ route }) => ({
+          headerShown: true,
+          title: route.params?.chat?.title || 'Chat',
+          headerBackTitle: 'Back',
+          headerStyle: {
+            backgroundColor: '#fff',
+          },
+          headerTintColor: '#007AFF',
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 17,
+          },
+        })}
+      />
+    </OasisStack.Navigator>
+  );
+};
+
 const MainNavigator: React.FC = () => {
   return (
     <Tab.Navigator
@@ -51,7 +89,13 @@ const MainNavigator: React.FC = () => {
         tabBarLabelStyle: styles.tabBarLabel,
       })}
     >
-      <Tab.Screen name="Oasis" component={OasisScreen} />
+      <Tab.Screen
+        name="OasisTab"
+        component={OasisStackNavigator}
+        options={{
+          tabBarLabel: 'Oasis',
+        }}
+      />
       <Tab.Screen name="Routine" component={RoutineScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

@@ -3,6 +3,12 @@
 // Re-export question types
 export * from './question';
 
+// Re-export chat types
+export * from './chat';
+
+// Re-export navigation types
+export * from './navigation';
+
 export interface User {
   id: string;
   email: string;
