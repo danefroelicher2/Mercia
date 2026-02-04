@@ -42,7 +42,9 @@ const MainNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
+        tabBarIcon: ({ focused }: { focused: boolean }) => (
+          <TabIcon name={route.name} focused={focused} />
+        ),
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: '#666',
         tabBarStyle: styles.tabBar,
@@ -73,7 +75,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   iconFocused: {
-    transform: [{ scale: 1.1 }],
+    fontSize: 22,
   },
 });
 

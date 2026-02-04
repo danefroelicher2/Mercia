@@ -119,8 +119,9 @@ const AuthScreen: React.FC = () => {
                 onChangeText={setPassword}
                 placeholder="Enter your password"
                 placeholderTextColor="#999"
-                secureTextEntry
+                secureTextEntry={true}
                 autoCapitalize="none"
+                autoCorrect={false}
               />
             </View>
 
@@ -131,11 +132,11 @@ const AuthScreen: React.FC = () => {
             )}
 
             <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
+              style={[styles.button, isLoading === true && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading === true}
             >
-              {isLoading ? (
+              {isLoading === true ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.buttonText}>
