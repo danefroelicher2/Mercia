@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,12 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
@@ -18,7 +23,16 @@ import { cacheQuestionState, getCachedQuestionState } from '../services/question
 import { formatRelativeTime } from '../utils/dateUtils';
 import { DailyQuestion, QuestionState, DailyQuestionApiResponse, AnswerApiResponse } from '../types/question';
 import { Chat, ChatsListApiResponse, CreateChatApiResponse } from '../types/chat';
+import { MemoryProfile, MemoryProfileApiResponse } from '../types/memory';
 import { OasisScreenNavigationProp } from '../types/navigation';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Storage key for memory section collapse state
+const MEMORY_COLLAPSED_KEY = 'oasis_memory_collapsed';
 
 // Constants
 const MAX_CHARS = 2100;
@@ -58,6 +72,15 @@ const OasisHomeScreen: React.FC = () => {
   // SHARED STATE
   // ============================================
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // ============================================
+  // MEMORY PROFILE STATE MANAGEMENT
+  // ============================================
+  const [memoryProfile, setMemoryProfile] = useState<MemoryProfile | null>(null);
+  const [isLoadingMemory, setIsLoadingMemory] = useState<boolean>(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [isMemoryCollapsed, setIsMemoryCollapsed] = useState<boolean>(false);
+  const memoryHeightAnim = useRef(new Animated.Value(1)).current;
 
   // ============================================
   // QUESTION API CALLS
@@ -155,6 +178,10 @@ const OasisHomeScreen: React.FC = () => {
         setAnswerText('');
         setQuestionState('answered');
         console.log('[OasisHomeScreen] Answer saved successfully');
+
+        // Refresh memory profile to show updated insights
+        console.log('[OasisHomeScreen] Refreshing memory profile after answer...');
+        fetchMemoryProfile();
       } else {
         throw new Error('Failed to submit answer');
       }
@@ -296,6 +323,83 @@ const OasisHomeScreen: React.FC = () => {
     });
   };
 
+  // ============================================
+  // MEMORY PROFILE API CALLS
+  // ============================================
+
+  const fetchMemoryProfile = useCallback(async () => {
+    try {
+      setIsLoadingMemory(true);
+      setMemoryError(null);
+
+      console.log('[OasisHomeScreen] Fetching memory profile...');
+      const response = await api.get<MemoryProfileApiResponse>('/api/memory/profile');
+
+      if (response.data.success && response.data.data) {
+        const profile = response.data.data;
+        setMemoryProfile(profile);
+
+        const valuesCount = profile.core_values?.length || 0;
+        const beliefsCount = Object.keys(profile.beliefs || {}).length;
+        const interestsCount = Object.keys(profile.interests || {}).length;
+
+        if (valuesCount === 0 && beliefsCount === 0 && interestsCount === 0) {
+          console.log('[OasisHomeScreen] Memory profile is empty');
+        } else {
+          console.log(`[OasisHomeScreen] Memory profile loaded: ${valuesCount} values, ${beliefsCount} beliefs, ${interestsCount} interests`);
+        }
+      } else {
+        // Empty profile case - set to empty profile
+        console.log('[OasisHomeScreen] Memory profile is empty');
+        setMemoryProfile(null);
+      }
+    } catch (error: any) {
+      console.error('[OasisHomeScreen] Memory fetch error:', error);
+      const message = error.response?.data?.error?.message
+        || error.message
+        || 'Unable to load insights.';
+      setMemoryError(message);
+    } finally {
+      setIsLoadingMemory(false);
+    }
+  }, []);
+
+  const loadMemoryCollapseState = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(MEMORY_COLLAPSED_KEY);
+      if (stored !== null) {
+        const collapsed = stored === 'true';
+        setIsMemoryCollapsed(collapsed);
+        memoryHeightAnim.setValue(collapsed ? 0 : 1);
+      }
+    } catch (error) {
+      console.error('[OasisHomeScreen] Error loading memory collapse state:', error);
+    }
+  }, [memoryHeightAnim]);
+
+  const toggleMemoryCollapse = async () => {
+    const newCollapsed = !isMemoryCollapsed;
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsMemoryCollapsed(newCollapsed);
+
+    Animated.timing(memoryHeightAnim, {
+      toValue: newCollapsed ? 0 : 1,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+
+    try {
+      await AsyncStorage.setItem(MEMORY_COLLAPSED_KEY, newCollapsed.toString());
+    } catch (error) {
+      console.error('[OasisHomeScreen] Error saving memory collapse state:', error);
+    }
+  };
+
+  const handleMemoryRetry = () => {
+    fetchMemoryProfile();
+  };
+
   const handleDiscussWithOasis = async () => {
     // Create a new chat to discuss the answered question
     if (!question || !submittedAnswer) {
@@ -355,14 +459,17 @@ const OasisHomeScreen: React.FC = () => {
   useEffect(() => {
     fetchDailyQuestion();
     fetchChats();
-  }, [fetchDailyQuestion, fetchChats]);
+    fetchMemoryProfile();
+    loadMemoryCollapseState();
+  }, [fetchDailyQuestion, fetchChats, fetchMemoryProfile, loadMemoryCollapseState]);
 
-  // Refresh chats when screen comes into focus (returning from ChatScreen)
+  // Refresh chats and memory when screen comes into focus (returning from ChatScreen)
   useFocusEffect(
     useCallback(() => {
-      console.log('[OasisHomeScreen] Screen focused, refreshing chats...');
+      console.log('[OasisHomeScreen] Screen focused, refreshing chats and memory...');
       fetchChats();
-    }, [fetchChats])
+      fetchMemoryProfile();
+    }, [fetchChats, fetchMemoryProfile])
   );
 
   // ============================================
@@ -382,6 +489,7 @@ const OasisHomeScreen: React.FC = () => {
     await Promise.all([
       fetchDailyQuestion(true),
       fetchChats(),
+      fetchMemoryProfile(),
     ]);
     setIsRefreshing(false);
   };
@@ -640,6 +748,178 @@ const OasisHomeScreen: React.FC = () => {
   };
 
   // ============================================
+  // MEMORY PROFILE RENDER HELPERS
+  // ============================================
+
+  const hasMemoryData = () => {
+    if (!memoryProfile) return false;
+    const valuesCount = memoryProfile.core_values?.length || 0;
+    const beliefsCount = Object.keys(memoryProfile.beliefs || {}).length;
+    const interestsCount = Object.keys(memoryProfile.interests || {}).length;
+    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0;
+  };
+
+  const renderMemoryLoading = () => (
+    <View style={styles.memoryCenterContainer}>
+      <ActivityIndicator size="small" color="#007AFF" />
+      <Text style={styles.memoryLoadingText}>Loading insights...</Text>
+    </View>
+  );
+
+  const renderMemoryError = () => (
+    <View style={styles.memoryCenterContainer}>
+      <Text style={styles.memoryErrorText}>{memoryError}</Text>
+      <TouchableOpacity style={styles.memoryRetryButton} onPress={handleMemoryRetry}>
+        <Text style={styles.memoryRetryButtonText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderMemoryEmpty = () => (
+    <View style={styles.memoryEmptyContainer}>
+      <Text style={styles.memoryEmptyIcon}>📝</Text>
+      <Text style={styles.memoryEmptyTitle}>No insights yet</Text>
+      <Text style={styles.memoryEmptyText}>
+        Answer questions above to help Oasis learn about you!{'\n'}
+        Your answers help Oasis understand your values, beliefs, and interests.
+      </Text>
+    </View>
+  );
+
+  const renderCoreValues = () => {
+    const values = memoryProfile?.core_values || [];
+    if (values.length === 0) return null;
+
+    const displayValues = values.slice(0, 5);
+    const remaining = values.length - 5;
+
+    return (
+      <View style={styles.memorySubsection}>
+        <Text style={styles.memorySubsectionTitle}>Core Values</Text>
+        {displayValues.map((value, index) => (
+          <Text key={index} style={styles.memoryBulletItem}>• {value}</Text>
+        ))}
+        {remaining > 0 && (
+          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderBeliefs = () => {
+    const beliefs = memoryProfile?.beliefs || {};
+    const beliefEntries = Object.entries(beliefs);
+    if (beliefEntries.length === 0) return null;
+
+    const displayBeliefs = beliefEntries.slice(0, 5);
+    const remaining = beliefEntries.length - 5;
+
+    return (
+      <View style={styles.memorySubsection}>
+        <Text style={styles.memorySubsectionTitle}>Key Beliefs</Text>
+        {displayBeliefs.map(([category, belief], index) => (
+          <Text key={index} style={styles.memoryBulletItem}>
+            • {category}: {typeof belief === 'string' ? belief : JSON.stringify(belief)}
+          </Text>
+        ))}
+        {remaining > 0 && (
+          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderInterests = () => {
+    const interests = memoryProfile?.interests || {};
+    const interestEntries = Object.entries(interests);
+    if (interestEntries.length === 0) return null;
+
+    // Sort by confidence score (descending)
+    const sortedInterests = interestEntries.sort(([, a], [, b]) => b - a);
+    const displayInterests = sortedInterests.slice(0, 5);
+    const remaining = sortedInterests.length - 5;
+
+    return (
+      <View style={styles.memorySubsection}>
+        <Text style={styles.memorySubsectionTitle}>Top Interests</Text>
+        {displayInterests.map(([interest], index) => (
+          <Text key={index} style={styles.memoryBulletItem}>• {interest}</Text>
+        ))}
+        {remaining > 0 && (
+          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderMemoryStats = () => {
+    if (!memoryProfile) return null;
+
+    const questionsAnswered = memoryProfile.questions_answered || 0;
+    const completeness = Math.round((memoryProfile.profile_completeness || 0) * 100);
+
+    return (
+      <View style={styles.memoryStatsContainer}>
+        <Text style={styles.memoryStatsText}>
+          Based on {questionsAnswered} answered question{questionsAnswered !== 1 ? 's' : ''}
+        </Text>
+        <Text style={styles.memoryStatsText}>
+          Profile: {completeness}% complete
+        </Text>
+      </View>
+    );
+  };
+
+  const renderMemoryData = () => (
+    <View style={styles.memoryDataCard}>
+      <View style={styles.memorySourceHeader}>
+        <Text style={styles.memorySourceIcon}>📋</Text>
+        <Text style={styles.memorySourceTitle}>From Questions</Text>
+      </View>
+      {renderCoreValues()}
+      {renderBeliefs()}
+      {renderInterests()}
+      {renderMemoryStats()}
+    </View>
+  );
+
+  const renderMemoryContent = () => {
+    if (isLoadingMemory && !memoryProfile) {
+      return renderMemoryLoading();
+    }
+    if (memoryError && !memoryProfile) {
+      return renderMemoryError();
+    }
+    if (!hasMemoryData()) {
+      return renderMemoryEmpty();
+    }
+    return renderMemoryData();
+  };
+
+  const renderMemorySection = () => (
+    <View style={styles.memorySection}>
+      <TouchableOpacity
+        style={styles.memorySectionHeader}
+        onPress={toggleMemoryCollapse}
+        activeOpacity={0.7}
+      >
+        <View style={styles.memorySectionHeaderLeft}>
+          <Text style={styles.memorySectionIcon}>🧠</Text>
+          <Text style={styles.memorySectionTitle}>What Oasis Knows About You</Text>
+        </View>
+        <Text style={styles.memorySectionArrow}>
+          {isMemoryCollapsed ? '▶' : '▼'}
+        </Text>
+      </TouchableOpacity>
+      {!isMemoryCollapsed && (
+        <View style={styles.memoryContentContainer}>
+          {renderMemoryContent()}
+        </View>
+      )}
+    </View>
+  );
+
+  // ============================================
   // MAIN RENDER
   // ============================================
 
@@ -688,12 +968,8 @@ const OasisHomeScreen: React.FC = () => {
           {renderChatsContent()}
         </View>
 
-        {/* Placeholder for Memory Section */}
-        <View style={styles.placeholderSection}>
-          <Text style={styles.placeholderText}>
-            Memory section coming soon...
-          </Text>
-        </View>
+        {/* Memory Section */}
+        {renderMemorySection()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1093,22 +1369,148 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
 
-  // Placeholder Section
-  placeholderSection: {
+  // Memory Section
+  memorySection: {
     marginTop: 32,
-    marginHorizontal: 16,
-    padding: 40,
+    paddingHorizontal: 16,
+  },
+  memorySectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f0e6ff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  memorySectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memorySectionIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  memorySectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  memorySectionArrow: {
+    fontSize: 12,
+    color: '#666',
+  },
+  memoryContentContainer: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#ddd',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    overflow: 'hidden',
   },
-  placeholderText: {
+  memoryCenterContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  memoryLoadingText: {
+    marginTop: 8,
     fontSize: 14,
-    color: '#999',
+    color: '#666',
+  },
+  memoryErrorText: {
+    fontSize: 14,
+    color: '#666',
     textAlign: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 20,
+  },
+  memoryRetryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  memoryRetryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  memoryEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  memoryEmptyIcon: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  memoryEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  memoryEmptyText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  memoryDataCard: {
+    padding: 16,
+  },
+  memorySourceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  memorySourceIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  memorySourceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  memorySubsection: {
+    marginBottom: 16,
+  },
+  memorySubsectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  memoryBulletItem: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 22,
+    paddingLeft: 4,
+  },
+  memoryMoreText: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
+    paddingLeft: 4,
+    marginTop: 4,
+  },
+  memoryStatsContainer: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  memoryStatsText: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 4,
   },
 });
 

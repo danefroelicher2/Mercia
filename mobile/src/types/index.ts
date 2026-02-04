@@ -9,6 +9,9 @@ export * from './chat';
 // Re-export navigation types
 export * from './navigation';
 
+// Re-export memory types
+export * from './memory';
+
 export interface User {
   id: string;
   email: string;
