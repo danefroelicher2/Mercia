@@ -743,7 +743,8 @@ const OasisHomeScreen: React.FC = () => {
     const valuesCount = memoryProfile.core_values?.length || 0;
     const beliefsCount = Object.keys(memoryProfile.beliefs || {}).length;
     const interestsCount = Object.keys(memoryProfile.interests || {}).length;
-    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0;
+    const hasConversationInsights = (memoryProfile.chat_extractions_count || 0) > 0;
+    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0 || hasConversationInsights;
   };
 
   const renderMemoryLoading = () => (
@@ -837,27 +838,107 @@ const OasisHomeScreen: React.FC = () => {
     );
   };
 
+  const getProgressHint = (profile: MemoryProfile): string => {
+    const questionsNeeded = Math.max(0, 20 - profile.questions_answered);
+    const chatsNeeded = Math.max(0, 50 - (profile.chat_messages_analyzed || 0));
+    const extractionsNeeded = Math.max(0, 10 - (profile.chat_extractions_count || 0));
+
+    const hints: string[] = [];
+
+    if (questionsNeeded > 0) {
+      hints.push(`${questionsNeeded} more question${questionsNeeded === 1 ? '' : 's'}`);
+    }
+
+    if (extractionsNeeded > 0 && (profile.chat_extractions_count || 0) > 0) {
+      hints.push(`${extractionsNeeded} more conversation extraction${extractionsNeeded === 1 ? '' : 's'}`);
+    } else if (extractionsNeeded > 0) {
+      hints.push('keep chatting for deeper insights');
+    }
+
+    if (hints.length === 0) return '';
+    return hints.join(' and ') + ' to reach 100%';
+  };
+
   const renderMemoryStats = () => {
     if (!memoryProfile) return null;
 
     const questionsAnswered = memoryProfile.questions_answered || 0;
+    const chatExtractions = memoryProfile.chat_extractions_count || 0;
     const completeness = Math.round((memoryProfile.profile_completeness || 0) * 100);
+    const progressHint = getProgressHint(memoryProfile);
 
     return (
-      <Text style={styles.memoryStatsText}>
-        Based on {questionsAnswered} question{questionsAnswered !== 1 ? 's' : ''} • {completeness}% complete
-      </Text>
+      <View style={styles.memoryStatsContainer}>
+        <Text style={styles.memoryStatsText}>
+          Based on {questionsAnswered} question{questionsAnswered !== 1 ? 's' : ''} answered
+          {chatExtractions > 0 && ` \u2022 ${chatExtractions} conversation${chatExtractions !== 1 ? 's' : ''} analyzed`}
+          {'\n'}
+          Profile: {completeness}% complete
+        </Text>
+        {memoryProfile.profile_completeness < 1.0 && progressHint.length > 0 && (
+          <Text style={styles.memoryProgressHint}>
+            {progressHint}
+          </Text>
+        )}
+      </View>
     );
   };
 
-  const renderMemoryData = () => (
-    <View style={styles.memoryDataContainer}>
-      {renderCoreValues()}
-      {renderBeliefs()}
-      {renderInterests()}
-      {renderMemoryStats()}
-    </View>
-  );
+  const renderConversationInsights = () => {
+    if (!memoryProfile) return null;
+    const chatExtractions = memoryProfile.chat_extractions_count || 0;
+    if (chatExtractions === 0) return null;
+
+    return (
+      <View style={styles.memoryInsightSection}>
+        <View style={styles.insightSectionHeader}>
+          <Text style={styles.insightSectionIcon}>💬</Text>
+          <Text style={styles.insightSectionTitle}>FROM CONVERSATIONS</Text>
+        </View>
+
+        <Text style={styles.conversationInsightsText}>
+          Analyzed {chatExtractions} conversation{chatExtractions !== 1 ? 's' : ''}
+        </Text>
+        <Text style={styles.conversationInsightsHint}>
+          Insights from your chats are merged into the profile above
+        </Text>
+      </View>
+    );
+  };
+
+  const renderMemoryData = () => {
+    if (!memoryProfile) return null;
+
+    const hasQuestionInsights = (
+      (memoryProfile.core_values?.length || 0) > 0 ||
+      Object.keys(memoryProfile.beliefs || {}).length > 0 ||
+      Object.keys(memoryProfile.interests || {}).length > 0
+    );
+    const hasConversationInsights = (memoryProfile.chat_extractions_count || 0) > 0;
+
+    return (
+      <View style={styles.memoryDataContainer}>
+        {/* Section 1: From Questions */}
+        {hasQuestionInsights && (
+          <View style={styles.memoryInsightSection}>
+            <View style={styles.insightSectionHeader}>
+              <Text style={styles.insightSectionIcon}>📋</Text>
+              <Text style={styles.insightSectionTitle}>FROM QUESTIONS</Text>
+            </View>
+            {renderCoreValues()}
+            {renderBeliefs()}
+            {renderInterests()}
+          </View>
+        )}
+
+        {/* Section 2: From Conversations */}
+        {hasConversationInsights && renderConversationInsights()}
+
+        {/* Stats Footer */}
+        {renderMemoryStats()}
+      </View>
+    );
+  };
 
   const renderMemoryContent = () => {
     if (isLoadingMemory && !memoryProfile) {
@@ -1306,10 +1387,48 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.smallGap,
     marginTop: 4,
   },
+  memoryInsightSection: {
+    marginBottom: spacing.sectionGap,
+  },
+  insightSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.elementGap,
+    gap: 8,
+  },
+  insightSectionIcon: {
+    fontSize: 16,
+  },
+  insightSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  conversationInsightsText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  conversationInsightsHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+  },
+  memoryStatsContainer: {
+    marginTop: spacing.smallGap,
+  },
   memoryStatsText: {
     ...typography.timestamp,
     textAlign: 'center',
     marginTop: spacing.sectionGap,
+  },
+  memoryProgressHint: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 

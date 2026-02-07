@@ -15,6 +15,9 @@ export interface MemoryProfile {
   // Metadata
   profile_completeness: number; // 0.0 to 1.0
   questions_answered: number;
+  chat_messages_analyzed: number;        // For future chat extraction (Phase 2B)
+  chat_extractions_count: number;        // Number of times chat insights extracted (Phase 2B)
+  insights_metadata: any[];              // Insight objects with scoring data for weighted eviction
   total_interactions: number;
   last_updated: Date;
   created_at: Date;

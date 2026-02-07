@@ -9,6 +9,10 @@ import authRoutes from './routes/auth';
 import questionRoutes from './routes/questions';
 import memoryRoutes from './routes/memory';
 import chatRoutes from './routes/chat';
+import extractionRoutes from './routes/extraction';
+
+// Import jobs
+import { startExtractionCronJob } from './jobs/extractionJob';
 
 // Load environment variables
 dotenv.config();
@@ -40,6 +44,7 @@ app.get('/api', (req: Request, res: Response) => {
       questions: '/api/questions/*',
       memory: '/api/memory/*',
       chat: '/api/chat/*',
+      extraction: '/api/extraction/*',
     },
   });
 });
@@ -49,6 +54,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/memory', memoryRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/extraction', extractionRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -58,6 +64,10 @@ async function startServer() {
   try {
     // Initialize Oasis AI Core
     initializeOasisCore();
+
+    // Start cron job for daily chat extraction
+    startExtractionCronJob();
+    console.log('  Chat extraction cron job started (runs at 3:00 AM daily)');
 
     app.listen(PORT, () => {
       console.log(`\n  Oasis AI Backend running on port ${PORT}`);
@@ -78,7 +88,8 @@ async function startServer() {
       console.log(`   POST /api/chat/new`);
       console.log(`   GET  /api/chat/list`);
       console.log(`   GET  /api/chat/:chatId/messages`);
-      console.log(`   POST /api/chat/message\n`);
+      console.log(`   POST /api/chat/message`);
+      console.log(`   POST /api/extraction/trigger\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

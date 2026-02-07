@@ -5,6 +5,7 @@
 export { QuestionEngine } from './core/QuestionEngine';
 export { MemoryManager } from './core/MemoryManager';
 export { ContextBuilder } from './core/ContextBuilder';
+export { ChatExtractor } from './core/ChatExtractor';
 
 // Adapters
 export * from './adapters/storage';

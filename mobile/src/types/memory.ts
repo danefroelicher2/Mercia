@@ -24,6 +24,9 @@ export interface MemoryProfile {
   supporting_quotes: SupportingQuote[];
   profile_completeness: number;
   questions_answered: number;
+  chat_messages_analyzed: number;
+  chat_extractions_count: number;
+  insights_metadata: any[];
   total_interactions: number;
   last_updated: string;
   created_at: string;

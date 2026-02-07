@@ -14,6 +14,38 @@ export class MemoryManager {
   ) {}
 
   /**
+   * Calculate profile completeness based on multiple factors
+   *
+   * 100% requires:
+   * - 20+ questions answered (50% weight)
+   * - 50+ chat messages analyzed (30% weight)
+   * - 10+ chat extraction cycles (20% weight)
+   *
+   * Note: Chat analysis is placeholder for Phase 2B
+   */
+  private calculateCompleteness(profile: MemoryProfile): number {
+    // Question completeness (0-1.0, max at 20 questions)
+    const questionScore = Math.min(profile.questions_answered / 20, 1.0);
+
+    // Chat analysis completeness (0-1.0, max at 50 messages)
+    // Currently always 0 - will be populated in Phase 2B
+    const chatAnalysisScore = Math.min(profile.chat_messages_analyzed / 50, 1.0);
+
+    // Chat extraction completeness (0-1.0, max at 10 extractions)
+    // Currently always 0 - will be populated in Phase 2B
+    const extractionScore = Math.min(profile.chat_extractions_count / 10, 1.0);
+
+    // Weighted calculation
+    const completeness = (
+      questionScore * 0.50 +           // 50% from questions
+      chatAnalysisScore * 0.30 +       // 30% from chat analysis (future)
+      extractionScore * 0.20           // 20% from extraction cycles (future)
+    );
+
+    return Math.min(completeness, 1.0);
+  }
+
+  /**
    * Get user's current memory profile
    * Creates empty profile if doesn't exist
    */
@@ -30,6 +62,9 @@ export class MemoryManager {
         supporting_quotes: [],
         profile_completeness: 0,
         questions_answered: 0,
+        chat_messages_analyzed: 0,
+        chat_extractions_count: 0,
+        insights_metadata: [],
         total_interactions: 0,
       });
     }
@@ -110,6 +145,17 @@ export class MemoryManager {
 
     // Save updated profile
     await this.storage.updateMemoryProfile(userId, updates);
+
+    // Get updated profile after merging insights
+    const updatedProfile = await this.getProfile(userId);
+
+    // Recalculate completeness
+    const completeness = this.calculateCompleteness(updatedProfile);
+
+    // Update completeness in database
+    await this.storage.updateMemoryProfile(userId, {
+      profile_completeness: completeness,
+    });
 
     return await this.getProfile(userId);
   }
