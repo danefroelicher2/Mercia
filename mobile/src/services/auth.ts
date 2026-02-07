@@ -22,7 +22,7 @@ export const register = async (
   return { user, tokens };
 };
 
-// Login an existing userr
+// Login an existing user
 export const login = async (
   email: string,
   password: string
