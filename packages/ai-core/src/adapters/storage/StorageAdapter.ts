@@ -114,6 +114,21 @@ export interface StorageAdapter {
    */
   touchChat(chatId: string): Promise<void>;
 
+  /**
+   * Pin a chat (max 5 pinned chats per user)
+   */
+  pinChat(chatId: string): Promise<Chat>;
+
+  /**
+   * Unpin a chat
+   */
+  unpinChat(chatId: string): Promise<Chat>;
+
+  /**
+   * Delete a chat and all its messages
+   */
+  deleteChat(chatId: string, userId: string): Promise<void>;
+
   // ============================================
   // UTILITY
   // ============================================

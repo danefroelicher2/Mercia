@@ -172,4 +172,92 @@ router.post(
   }
 );
 
+/**
+ * POST /api/chat/:chatId/pin
+ * Pin a chat (max 5 pinned)
+ */
+router.post('/:chatId/pin', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { chatId } = req.params;
+
+    const storage = getStorage();
+
+    // Check how many chats are already pinned
+    const allChats = await storage.getUserChats(userId);
+    const pinnedCount = allChats.filter(c => c.pinned).length;
+
+    if (pinnedCount >= 5) {
+      res.status(400).json({
+        success: false,
+        error: 'Maximum 5 conversations can be pinned. Unpin one first.',
+      });
+      return;
+    }
+
+    // Pin the chat
+    const updatedChat = await storage.pinChat(chatId);
+    console.log(`[Chat] Pinned chat: ${chatId}`);
+
+    res.json({
+      success: true,
+      data: updatedChat,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/chat/:chatId/unpin
+ * Unpin a chat
+ */
+router.post('/:chatId/unpin', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { chatId } = req.params;
+    const storage = getStorage();
+
+    const updatedChat = await storage.unpinChat(chatId);
+    console.log(`[Chat] Unpinned chat: ${chatId}`);
+
+    res.json({
+      success: true,
+      data: updatedChat,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * DELETE /api/chat/:chatId
+ * Delete a chat and all its messages
+ */
+router.delete('/:chatId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { chatId } = req.params;
+
+    const storage = getStorage();
+    await storage.deleteChat(chatId, userId);
+    console.log(`[Chat] Deleted chat: ${chatId}`);
+
+    res.json({
+      success: true,
+      message: 'Chat deleted successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export default router;

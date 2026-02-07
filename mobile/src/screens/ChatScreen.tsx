@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,11 @@ import {
   Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import api from '../services/api';
 import { formatMessageTime } from '../utils/dateUtils';
 import { ChatMessage, ChatMessagesApiResponse, SendMessageApiResponse } from '../types/chat';
-import { ChatScreenRouteProp } from '../types/navigation';
+import { ChatScreenRouteProp, ChatScreenNavigationProp } from '../types/navigation';
 
 // Constants
 const MAX_INPUT_CHARS = 1000;
@@ -32,9 +32,10 @@ interface DisplayMessage extends ChatMessage {
 
 const ChatScreen: React.FC = () => {
   // ============================================
-  // ROUTE PARAMS
+  // ROUTE PARAMS & NAVIGATION
   // ============================================
   const route = useRoute<ChatScreenRouteProp>();
+  const navigation = useNavigation<ChatScreenNavigationProp>();
   const { chatId, chat, isFromQuestion, questionContext } = route.params;
 
   // ============================================
@@ -54,6 +55,7 @@ const ChatScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingMessageText, setPendingMessageText] = useState<string | null>(null);
+  const [isPinned, setIsPinned] = useState(chat.pinned || false);
 
   // Animation for thinking indicator
   const [thinkingDot1] = useState(new Animated.Value(0.3));
@@ -61,6 +63,102 @@ const ChatScreen: React.FC = () => {
   const [thinkingDot3] = useState(new Animated.Value(0.3));
 
   console.log('[ChatScreen] Chat ID:', chatId);
+
+  // ============================================
+  // PIN/DELETE HANDLERS
+  // ============================================
+
+  const handleTogglePin = async () => {
+    try {
+      if (isPinned) {
+        // Unpin
+        const response = await api.post(`/api/chat/${chatId}/unpin`);
+        if (response.data.success) {
+          setIsPinned(false);
+          console.log('[ChatScreen] Chat unpinned');
+        }
+      } else {
+        // Pin
+        const response = await api.post(`/api/chat/${chatId}/pin`);
+        if (response.data.success) {
+          setIsPinned(true);
+          console.log('[ChatScreen] Chat pinned');
+        } else {
+          // Max pins reached
+          Alert.alert(
+            'Maximum Pins Reached',
+            'You can only pin up to 5 conversations. Unpin one to pin this chat.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error('[ChatScreen] Error toggling pin:', error);
+      // Check if it's the max pins error
+      if (error.response?.status === 400) {
+        Alert.alert(
+          'Maximum Pins Reached',
+          'You can only pin up to 5 conversations. Unpin one to pin this chat.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to update pin status. Please try again.');
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Conversation',
+      'This conversation will be permanently deleted. This cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await api.delete(`/api/chat/${chatId}`);
+              if (response.data.success) {
+                console.log('[ChatScreen] Chat deleted');
+                navigation.goBack();
+              }
+            } catch (error) {
+              console.error('[ChatScreen] Error deleting chat:', error);
+              Alert.alert('Error', 'Failed to delete conversation. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ============================================
+  // HEADER SETUP
+  // ============================================
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: chat.title || 'Chat',
+      headerRight: () => (
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={handleTogglePin} style={styles.headerButton}>
+            <Text style={styles.headerButtonIcon}>
+              {isPinned ? '📌' : '📍'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
+            <Text style={[styles.headerButtonIcon, styles.deleteIcon]}>
+              🗑️
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, chat.title, isPinned]);
 
   // ============================================
   // THINKING ANIMATION
@@ -451,6 +549,23 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
+  },
+
+  // Header Buttons
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginRight: 8,
+  },
+  headerButton: {
+    padding: 4,
+  },
+  headerButtonIcon: {
+    fontSize: 20,
+  },
+  deleteIcon: {
+    color: '#FF4444',
   },
   messagesContainer: {
     flex: 1,

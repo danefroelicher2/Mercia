@@ -310,7 +310,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .from('chats')
       .select('*')
       .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
+      .order('pinned', { ascending: false })  // Pinned first
+      .order('updated_at', { ascending: false })  // Then by recent
       .limit(limit);
 
     if (error) {
@@ -369,6 +370,65 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .from('chats')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', chatId);
+  }
+
+  async pinChat(chatId: string): Promise<Chat> {
+    const { data, error } = await this.client
+      .from('chats')
+      .update({
+        pinned: true,
+        pinned_at: new Date().toISOString(),
+      })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to pin chat: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async unpinChat(chatId: string): Promise<Chat> {
+    const { data, error } = await this.client
+      .from('chats')
+      .update({
+        pinned: false,
+        pinned_at: null,
+      })
+      .eq('id', chatId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to unpin chat: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async deleteChat(chatId: string, userId: string): Promise<void> {
+    // First delete all messages
+    const { error: messagesError } = await this.client
+      .from('chat_messages')
+      .delete()
+      .eq('chat_id', chatId);
+
+    if (messagesError) {
+      throw new Error(`Failed to delete messages: ${messagesError.message}`);
+    }
+
+    // Then delete the chat
+    const { error: chatError } = await this.client
+      .from('chats')
+      .delete()
+      .eq('id', chatId)
+      .eq('user_id', userId);  // Security: only delete own chats
+
+    if (chatError) {
+      throw new Error(`Failed to delete chat: ${chatError.message}`);
+    }
   }
 
   // ============================================

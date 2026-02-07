@@ -665,9 +665,12 @@ const OasisHomeScreen: React.FC = () => {
     >
       <View style={styles.chatItemContent}>
         <View style={styles.chatItemTextContainer}>
-          <Text style={styles.chatItemTitle} numberOfLines={1}>
-            {chat.title || 'Untitled Chat'}
-          </Text>
+          <View style={styles.chatItemTitleRow}>
+            {chat.pinned && <Text style={styles.pinIcon}>📌</Text>}
+            <Text style={styles.chatItemTitle} numberOfLines={1}>
+              {chat.title || 'Untitled Chat'}
+            </Text>
+          </View>
           <Text style={styles.chatItemTime}>
             {formatRelativeTime(chat.updated_at)}
           </Text>
@@ -1189,11 +1192,20 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: spacing.elementGap,
   },
+  chatItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  pinIcon: {
+    fontSize: 14,
+  },
   chatItemTitle: {
     fontSize: 15,
     fontWeight: '500',
     color: colors.textPrimary,
-    marginBottom: 4,
+    flex: 1,
   },
   chatItemTime: {
     ...typography.timestamp,

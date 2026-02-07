@@ -6,6 +6,8 @@ export interface Chat {
   title: string;
   chat_type: 'question' | 'general';
   linked_question_id: string | null;
+  pinned: boolean;
+  pinned_at: string | null;
   created_at: string;
   updated_at: string;
 }
