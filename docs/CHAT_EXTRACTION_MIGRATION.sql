@@ -2,7 +2,7 @@
 -- Creates tables to track extraction history and batch job logs
 
 -- ============================================
--- CHAT EXTRACTION SYSTEM - DATABASE SCHEMAa
+-- CHAT EXTRACTION SYSTEM - DATABASE SCHEMA
 -- ============================================
 
 -- Add chat extraction tracking to memory profiles
