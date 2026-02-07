@@ -25,6 +25,7 @@ import { DailyQuestion, QuestionState, DailyQuestionApiResponse, AnswerApiRespon
 import { Chat, ChatsListApiResponse, CreateChatApiResponse } from '../types/chat';
 import { MemoryProfile, MemoryProfileApiResponse } from '../types/memory';
 import { OasisScreenNavigationProp } from '../types/navigation';
+import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -289,7 +290,7 @@ const OasisHomeScreen: React.FC = () => {
       console.log('[OasisHomeScreen] Creating new general chat...');
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: 'New Chat',
-        chatType: 'general', // Explicitly mark as general chat
+        chatType: 'general',
       });
       console.log('[OasisHomeScreen] New chat created:', response.data);
 
@@ -300,7 +301,6 @@ const OasisHomeScreen: React.FC = () => {
           chatId: newChat.id,
           chat: newChat,
         });
-        // Refresh chat list after navigation (will happen on focus)
       } else {
         throw new Error('Failed to create chat');
       }
@@ -349,7 +349,6 @@ const OasisHomeScreen: React.FC = () => {
           console.log(`[OasisHomeScreen] Memory profile loaded: ${valuesCount} values, ${beliefsCount} beliefs, ${interestsCount} interests`);
         }
       } else {
-        // Empty profile case - set to empty profile
         console.log('[OasisHomeScreen] Memory profile is empty');
         setMemoryProfile(null);
       }
@@ -401,7 +400,6 @@ const OasisHomeScreen: React.FC = () => {
   };
 
   const handleDiscussWithOasis = async () => {
-    // Create a new chat to discuss the answered question
     if (!question || !submittedAnswer) {
       Alert.alert('Error', 'No question or answer to discuss');
       return;
@@ -410,7 +408,6 @@ const OasisHomeScreen: React.FC = () => {
     try {
       setIsCreatingChat(true);
 
-      // Create chat with title based on question
       const chatTitle = question.question_text.length > 50
         ? `Q: ${question.question_text.substring(0, 44)}...`
         : `Q: ${question.question_text}`;
@@ -418,15 +415,14 @@ const OasisHomeScreen: React.FC = () => {
       console.log('[OasisHomeScreen] Creating question chat for:', question.question_id);
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: chatTitle,
-        chatType: 'question',                    // Mark as question-based chat
-        linkedQuestionId: question.question_id,  // Link to source question
+        chatType: 'question',
+        linkedQuestionId: question.question_id,
       });
 
       if (response.data.success && response.data.data) {
         const newChat = response.data.data;
         console.log(`[OasisHomeScreen] Question chat created: ${newChat.id} (type: ${newChat.chat_type}, linked: ${newChat.linked_question_id})`);
 
-        // Navigate with question context - this will auto-trigger AI response
         navigation.navigate('ChatScreen', {
           chatId: newChat.id,
           chat: newChat,
@@ -455,7 +451,6 @@ const OasisHomeScreen: React.FC = () => {
   // EFFECTS
   // ============================================
 
-  // Initial load
   useEffect(() => {
     fetchDailyQuestion();
     fetchChats();
@@ -463,7 +458,6 @@ const OasisHomeScreen: React.FC = () => {
     loadMemoryCollapseState();
   }, [fetchDailyQuestion, fetchChats, fetchMemoryProfile, loadMemoryCollapseState]);
 
-  // Refresh chats and memory when screen comes into focus (returning from ChatScreen)
   useFocusEffect(
     useCallback(() => {
       console.log('[OasisHomeScreen] Screen focused, refreshing chats and memory...');
@@ -510,56 +504,47 @@ const OasisHomeScreen: React.FC = () => {
   // ============================================
 
   const renderQuestionLoading = () => (
-    <View style={styles.centerContainer}>
-      <ActivityIndicator size="large" color="#007AFF" />
-      <Text style={styles.loadingText}>Loading today's question...</Text>
+    <View style={styles.questionCard}>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading today's question...</Text>
+      </View>
     </View>
   );
 
   const renderQuestionError = () => (
-    <View style={styles.centerContainer}>
-      <Text style={styles.errorIcon}>!</Text>
-      <Text style={styles.errorText}>{questionError}</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={handleQuestionRetry}>
-        <Text style={styles.retryButtonText}>Retry</Text>
-      </TouchableOpacity>
+    <View style={styles.questionCard}>
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorIcon}>!</Text>
+        <Text style={styles.errorText}>{questionError}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleQuestionRetry}>
+          <Text style={styles.primaryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   const renderAllDone = () => (
     <View style={styles.questionCard}>
-      <Text style={styles.allDoneEmoji}>🎉</Text>
-      <Text style={styles.allDoneTitle}>All Caught Up!</Text>
-      <Text style={styles.allDoneText}>
-        You've answered all available questions! Check back tomorrow for new questions.
-      </Text>
-    </View>
-  );
-
-  const renderQuestionCard = (isGrayedOut: boolean) => (
-    <View style={[styles.questionCard, isGrayedOut && styles.grayedOut]}>
-      <Text style={styles.questionLabel}>Today's Question</Text>
-      <View style={styles.questionTextContainer}>
-        <Text style={[styles.questionText, isGrayedOut && styles.grayedOutText]}>
-          {question?.question_text}
-        </Text>
+      <Text style={styles.sectionLabel}>TODAY'S QUESTION</Text>
+      <View style={styles.allDoneContainer}>
+        <Text style={styles.allDoneEmoji}>🎉</Text>
+        <Text style={styles.allDoneTitle}>You've answered all available questions!</Text>
+        <Text style={styles.allDoneText}>Check back tomorrow for new questions.</Text>
       </View>
-      {question?.category && (
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{question.category}</Text>
-        </View>
-      )}
     </View>
   );
 
   const renderUnanswered = () => (
-    <>
-      {renderQuestionCard(false)}
+    <View style={styles.questionCard}>
+      <Text style={styles.sectionLabel}>TODAY'S QUESTION</Text>
+      <Text style={styles.questionText}>{question?.question_text}</Text>
+
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.textInput, isOverLimit && styles.textInputError]}
           placeholder="Share your thoughts..."
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textTertiary}
           multiline
           numberOfLines={6}
           textAlignVertical="top"
@@ -576,73 +561,73 @@ const OasisHomeScreen: React.FC = () => {
           </Text>
         )}
       </View>
-      <View style={styles.buttonContainer}>
+
+      <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={[styles.submitButton, !canSubmit && styles.buttonDisabled]}
+          style={[styles.primaryButton, styles.flexButton, !canSubmit && styles.buttonDisabled]}
           onPress={submitAnswer}
           disabled={!canSubmit}
         >
           {isSubmitting ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.submitButtonText}>Submit Answer</Text>
+            <Text style={styles.primaryButtonText}>Submit Answer</Text>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.skipButton, isSkipping && styles.buttonDisabled]}
+          style={[styles.secondaryButton, (isSubmitting || isSkipping) && styles.buttonDisabled]}
           onPress={skipQuestion}
           disabled={isSubmitting || isSkipping}
         >
           {isSkipping ? (
-            <ActivityIndicator size="small" color="#666" />
+            <ActivityIndicator size="small" color={colors.textSecondary} />
           ) : (
-            <Text style={styles.skipButtonText}>Skip</Text>
+            <Text style={styles.secondaryButtonText}>Skip</Text>
           )}
         </TouchableOpacity>
       </View>
+
       {questionError && (
         <Text style={styles.inlineError}>{questionError}</Text>
       )}
-    </>
+    </View>
   );
 
   const renderAnswered = () => (
-    <>
-      {renderQuestionCard(true)}
-      <View style={styles.submittedAnswerContainer}>
-        <Text style={styles.submittedLabel}>Your Answer</Text>
-        <View style={styles.submittedAnswerBox}>
-          <Text style={styles.submittedAnswerText}>{submittedAnswer}</Text>
-        </View>
+    <View style={styles.questionCard}>
+      <Text style={styles.sectionLabel}>TODAY'S QUESTION</Text>
+      <Text style={styles.questionText}>{question?.question_text}</Text>
+
+      <View style={styles.answeredBox}>
+        <Text style={styles.answeredText}>{submittedAnswer}</Text>
       </View>
-      <View style={styles.successContainer}>
-        <Text style={styles.successText}>
-          ✓ Thank you for answering today's question!
-        </Text>
+
+      <View style={styles.successRow}>
+        <Text style={styles.successText}>✓ Thank you for answering today's question!</Text>
       </View>
+
       <TouchableOpacity
-        style={[styles.discussButton, isCreatingChat && styles.buttonDisabled]}
+        style={[styles.primaryButton, styles.fullWidthButton, isCreatingChat && styles.buttonDisabled]}
         onPress={handleDiscussWithOasis}
         disabled={isCreatingChat}
       >
         {isCreatingChat ? (
-          <ActivityIndicator size="small" color="#007AFF" />
+          <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text style={styles.discussButtonText}>Discuss this with Oasis?</Text>
+          <Text style={styles.primaryButtonText}>Discuss with Oasis</Text>
         )}
       </TouchableOpacity>
-    </>
+    </View>
   );
 
   const renderSkipped = () => (
-    <>
-      {renderQuestionCard(true)}
-      <View style={styles.skippedContainer}>
-        <Text style={styles.skippedText}>
-          Question skipped. Come back tomorrow for a new question!
-        </Text>
-      </View>
-    </>
+    <View style={[styles.questionCard, styles.skippedCard]}>
+      <Text style={[styles.sectionLabel, styles.skippedLabel]}>TODAY'S QUESTION</Text>
+      <Text style={[styles.questionText, styles.skippedQuestionText]}>{question?.question_text}</Text>
+      <Text style={styles.skippedMessage}>
+        Question skipped. Come back tomorrow for a new question!
+      </Text>
+    </View>
   );
 
   const renderQuestionContent = () => {
@@ -668,16 +653,18 @@ const OasisHomeScreen: React.FC = () => {
   // CHAT LIST RENDER HELPERS
   // ============================================
 
-  const renderChatItem = (chat: Chat) => (
+  const renderChatItem = (chat: Chat, index: number) => (
     <TouchableOpacity
       key={chat.id}
-      style={styles.chatItem}
+      style={[
+        styles.chatItem,
+        index === displayedChats.length - 1 && styles.chatItemLast,
+      ]}
       onPress={() => handleChatPress(chat)}
       activeOpacity={0.7}
     >
       <View style={styles.chatItemContent}>
-        <Text style={styles.chatItemIcon}>💬</Text>
-        <View style={styles.chatItemText}>
+        <View style={styles.chatItemTextContainer}>
           <Text style={styles.chatItemTitle} numberOfLines={1}>
             {chat.title || 'Untitled Chat'}
           </Text>
@@ -685,14 +672,14 @@ const OasisHomeScreen: React.FC = () => {
             {formatRelativeTime(chat.updated_at)}
           </Text>
         </View>
-        <Text style={styles.chatItemArrow}>›</Text>
+        <Text style={styles.chatItemChevron}>→</Text>
       </View>
     </TouchableOpacity>
   );
 
   const renderChatsLoading = () => (
     <View style={styles.chatsCenterContainer}>
-      <ActivityIndicator size="small" color="#007AFF" />
+      <ActivityIndicator size="small" color={colors.primary} />
       <Text style={styles.chatsLoadingText}>Loading conversations...</Text>
     </View>
   );
@@ -700,8 +687,8 @@ const OasisHomeScreen: React.FC = () => {
   const renderChatsError = () => (
     <View style={styles.chatsCenterContainer}>
       <Text style={styles.chatsErrorText}>{chatsError}</Text>
-      <TouchableOpacity style={styles.chatsRetryButton} onPress={handleChatsRetry}>
-        <Text style={styles.chatsRetryButtonText}>Retry</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleChatsRetry}>
+        <Text style={styles.primaryButtonText}>Retry</Text>
       </TouchableOpacity>
     </View>
   );
@@ -711,7 +698,7 @@ const OasisHomeScreen: React.FC = () => {
       <Text style={styles.chatsEmptyIcon}>💬</Text>
       <Text style={styles.chatsEmptyTitle}>No conversations yet</Text>
       <Text style={styles.chatsEmptyText}>
-        Tap "+ New Chat" to start talking with Oasis,{'\n'}or answer today's question above!
+        Tap '+ New Chat' or answer a question above
       </Text>
     </View>
   );
@@ -719,13 +706,10 @@ const OasisHomeScreen: React.FC = () => {
   const renderChatsList = () => (
     <>
       <View style={styles.chatsList}>
-        {displayedChats.map(renderChatItem)}
+        {displayedChats.map((chat, index) => renderChatItem(chat, index))}
       </View>
       {hasMoreChats && (
-        <TouchableOpacity
-          style={styles.seeMoreButton}
-          onPress={handleSeeMore}
-        >
+        <TouchableOpacity style={styles.seeMoreButton} onPress={handleSeeMore}>
           <Text style={styles.seeMoreButtonText}>
             See More ({remainingChats} remaining)
           </Text>
@@ -761,7 +745,7 @@ const OasisHomeScreen: React.FC = () => {
 
   const renderMemoryLoading = () => (
     <View style={styles.memoryCenterContainer}>
-      <ActivityIndicator size="small" color="#007AFF" />
+      <ActivityIndicator size="small" color={colors.primary} />
       <Text style={styles.memoryLoadingText}>Loading insights...</Text>
     </View>
   );
@@ -769,19 +753,18 @@ const OasisHomeScreen: React.FC = () => {
   const renderMemoryError = () => (
     <View style={styles.memoryCenterContainer}>
       <Text style={styles.memoryErrorText}>{memoryError}</Text>
-      <TouchableOpacity style={styles.memoryRetryButton} onPress={handleMemoryRetry}>
-        <Text style={styles.memoryRetryButtonText}>Retry</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleMemoryRetry}>
+        <Text style={styles.primaryButtonText}>Retry</Text>
       </TouchableOpacity>
     </View>
   );
 
   const renderMemoryEmpty = () => (
     <View style={styles.memoryEmptyContainer}>
-      <Text style={styles.memoryEmptyIcon}>📝</Text>
+      <Text style={styles.memoryEmptyIcon}>🧠</Text>
       <Text style={styles.memoryEmptyTitle}>No insights yet</Text>
       <Text style={styles.memoryEmptyText}>
-        Answer questions above to help Oasis learn about you!{'\n'}
-        Your answers help Oasis understand your values, beliefs, and interests.
+        Answer questions above to help Oasis learn about you!
       </Text>
     </View>
   );
@@ -834,7 +817,6 @@ const OasisHomeScreen: React.FC = () => {
     const interestEntries = Object.entries(interests);
     if (interestEntries.length === 0) return null;
 
-    // Sort by confidence score (descending)
     const sortedInterests = interestEntries.sort(([, a], [, b]) => b - a);
     const displayInterests = sortedInterests.slice(0, 5);
     const remaining = sortedInterests.length - 5;
@@ -859,23 +841,14 @@ const OasisHomeScreen: React.FC = () => {
     const completeness = Math.round((memoryProfile.profile_completeness || 0) * 100);
 
     return (
-      <View style={styles.memoryStatsContainer}>
-        <Text style={styles.memoryStatsText}>
-          Based on {questionsAnswered} answered question{questionsAnswered !== 1 ? 's' : ''}
-        </Text>
-        <Text style={styles.memoryStatsText}>
-          Profile: {completeness}% complete
-        </Text>
-      </View>
+      <Text style={styles.memoryStatsText}>
+        Based on {questionsAnswered} question{questionsAnswered !== 1 ? 's' : ''} • {completeness}% complete
+      </Text>
     );
   };
 
   const renderMemoryData = () => (
-    <View style={styles.memoryDataCard}>
-      <View style={styles.memorySourceHeader}>
-        <Text style={styles.memorySourceIcon}>📋</Text>
-        <Text style={styles.memorySourceTitle}>From Questions</Text>
-      </View>
+    <View style={styles.memoryDataContainer}>
       {renderCoreValues()}
       {renderBeliefs()}
       {renderInterests()}
@@ -896,29 +869,6 @@ const OasisHomeScreen: React.FC = () => {
     return renderMemoryData();
   };
 
-  const renderMemorySection = () => (
-    <View style={styles.memorySection}>
-      <TouchableOpacity
-        style={styles.memorySectionHeader}
-        onPress={toggleMemoryCollapse}
-        activeOpacity={0.7}
-      >
-        <View style={styles.memorySectionHeaderLeft}>
-          <Text style={styles.memorySectionIcon}>🧠</Text>
-          <Text style={styles.memorySectionTitle}>What Oasis Knows About You</Text>
-        </View>
-        <Text style={styles.memorySectionArrow}>
-          {isMemoryCollapsed ? '▶' : '▼'}
-        </Text>
-      </TouchableOpacity>
-      {!isMemoryCollapsed && (
-        <View style={styles.memoryContentContainer}>
-          {renderMemoryContent()}
-        </View>
-      )}
-    </View>
-  );
-
   // ============================================
   // MAIN RENDER
   // ============================================
@@ -932,36 +882,30 @@ const OasisHomeScreen: React.FC = () => {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            colors={['#007AFF']}
-            tintColor="#007AFF"
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+            progressBackgroundColor="transparent"
           />
         }
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Oasis</Text>
-          <Text style={styles.headerSubtitle}>Daily Reflection</Text>
-        </View>
-
         {/* Question Section */}
-        <View style={styles.questionSection}>
-          {renderQuestionContent()}
-        </View>
+        {renderQuestionContent()}
 
-        {/* Chat List Section */}
-        <View style={styles.chatsSection}>
-          <View style={styles.chatsSectionHeader}>
-            <Text style={styles.chatsSectionTitle}>Conversations</Text>
+        {/* Conversations Section */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>CONVERSATIONS</Text>
             <TouchableOpacity
-              style={[styles.newChatButton, isCreatingChat && styles.buttonDisabled]}
               onPress={createNewChat}
               disabled={isCreatingChat}
+              style={isCreatingChat ? styles.buttonDisabled : undefined}
             >
               {isCreatingChat ? (
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={styles.newChatButtonText}>+ New Chat</Text>
+                <Text style={styles.newChatText}>+ New Chat</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -969,7 +913,26 @@ const OasisHomeScreen: React.FC = () => {
         </View>
 
         {/* Memory Section */}
-        {renderMemorySection()}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity
+            style={styles.memorySectionHeader}
+            onPress={toggleMemoryCollapse}
+            activeOpacity={0.8}
+          >
+            <View style={styles.memorySectionHeaderLeft}>
+              <Text style={styles.memorySectionIcon}>🧠</Text>
+              <Text style={styles.sectionLabel}>WHAT OASIS KNOWS ABOUT YOU</Text>
+            </View>
+            <Text style={styles.memorySectionArrow}>
+              {isMemoryCollapsed ? '▶' : '▼'}
+            </Text>
+          </TouchableOpacity>
+          {!isMemoryCollapsed && (
+            <View style={styles.memoryContentContainer}>
+              {renderMemoryContent()}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -980,537 +943,361 @@ const OasisHomeScreen: React.FC = () => {
 // ============================================
 
 const styles = StyleSheet.create({
+  // Container styles
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.screenBg,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: spacing.screenPadding,
+    gap: spacing.sectionGap,
   },
 
-  // Question Section
-  questionSection: {
-    paddingHorizontal: 16,
-    marginTop: 8,
+  // Card base style
+  sectionCard: {
+    ...cardStyle,
+    padding: spacing.cardPadding,
   },
-  centerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorIcon: {
-    fontSize: 48,
-    color: '#ff3b30',
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  retryButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  inlineError: {
-    color: '#ff3b30',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 12,
-  },
+
+  // Question card
   questionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  grayedOut: {
-    opacity: 0.6,
-  },
-  questionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#007AFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  questionTextContainer: {
-    marginBottom: 12,
-  },
-  questionText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#1a1a1a',
-    lineHeight: 28,
-  },
-  grayedOutText: {
-    color: '#666',
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  inputContainer: {
-    marginTop: 16,
-  },
-  textInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1a1a1a',
-    minHeight: 140,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    textAlignVertical: 'top',
-  },
-  textInputError: {
-    borderColor: '#ff3b30',
-  },
-  charCounter: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'right',
-    marginTop: 8,
-  },
-  charCounterError: {
-    color: '#ff3b30',
-  },
-  minCharWarning: {
-    fontSize: 12,
-    color: '#ff9500',
-    marginTop: 4,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    marginTop: 16,
-    gap: 12,
-  },
-  submitButton: {
-    flex: 2,
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skipButton: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skipButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  submittedAnswerContainer: {
-    marginTop: 16,
-  },
-  submittedLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  submittedAnswerBox: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
-  },
-  submittedAnswerText: {
-    fontSize: 16,
-    color: '#444',
-    lineHeight: 24,
-  },
-  successContainer: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  successText: {
-    fontSize: 16,
-    color: '#34c759',
-    fontWeight: '500',
-  },
-  discussButton: {
-    marginTop: 20,
-    backgroundColor: '#e8f4ff',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  discussButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skippedContainer: {
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  skippedText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  allDoneEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  allDoneTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  allDoneText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
+    ...cardStyle,
+    padding: spacing.cardPadding,
   },
 
-  // Chat List Section
-  chatsSection: {
-    marginTop: 32,
-    paddingHorizontal: 16,
+  // Section labels
+  sectionLabel: {
+    ...typography.sectionTitle,
+    marginBottom: spacing.elementGap,
   },
-  chatsSectionHeader: {
+
+  // Section header (for conversations)
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.elementGap,
   },
-  chatsSectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
+
+  // Question text
+  questionText: {
+    ...typography.questionText,
+    marginBottom: spacing.sectionGap,
   },
-  newChatButton: {
-    backgroundColor: '#e8f4ff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+
+  // Center container for loading/error states
+  centerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: spacing.elementGap,
+    ...typography.bodyText,
+    color: colors.textSecondary,
+  },
+  errorIcon: {
+    fontSize: 48,
+    color: colors.error,
+    fontWeight: 'bold',
+    marginBottom: spacing.elementGap,
+  },
+  errorText: {
+    ...typography.bodyText,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.sectionGap,
+  },
+
+  // Input styles
+  inputContainer: {
+    marginBottom: spacing.sectionGap,
+  },
+  textInput: {
+    ...inputStyles.container,
+    ...inputStyles.text,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  textInputError: {
+    borderColor: colors.error,
+  },
+  charCounter: {
+    ...typography.timestamp,
+    textAlign: 'right',
+    marginTop: spacing.smallGap,
+  },
+  charCounterError: {
+    color: colors.error,
+  },
+  minCharWarning: {
+    ...typography.timestamp,
+    color: colors.warning,
+    marginTop: 4,
+  },
+  inlineError: {
+    ...typography.caption,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: spacing.elementGap,
+  },
+
+  // Button styles
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.elementGap,
+  },
+  primaryButton: {
+    ...buttonStyles.primary,
+  },
+  primaryButtonText: {
+    ...buttonStyles.primaryText,
+  },
+  secondaryButton: {
+    ...buttonStyles.secondary,
+  },
+  secondaryButtonText: {
+    ...buttonStyles.secondaryText,
+  },
+  buttonDisabled: {
+    ...buttonStyles.disabled,
+  },
+  flexButton: {
+    flex: 1,
+  },
+  fullWidthButton: {
+    width: '100%',
+  },
+
+  // Answered state styles
+  answeredBox: {
+    backgroundColor: colors.inputBg,
+    opacity: 0.8,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: spacing.elementGap,
+    marginBottom: spacing.elementGap,
   },
-  newChatButtonText: {
-    color: '#007AFF',
+  answeredText: {
+    ...typography.bodyText,
+    color: colors.textSecondary,
+  },
+  successRow: {
+    marginBottom: spacing.elementGap,
+  },
+  successText: {
+    ...typography.caption,
+    color: colors.success,
+    fontWeight: '500',
+  },
+
+  // Skipped state styles
+  skippedCard: {
+    opacity: 0.6,
+  },
+  skippedLabel: {
+    color: colors.textTertiary,
+  },
+  skippedQuestionText: {
+    color: colors.textSecondary,
+  },
+  skippedMessage: {
+    ...typography.bodyText,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+
+  // All done state
+  allDoneContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.sectionGap,
+  },
+  allDoneEmoji: {
+    fontSize: 48,
+    marginBottom: spacing.sectionGap,
+  },
+  allDoneTitle: {
+    ...typography.bodyText,
+    textAlign: 'center',
+    marginBottom: spacing.smallGap,
+  },
+  allDoneText: {
+    ...typography.caption,
+    textAlign: 'center',
+  },
+
+  // New chat button text
+  newChatText: {
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
+
+  // Chat list styles
   chatsCenterContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    paddingVertical: 32,
   },
   chatsLoadingText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#666',
+    marginTop: spacing.smallGap,
+    ...typography.caption,
   },
   chatsErrorText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption,
     textAlign: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  chatsRetryButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  chatsRetryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    marginBottom: spacing.elementGap,
   },
   chatsEmptyContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    paddingVertical: 24,
   },
   chatsEmptyIcon: {
     fontSize: 40,
-    marginBottom: 12,
+    marginBottom: spacing.elementGap,
   },
   chatsEmptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    ...typography.bodyText,
+    marginBottom: spacing.smallGap,
   },
   chatsEmptyText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption,
     textAlign: 'center',
-    lineHeight: 20,
   },
   chatsList: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
+    marginTop: spacing.smallGap,
   },
   chatItem: {
+    paddingVertical: spacing.elementGap,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.divider,
+  },
+  chatItemLast: {
+    borderBottomWidth: 0,
   },
   chatItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
   },
-  chatItemIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  chatItemText: {
+  chatItemTextContainer: {
     flex: 1,
+    marginRight: spacing.elementGap,
   },
   chatItemTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   chatItemTime: {
-    fontSize: 13,
-    color: '#999',
+    ...typography.timestamp,
   },
-  chatItemArrow: {
-    fontSize: 20,
-    color: '#ccc',
-    marginLeft: 8,
+  chatItemChevron: {
+    fontSize: 16,
+    color: colors.textTertiary,
   },
   seeMoreButton: {
     alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: spacing.elementGap,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    alignSelf: 'center',
   },
   seeMoreButtonText: {
+    color: colors.primary,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
+    fontWeight: '500',
   },
 
-  // Memory Section
-  memorySection: {
-    marginTop: 32,
-    paddingHorizontal: 16,
-  },
+  // Memory section styles
   memorySectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f0e6ff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
   },
   memorySectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   memorySectionIcon: {
-    fontSize: 20,
-    marginRight: 10,
-  },
-  memorySectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 18,
+    marginRight: spacing.smallGap,
   },
   memorySectionArrow: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textTertiary,
   },
   memoryContentContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    overflow: 'hidden',
+    marginTop: spacing.sectionGap,
+    paddingTop: spacing.sectionGap,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
   },
   memoryCenterContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 24,
   },
   memoryLoadingText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#666',
+    marginTop: spacing.smallGap,
+    ...typography.caption,
   },
   memoryErrorText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption,
     textAlign: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  memoryRetryButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  memoryRetryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    marginBottom: spacing.elementGap,
   },
   memoryEmptyContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.sectionGap,
   },
   memoryEmptyIcon: {
     fontSize: 40,
-    marginBottom: 12,
+    marginBottom: spacing.elementGap,
   },
   memoryEmptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    ...typography.bodyText,
+    marginBottom: spacing.smallGap,
   },
   memoryEmptyText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.caption,
     textAlign: 'center',
-    lineHeight: 20,
   },
-  memoryDataCard: {
-    padding: 16,
-  },
-  memorySourceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  memorySourceIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  memorySourceTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666',
+  memoryDataContainer: {
+    gap: spacing.elementGap,
   },
   memorySubsection: {
-    marginBottom: 16,
+    marginBottom: spacing.smallGap,
   },
   memorySubsectionTitle: {
-    fontSize: 14,
+    ...typography.caption,
     fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    marginBottom: spacing.smallGap,
   },
   memoryBulletItem: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textPrimary,
     lineHeight: 22,
-    paddingLeft: 4,
+    paddingLeft: spacing.smallGap,
   },
   memoryMoreText: {
-    fontSize: 13,
-    color: '#999',
+    ...typography.timestamp,
     fontStyle: 'italic',
-    paddingLeft: 4,
+    paddingLeft: spacing.smallGap,
     marginTop: 4,
   },
-  memoryStatsContainer: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
   memoryStatsText: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 4,
+    ...typography.timestamp,
+    textAlign: 'center',
+    marginTop: spacing.sectionGap,
   },
 });
 
