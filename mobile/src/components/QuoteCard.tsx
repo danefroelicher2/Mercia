@@ -1,104 +1,236 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 import { Quote } from '../types/quote.types';
+import api from '../services/api';
 
 interface QuoteCardProps {
   quote: Quote;
-  rating?: number;
-  onRate: (quoteId: number, rating: number) => void;
 }
 
-const QuoteCard: React.FC<QuoteCardProps> = ({ quote, rating, onRate }) => {
+const QuoteCard: React.FC<QuoteCardProps> = ({ quote }) => {
+  const [likeCount, setLikeCount] = useState<number>(0);
+  const [userInteraction, setUserInteraction] = useState<'like' | 'dislike' | 'none'>('none');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Load like count and user interaction on mount
+  useEffect(() => {
+    loadQuoteData();
+  }, [quote.id]);
+
+  const loadQuoteData = async () => {
+    try {
+      // Get like count
+      const countsResponse = await api.get('/api/routine/quotes/like-counts');
+      if (countsResponse.data.success) {
+        setLikeCount(countsResponse.data.data[quote.id] || 0);
+      }
+
+      // Get user's interaction
+      const interactionResponse = await api.get(`/api/routine/quotes/${quote.id}/user-interaction`);
+      if (interactionResponse.data.success) {
+        setUserInteraction(interactionResponse.data.data.interaction_type);
+      }
+    } catch (error) {
+      console.error('[QuoteCard] Error loading quote data:', error);
+    }
+  };
+
+  const handleInteraction = async (type: 'like' | 'dislike') => {
+    setLoading(true);
+    try {
+      // Toggle: if clicking same button, set to 'none'
+      const newInteraction = userInteraction === type ? 'none' : type;
+
+      const response = await api.post(`/api/routine/quotes/${quote.id}/interact`, {
+        interaction_type: newInteraction,
+      });
+
+      if (response.data.success) {
+        setUserInteraction(newInteraction);
+        setLikeCount(response.data.data.likeCount);
+        setModalVisible(false);
+      }
+    } catch (error) {
+      console.error('[QuoteCard] Error saving interaction:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <View style={styles.quoteCard}>
-      <Text style={styles.quoteText}>"{quote.text}"</Text>
-      <Text style={styles.quoteAuthor}>{'\u2014'} {quote.author}</Text>
+    <>
+      <TouchableOpacity
+        style={styles.quoteCard}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.quoteText}>"{quote.text}"</Text>
+        <Text style={styles.quoteAuthor}>{'\u2014'} {quote.author}</Text>
 
-      <View style={styles.ratingContainer}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity
-            key={star}
-            onPress={() => onRate(quote.id, star)}
-            style={styles.starButton}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.star,
-                rating !== undefined && star <= rating && styles.starFilled,
-              ]}
-            >
-              {'\u2605'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {rating !== undefined && (
-        <Text style={styles.ratingLabel}>
-          You rated this {rating} star{rating !== 1 ? 's' : ''}
+        <Text style={styles.likeCount}>
+          {likeCount} {likeCount === 1 ? 'like' : 'likes'}
         </Text>
-      )}
-    </View>
+      </TouchableOpacity>
+
+      {/* Interaction Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Rate this quote</Text>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.interactionButton,
+                  userInteraction === 'like' && styles.likeButtonActive,
+                ]}
+                onPress={() => handleInteraction('like')}
+                disabled={loading}
+              >
+                {loading && userInteraction !== 'dislike' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={[
+                    styles.buttonText,
+                    userInteraction === 'like' && styles.buttonTextActive,
+                  ]}>
+                    Like
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.interactionButton,
+                  userInteraction === 'dislike' && styles.dislikeButtonActive,
+                ]}
+                onPress={() => handleInteraction('dislike')}
+                disabled={loading}
+              >
+                {loading && userInteraction !== 'like' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={[
+                    styles.buttonText,
+                    userInteraction === 'dislike' && styles.buttonTextActive,
+                  ]}>
+                    Dislike
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   quoteCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#E5E5E5',
+    borderRadius: 12,
+    padding: 16,
     marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   quoteText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: '#1F2937',
     fontStyle: 'italic',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   quoteAuthor: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     textAlign: 'right',
-    marginBottom: 16,
+    marginBottom: 8,
     fontWeight: '500',
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  starButton: {
-    padding: 4,
-  },
-  star: {
-    fontSize: 32,
-    color: '#D1D5DB',
-  },
-  starFilled: {
-    color: '#FBBF24',
-  },
-  ratingLabel: {
-    fontSize: 12,
+  likeCount: {
+    fontSize: 11,
     color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 4,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  interactionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    backgroundColor: '#3A3A3A',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  likeButtonActive: {
+    backgroundColor: '#00D9A0',
+  },
+  dislikeButtonActive: {
+    backgroundColor: '#FF6B35',
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#A0A0A0',
+  },
+  buttonTextActive: {
+    color: '#FFFFFF',
+  },
+  closeButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 14,
+    color: '#A0A0A0',
   },
 });
 

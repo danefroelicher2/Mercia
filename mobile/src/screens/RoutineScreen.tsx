@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,6 @@ import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
-import { QuoteRatingsStorage } from '../types/quote.types';
-import { loadQuoteRatings, saveQuoteRatings } from '../utils/quoteStorage';
 
 const colors = {
   screenBg: '#1A1A1A',
@@ -54,37 +52,37 @@ const RoutineScreen: React.FC = () => {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  // Quote state
-  const [quoteRatings, setQuoteRatings] = useState<QuoteRatingsStorage>({});
+  // Quote state - only need disliked IDs for rotation filtering
+  const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
-  const getQuoteOfTheDay = () => {
+  const availableQuotes = useMemo(() => {
+    const filtered = QUOTES.filter(q => !dislikedQuoteIds.includes(q.id));
+    return filtered.length > 0 ? filtered : QUOTES;
+  }, [dislikedQuoteIds]);
+
+  const currentQuote = useMemo(() => {
     const today = new Date();
     const dayOfYear = Math.floor(
       (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
     );
-    const index = dayOfYear % QUOTES.length;
-    return QUOTES[index];
-  };
+    const index = dayOfYear % availableQuotes.length;
+    return availableQuotes[index];
+  }, [availableQuotes]);
 
-  const currentQuote = getQuoteOfTheDay();
-
-  // Load quote ratings on mount
+  // Load disliked quotes on mount
   useEffect(() => {
-    const loadRatings = async () => {
-      const ratings = await loadQuoteRatings();
-      setQuoteRatings(ratings);
+    const loadDisliked = async () => {
+      try {
+        const response = await api.get('/api/routine/quotes/user-disliked');
+        if (response.data.success) {
+          setDislikedQuoteIds(response.data.data);
+        }
+      } catch (error) {
+        console.error('[RoutineScreen] Error loading disliked quotes:', error);
+      }
     };
-    loadRatings();
+    loadDisliked();
   }, []);
-
-  const handleRateQuote = (quoteId: number, rating: number) => {
-    const updatedRatings = {
-      ...quoteRatings,
-      [quoteId]: rating,
-    };
-    setQuoteRatings(updatedRatings);
-    saveQuoteRatings(updatedRatings);
-  };
 
   // Get today's day on mount
   useEffect(() => {
@@ -398,11 +396,7 @@ const RoutineScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Quote Card - positioned above day switcher */}
-      <QuoteCard
-        quote={currentQuote}
-        rating={quoteRatings[currentQuote.id]}
-        onRate={handleRateQuote}
-      />
+      <QuoteCard quote={currentQuote} />
 
       {renderDaySwitcher()}
 

@@ -674,6 +674,85 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     console.log('[Reset] Previous week goals deleted');
   }
 
+  // ============================================
+  // QUOTE INTERACTION OPERATIONS
+  // ============================================
+
+  async upsertQuoteInteraction(
+    userId: string,
+    quoteId: number,
+    interactionType: 'like' | 'dislike' | 'none'
+  ): Promise<void> {
+    if (interactionType === 'none') {
+      await this.client
+        .from('quote_interactions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('quote_id', quoteId);
+      return;
+    }
+
+    const { error } = await this.client
+      .from('quote_interactions')
+      .upsert(
+        {
+          user_id: userId,
+          quote_id: quoteId,
+          interaction_type: interactionType,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,quote_id' }
+      );
+
+    if (error) throw error;
+  }
+
+  async getQuoteLikeCount(quoteId: number): Promise<number> {
+    const { data, error } = await this.client
+      .rpc('get_quote_like_count', { quote_id_param: quoteId });
+
+    if (error) throw error;
+    return data || 0;
+  }
+
+  async getAllQuoteLikeCounts(): Promise<Record<number, number>> {
+    const { data, error } = await this.client
+      .rpc('get_all_quote_like_counts');
+
+    if (error) throw error;
+
+    const counts: Record<number, number> = {};
+    if (data) {
+      data.forEach((row: any) => {
+        counts[row.quote_id] = parseInt(row.like_count);
+      });
+    }
+    return counts;
+  }
+
+  async getUserQuoteInteraction(userId: string, quoteId: number): Promise<string | null> {
+    const { data, error } = await this.client
+      .from('quote_interactions')
+      .select('interaction_type')
+      .eq('user_id', userId)
+      .eq('quote_id', quoteId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data?.interaction_type || null;
+  }
+
+  async getUserDislikedQuotes(userId: string): Promise<number[]> {
+    const { data, error } = await this.client
+      .from('quote_interactions')
+      .select('quote_id')
+      .eq('user_id', userId)
+      .eq('interaction_type', 'dislike');
+
+    if (error) throw error;
+    return data?.map((row: any) => row.quote_id) || [];
+  }
+
   // Helper: Calculate ISO week number (Monday = start of week)
   private getISOWeek(date: Date): number {
     const target = new Date(date.valueOf());

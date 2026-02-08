@@ -196,6 +196,39 @@ export interface StorageAdapter {
   deletePreviousWeekGoals(): Promise<void>;
 
   // ============================================
+  // QUOTE INTERACTION OPERATIONS
+  // ============================================
+
+  /**
+   * Upsert a user's interaction with a quote
+   */
+  upsertQuoteInteraction(
+    userId: string,
+    quoteId: number,
+    interactionType: 'like' | 'dislike' | 'none'
+  ): Promise<void>;
+
+  /**
+   * Get total like count for a specific quote
+   */
+  getQuoteLikeCount(quoteId: number): Promise<number>;
+
+  /**
+   * Get like counts for all quotes
+   */
+  getAllQuoteLikeCounts(): Promise<Record<number, number>>;
+
+  /**
+   * Get a user's interaction type for a specific quote
+   */
+  getUserQuoteInteraction(userId: string, quoteId: number): Promise<string | null>;
+
+  /**
+   * Get all quote IDs that a user has disliked
+   */
+  getUserDislikedQuotes(userId: string): Promise<number[]>;
+
+  // ============================================
   // UTILITY
   // ============================================
 

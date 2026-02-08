@@ -103,7 +103,11 @@ async function startServer() {
       console.log(`   GET  /api/routine/goals/weekly`);
       console.log(`   GET  /api/routine/goals/monthly`);
       console.log(`   PATCH /api/routine/goals/:id`);
-      console.log(`   DELETE /api/routine/goals/:id\n`);
+      console.log(`   DELETE /api/routine/goals/:id`);
+      console.log(`   POST /api/routine/quotes/:quoteId/interact`);
+      console.log(`   GET  /api/routine/quotes/like-counts`);
+      console.log(`   GET  /api/routine/quotes/:quoteId/user-interaction`);
+      console.log(`   GET  /api/routine/quotes/user-disliked\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

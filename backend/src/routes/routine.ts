@@ -25,6 +25,10 @@ const toggleCompletionSchema = z.object({
   completed: z.boolean(),
 });
 
+const quoteInteractionSchema = z.object({
+  interaction_type: z.enum(['like', 'dislike', 'none']),
+});
+
 // ============================================
 // TASK ENDPOINTS (Daily, per-day tasks)
 // ============================================
@@ -267,6 +271,123 @@ router.delete('/goals/:id', async (req: Request, res: Response): Promise<void> =
       message: 'Goal deleted',
     });
   } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ============================================
+// QUOTE INTERACTION ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/routine/quotes/like-counts
+ * Get like counts for all quotes
+ */
+router.get('/quotes/like-counts', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const storage = getStorage();
+    const likeCounts = await storage.getAllQuoteLikeCounts();
+
+    res.json({
+      success: true,
+      data: likeCounts,
+    });
+  } catch (error: any) {
+    console.error('[Quote Like Counts] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/routine/quotes/user-disliked
+ * Get array of quote IDs the user has disliked
+ */
+router.get('/quotes/user-disliked', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+
+    const storage = getStorage();
+    const dislikedQuoteIds = await storage.getUserDislikedQuotes(userId);
+
+    res.json({
+      success: true,
+      data: dislikedQuoteIds,
+    });
+  } catch (error: any) {
+    console.error('[User Disliked Quotes] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/routine/quotes/:quoteId/interact
+ * Create or update user's interaction with a quote
+ */
+router.post(
+  '/quotes/:quoteId/interact',
+  validate(quoteInteractionSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const quoteId = parseInt(req.params.quoteId);
+      const { interaction_type } = req.body;
+
+      const storage = getStorage();
+
+      // Upsert interaction
+      await storage.upsertQuoteInteraction(userId, quoteId, interaction_type);
+
+      // Get updated like count
+      const likeCount = await storage.getQuoteLikeCount(quoteId);
+
+      res.json({
+        success: true,
+        data: {
+          quoteId,
+          interaction_type,
+          likeCount,
+        },
+      });
+    } catch (error: any) {
+      console.error('[Quote Interaction] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/routine/quotes/:quoteId/user-interaction
+ * Get current user's interaction with a specific quote
+ */
+router.get('/quotes/:quoteId/user-interaction', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const quoteId = parseInt(req.params.quoteId);
+
+    const storage = getStorage();
+    const interaction = await storage.getUserQuoteInteraction(userId, quoteId);
+
+    res.json({
+      success: true,
+      data: {
+        quoteId,
+        interaction_type: interaction || 'none',
+      },
+    });
+  } catch (error: any) {
+    console.error('[User Quote Interaction] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
