@@ -2,6 +2,7 @@ export * from './Question';
 export * from './Response';
 export * from './Memory';
 export * from './Chat';
+export * from './Routine';
 
 // Progress tracking
 export interface UserProgress {

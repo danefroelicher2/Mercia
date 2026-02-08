@@ -10,9 +10,10 @@ import questionRoutes from './routes/questions';
 import memoryRoutes from './routes/memory';
 import chatRoutes from './routes/chat';
 import extractionRoutes from './routes/extraction';
+import routineRoutes from './routes/routine';
 
 // Import jobs
-import { startExtractionCronJob } from './jobs/extractionJob';
+import { startExtractionCronJob, startWeeklyResetCronJob } from './jobs/extractionJob';
 
 // Load environment variables
 dotenv.config();
@@ -45,6 +46,7 @@ app.get('/api', (req: Request, res: Response) => {
       memory: '/api/memory/*',
       chat: '/api/chat/*',
       extraction: '/api/extraction/*',
+      routine: '/api/routine/*',
     },
   });
 });
@@ -55,6 +57,7 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/memory', memoryRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/extraction', extractionRoutes);
+app.use('/api/routine', routineRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -65,9 +68,11 @@ async function startServer() {
     // Initialize Oasis AI Core
     initializeOasisCore();
 
-    // Start cron job for daily chat extraction
+    // Start cron jobs
     startExtractionCronJob();
+    startWeeklyResetCronJob();
     console.log('  Chat extraction cron job started (runs at 3:00 AM daily)');
+    console.log('  Weekly reset cron job started (runs Mondays at 12:00 AM)');
 
     app.listen(PORT, () => {
       console.log(`\n  Oasis AI Backend running on port ${PORT}`);
@@ -89,7 +94,16 @@ async function startServer() {
       console.log(`   GET  /api/chat/list`);
       console.log(`   GET  /api/chat/:chatId/messages`);
       console.log(`   POST /api/chat/message`);
-      console.log(`   POST /api/extraction/trigger\n`);
+      console.log(`   POST /api/extraction/trigger`);
+      console.log(`   POST /api/routine/tasks`);
+      console.log(`   GET  /api/routine/tasks/:day`);
+      console.log(`   PATCH /api/routine/tasks/:id`);
+      console.log(`   DELETE /api/routine/tasks/:id`);
+      console.log(`   POST /api/routine/goals`);
+      console.log(`   GET  /api/routine/goals/weekly`);
+      console.log(`   GET  /api/routine/goals/monthly`);
+      console.log(`   PATCH /api/routine/goals/:id`);
+      console.log(`   DELETE /api/routine/goals/:id\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

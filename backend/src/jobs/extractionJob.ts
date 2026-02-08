@@ -135,3 +135,54 @@ async function saveJobLog(date: Date, stats: any): Promise<void> {
   // TODO: Save to extraction_job_log table via StorageAdapter
   console.log(`[Extraction] Job log: ${JSON.stringify(stats)}`);
 }
+
+// ============================================
+// WEEKLY RESET CRON JOB
+// ============================================
+
+/**
+ * Weekly reset cron job
+ * Runs every Monday at 12:00 AM (midnight)
+ * Resets:
+ * 1. All daily task completion statuses (fresh start)
+ * 2. Deletes previous week's weekly goals
+ */
+export function startWeeklyResetCronJob(): CronJob {
+  const job = new CronJob(
+    '0 0 * * 1',  // Every Monday at midnight
+    async () => {
+      console.log('\n[CRON] ========================================');
+      console.log('[CRON] Starting weekly reset job');
+      console.log('[CRON] ========================================\n');
+
+      try {
+        await runWeeklyReset();
+
+        console.log(`\n[CRON] ========================================`);
+        console.log(`[CRON] Weekly reset completed`);
+        console.log(`[CRON] ========================================\n`);
+      } catch (error) {
+        console.error('[CRON] ERROR in weekly reset job:', error);
+      }
+    },
+    null,
+    true,
+    'America/New_York'
+  );
+
+  console.log('[CRON] Weekly reset job scheduled for Mondays at 12:00 AM');
+
+  return job;
+}
+
+async function runWeeklyReset(): Promise<void> {
+  const storage = getStorage();
+
+  console.log('[Reset] Resetting all daily task completion statuses...');
+  await storage.resetAllTaskCompletions();
+
+  console.log('[Reset] Deleting previous week\'s weekly goals...');
+  await storage.deletePreviousWeekGoals();
+
+  console.log('[Reset] Weekly reset complete');
+}

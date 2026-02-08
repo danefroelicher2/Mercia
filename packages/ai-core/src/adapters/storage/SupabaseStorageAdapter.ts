@@ -8,6 +8,8 @@ import {
   Chat,
   ChatMessage,
   UserProgress,
+  RoutineTask,
+  RoutineGoal,
 } from '../../types';
 
 export class SupabaseStorageAdapter implements StorageAdapter {
@@ -451,6 +453,238 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       questions_answered: newCount,
       profile_completeness: Math.min(newCount / total, 1.0),
     });
+  }
+
+  // ============================================
+  // ROUTINE OPERATIONS
+  // ============================================
+
+  async createRoutineTask(
+    userId: string,
+    text: string,
+    type: 'non-negotiable' | 'nice-to-have',
+    dayOfWeek: string
+  ): Promise<RoutineTask> {
+    const { data, error } = await this.client
+      .from('routine_tasks')
+      .insert({
+        user_id: userId,
+        text,
+        type,
+        day_of_week: dayOfWeek,
+        completed: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create routine task: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async getRoutineTasksForDay(userId: string, dayOfWeek: string): Promise<RoutineTask[]> {
+    const { data, error } = await this.client
+      .from('routine_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('day_of_week', dayOfWeek)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to get routine tasks: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  async updateRoutineTaskCompletion(
+    taskId: string,
+    userId: string,
+    completed: boolean
+  ): Promise<RoutineTask> {
+    const { data, error } = await this.client
+      .from('routine_tasks')
+      .update({ completed })
+      .eq('id', taskId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update task completion: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async deleteRoutineTask(taskId: string, userId: string): Promise<void> {
+    const { error } = await this.client
+      .from('routine_tasks')
+      .delete()
+      .eq('id', taskId)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to delete routine task: ${error.message}`);
+    }
+  }
+
+  async createRoutineGoal(
+    userId: string,
+    text: string,
+    type: 'weekly' | 'monthly'
+  ): Promise<RoutineGoal> {
+    const now = new Date();
+    const year = now.getFullYear();
+
+    let weekNumber = null;
+    let month = null;
+
+    if (type === 'weekly') {
+      weekNumber = this.getISOWeek(now);
+    } else {
+      month = now.getMonth() + 1; // 1-12
+    }
+
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .insert({
+        user_id: userId,
+        text,
+        type,
+        week_number: weekNumber,
+        month,
+        year,
+        completed: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create routine goal: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async getWeeklyGoals(userId: string): Promise<RoutineGoal[]> {
+    const now = new Date();
+    const currentWeek = this.getISOWeek(now);
+    const currentYear = now.getFullYear();
+
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('type', 'weekly')
+      .eq('week_number', currentWeek)
+      .eq('year', currentYear)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to get weekly goals: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  async getMonthlyGoals(userId: string): Promise<RoutineGoal[]> {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('type', 'monthly')
+      .eq('month', currentMonth)
+      .eq('year', currentYear)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to get monthly goals: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  async updateRoutineGoalCompletion(
+    goalId: string,
+    userId: string,
+    completed: boolean
+  ): Promise<RoutineGoal> {
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .update({ completed })
+      .eq('id', goalId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update goal completion: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async deleteRoutineGoal(goalId: string, userId: string): Promise<void> {
+    const { error } = await this.client
+      .from('routine_goals')
+      .delete()
+      .eq('id', goalId)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to delete routine goal: ${error.message}`);
+    }
+  }
+
+  async resetAllTaskCompletions(): Promise<void> {
+    const { error } = await this.client
+      .from('routine_tasks')
+      .update({ completed: false })
+      .neq('user_id', '00000000-0000-0000-0000-000000000000'); // Update all
+
+    if (error) {
+      throw new Error(`Failed to reset task completions: ${error.message}`);
+    }
+
+    console.log('[Reset] All task completions reset to false');
+  }
+
+  async deletePreviousWeekGoals(): Promise<void> {
+    const now = new Date();
+    const currentWeek = this.getISOWeek(now);
+    const currentYear = now.getFullYear();
+
+    const { error } = await this.client
+      .from('routine_goals')
+      .delete()
+      .eq('type', 'weekly')
+      .or(`week_number.neq.${currentWeek},year.neq.${currentYear}`);
+
+    if (error) {
+      throw new Error(`Failed to delete previous week goals: ${error.message}`);
+    }
+
+    console.log('[Reset] Previous week goals deleted');
+  }
+
+  // Helper: Calculate ISO week number (Monday = start of week)
+  private getISOWeek(date: Date): number {
+    const target = new Date(date.valueOf());
+    const dayNr = (date.getDay() + 6) % 7; // Make Monday = 0
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = target.valueOf();
+    target.setMonth(0, 1);
+    if (target.getDay() !== 4) {
+      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    }
+    return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
   }
 
   async close(): Promise<void> {

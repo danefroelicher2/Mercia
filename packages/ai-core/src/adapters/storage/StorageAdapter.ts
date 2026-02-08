@@ -6,6 +6,8 @@ import {
   Chat,
   ChatMessage,
   UserProgress,
+  RoutineTask,
+  RoutineGoal,
 } from '../../types';
 
 /**
@@ -128,6 +130,70 @@ export interface StorageAdapter {
    * Delete a chat and all its messages
    */
   deleteChat(chatId: string, userId: string): Promise<void>;
+
+  // ============================================
+  // ROUTINE OPERATIONS
+  // ============================================
+
+  /**
+   * Create a routine task for a specific day
+   */
+  createRoutineTask(
+    userId: string,
+    text: string,
+    type: 'non-negotiable' | 'nice-to-have',
+    dayOfWeek: string
+  ): Promise<RoutineTask>;
+
+  /**
+   * Get all tasks for a specific day
+   */
+  getRoutineTasksForDay(userId: string, dayOfWeek: string): Promise<RoutineTask[]>;
+
+  /**
+   * Update task completion status
+   */
+  updateRoutineTaskCompletion(taskId: string, userId: string, completed: boolean): Promise<RoutineTask>;
+
+  /**
+   * Delete a routine task
+   */
+  deleteRoutineTask(taskId: string, userId: string): Promise<void>;
+
+  /**
+   * Create a routine goal (weekly or monthly)
+   */
+  createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly'): Promise<RoutineGoal>;
+
+  /**
+   * Get current week's goals
+   */
+  getWeeklyGoals(userId: string): Promise<RoutineGoal[]>;
+
+  /**
+   * Get current month's goals
+   */
+  getMonthlyGoals(userId: string): Promise<RoutineGoal[]>;
+
+  /**
+   * Update goal completion status
+   */
+  updateRoutineGoalCompletion(goalId: string, userId: string, completed: boolean): Promise<RoutineGoal>;
+
+  /**
+   * Delete a routine goal
+   */
+  deleteRoutineGoal(goalId: string, userId: string): Promise<void>;
+
+  /**
+   * Reset all daily task completions to false (Monday reset)
+   */
+  resetAllTaskCompletions(): Promise<void>;
+
+  /**
+   * Delete weekly goals from previous weeks
+   */
+  deletePreviousWeekGoals(): Promise<void>;
 
   // ============================================
   // UTILITY
