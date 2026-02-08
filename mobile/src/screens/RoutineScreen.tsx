@@ -291,25 +291,23 @@ const RoutineScreen: React.FC = () => {
   // Render helpers
   const renderDaySwitcher = () => (
     <View style={styles.daySwitcherContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {DAYS.map((day, index) => (
-          <TouchableOpacity
-            key={day}
-            onPress={() => setSelectedDay(day)}
-            style={[
-              styles.dayButton,
-              selectedDay === day && styles.activeDayButton,
-            ]}
-          >
-            <Text style={[
-              styles.dayText,
-              selectedDay === day && styles.activeDayText,
-            ]}>
-              {DAY_LABELS[index]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {DAYS.map((day, index) => (
+        <TouchableOpacity
+          key={day}
+          onPress={() => setSelectedDay(day)}
+          style={[
+            styles.dayButton,
+            selectedDay === day && styles.activeDayButton,
+          ]}
+        >
+          <Text style={[
+            styles.dayText,
+            selectedDay === day && styles.activeDayText,
+          ]}>
+            {DAY_LABELS[index]}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
@@ -612,18 +610,22 @@ const styles = StyleSheet.create({
 
   // Day Switcher
   daySwitcherContainer: {
+    flexDirection: 'row',
     paddingVertical: 12,
     paddingHorizontal: 8,
     backgroundColor: colors.cardBg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    justifyContent: 'space-between',
   },
   dayButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+    paddingVertical: 10,
+    marginHorizontal: 3,
     borderRadius: 20,
-    marginHorizontal: 4,
     backgroundColor: colors.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activeDayButton: {
     backgroundColor: colors.primary,
