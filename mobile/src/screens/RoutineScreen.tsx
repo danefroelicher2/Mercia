@@ -14,6 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
+import QuoteCard from '../components/QuoteCard';
+import { QUOTES } from '../data/quotes';
+import { QuoteRatingsStorage } from '../types/quote.types';
+import { loadQuoteRatings, saveQuoteRatings } from '../utils/quoteStorage';
 
 const colors = {
   screenBg: '#1A1A1A',
@@ -49,6 +53,38 @@ const RoutineScreen: React.FC = () => {
   const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Quote state
+  const [quoteRatings, setQuoteRatings] = useState<QuoteRatingsStorage>({});
+
+  const getQuoteOfTheDay = () => {
+    const today = new Date();
+    const dayOfYear = Math.floor(
+      (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+    );
+    const index = dayOfYear % QUOTES.length;
+    return QUOTES[index];
+  };
+
+  const currentQuote = getQuoteOfTheDay();
+
+  // Load quote ratings on mount
+  useEffect(() => {
+    const loadRatings = async () => {
+      const ratings = await loadQuoteRatings();
+      setQuoteRatings(ratings);
+    };
+    loadRatings();
+  }, []);
+
+  const handleRateQuote = (quoteId: number, rating: number) => {
+    const updatedRatings = {
+      ...quoteRatings,
+      [quoteId]: rating,
+    };
+    setQuoteRatings(updatedRatings);
+    saveQuoteRatings(updatedRatings);
+  };
 
   // Get today's day on mount
   useEffect(() => {
@@ -361,6 +397,13 @@ const RoutineScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Quote Card - positioned above day switcher */}
+      <QuoteCard
+        quote={currentQuote}
+        rating={quoteRatings[currentQuote.id]}
+        onRate={handleRateQuote}
+      />
+
       {renderDaySwitcher()}
 
       <ScrollView
