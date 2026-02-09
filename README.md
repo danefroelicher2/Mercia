@@ -9,7 +9,7 @@
 4. **Provider Agnostic:** Swap databases, LLMs, storage without rewriting logic
 
 
-## Tech Stackk
+## Tech Stack
 
 - **AI Core:** TypeScript, database-agnostic, LLM-agnostic
 - **Backend:** Node.js, Express, TypeScript, Supabase
