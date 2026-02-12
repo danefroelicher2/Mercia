@@ -66,11 +66,12 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ quote }) => {
         activeOpacity={0.7}
       >
         <Text style={styles.quoteText}>"{quote.text}"</Text>
-        <Text style={styles.quoteAuthor}>{'\u2014'} {quote.author}</Text>
-
-        <Text style={styles.likeCount}>
-          {likeCount} {likeCount === 1 ? 'like' : 'likes'}
-        </Text>
+        <View style={styles.quoteFooter}>
+          <Text style={styles.quoteAuthor}>{'\u2014'} {quote.author}</Text>
+          <Text style={styles.likeCount}>
+            {likeCount} {likeCount === 1 ? 'like' : 'likes'}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       {/* Interaction Modal */}
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   quoteCard: {
     backgroundColor: '#E5E5E5',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
@@ -158,21 +159,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: '#1F2937',
     fontStyle: 'italic',
-    marginBottom: 8,
     textAlign: 'center',
+  },
+  quoteFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
   },
   quoteAuthor: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
-    textAlign: 'right',
-    marginBottom: 8,
     fontWeight: '500',
+    fontStyle: 'italic',
   },
   likeCount: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#9CA3AF',
-    textAlign: 'center',
-    marginTop: 4,
   },
 
   // Modal styles

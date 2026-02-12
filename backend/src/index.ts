@@ -11,6 +11,7 @@ import memoryRoutes from './routes/memory';
 import chatRoutes from './routes/chat';
 import extractionRoutes from './routes/extraction';
 import routineRoutes from './routes/routine';
+import statsRoutes from './routes/stats';
 
 // Import jobs
 import { startExtractionCronJob, startWeeklyResetCronJob } from './jobs/extractionJob';
@@ -47,6 +48,7 @@ app.get('/api', (req: Request, res: Response) => {
       chat: '/api/chat/*',
       extraction: '/api/extraction/*',
       routine: '/api/routine/*',
+      stats: '/api/stats/*',
     },
   });
 });
@@ -58,6 +60,7 @@ app.use('/api/memory', memoryRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -107,7 +110,11 @@ async function startServer() {
       console.log(`   POST /api/routine/quotes/:quoteId/interact`);
       console.log(`   GET  /api/routine/quotes/like-counts`);
       console.log(`   GET  /api/routine/quotes/:quoteId/user-interaction`);
-      console.log(`   GET  /api/routine/quotes/user-disliked\n`);
+      console.log(`   GET  /api/routine/quotes/user-disliked`);
+      console.log(`   GET  /api/stats/streaks`);
+      console.log(`   GET  /api/stats/heatmap`);
+      console.log(`   GET  /api/stats/achievements`);
+      console.log(`   POST /api/stats/log-activity\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

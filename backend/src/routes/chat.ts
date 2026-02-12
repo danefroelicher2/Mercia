@@ -7,6 +7,7 @@ import {
   getLLM,
   getContextBuilder,
 } from '../services/oasisCore';
+import { getSupabase } from '../services/supabase';
 
 const router = Router();
 
@@ -155,6 +156,21 @@ router.post(
         'assistant',
         aiResponse
       );
+
+      // Log activity for stats
+      try {
+        const supabase = getSupabase();
+        await supabase
+          .schema('oasis')
+          .from('user_activity_log')
+          .insert({
+            user_id: userId,
+            activity_type: 'ai_chat_sent',
+            activity_date: new Date().toISOString().split('T')[0],
+          });
+      } catch (err) {
+        console.error('Failed to log chat activity:', err);
+      }
 
       res.json({
         success: true,

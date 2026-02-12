@@ -5,6 +5,7 @@ import { Text, StyleSheet } from 'react-native';
 import OasisHomeScreen from '../screens/OasisHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
+import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { OasisStackParamList } from '../types/navigation';
 
@@ -12,6 +13,7 @@ import { OasisStackParamList } from '../types/navigation';
 export type MainTabParamList = {
   OasisTab: undefined;
   Routine: undefined;
+  Stats: undefined;
   Profile: undefined;
 };
 
@@ -27,6 +29,9 @@ const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }
       break;
     case 'Routine':
       icon = '📅';
+      break;
+    case 'Stats':
+      icon = '📊';
       break;
     case 'Profile':
       icon = '👤';
@@ -97,6 +102,7 @@ const MainNavigator: React.FC = () => {
         }}
       />
       <Tab.Screen name="Routine" component={RoutineScreen} />
+      <Tab.Screen name="Stats" component={StatsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

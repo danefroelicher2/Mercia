@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getQuestionEngine, getMemoryManager } from '../services/oasisCore';
+import { getSupabase } from '../services/supabase';
 
 const router = Router();
 
@@ -81,6 +82,21 @@ router.post(
       }
       // Get updated progress
       const progress = await questionEngine.getProgress(userId);
+
+      // Log activity for stats
+      try {
+        const supabase = getSupabase();
+        await supabase
+          .schema('oasis')
+          .from('user_activity_log')
+          .insert({
+            user_id: userId,
+            activity_type: 'question_answered',
+            activity_date: new Date().toISOString().split('T')[0],
+          });
+      } catch (err) {
+        console.error('Failed to log question activity:', err);
+      }
 
       res.json({
         success: true,

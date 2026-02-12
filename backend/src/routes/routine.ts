@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getStorage } from '../services/oasisCore';
+import { getSupabase } from '../services/supabase';
 
 const router = Router();
 
@@ -109,6 +110,23 @@ router.patch(
 
       const storage = getStorage();
       const task = await storage.updateRoutineTaskCompletion(id, userId, completed);
+
+      // Log activity for stats (only if marking as completed)
+      if (completed === true) {
+        try {
+          const supabase = getSupabase();
+          await supabase
+            .schema('oasis')
+            .from('user_activity_log')
+            .insert({
+              user_id: userId,
+              activity_type: 'task_completed',
+              activity_date: new Date().toISOString().split('T')[0],
+            });
+        } catch (err) {
+          console.error('Failed to log task activity:', err);
+        }
+      }
 
       res.json({
         success: true,
@@ -240,6 +258,23 @@ router.patch(
 
       const storage = getStorage();
       const goal = await storage.updateRoutineGoalCompletion(id, userId, completed);
+
+      // Log activity for stats (only if marking as completed)
+      if (completed === true) {
+        try {
+          const supabase = getSupabase();
+          await supabase
+            .schema('oasis')
+            .from('user_activity_log')
+            .insert({
+              user_id: userId,
+              activity_type: 'goal_completed',
+              activity_date: new Date().toISOString().split('T')[0],
+            });
+        } catch (err) {
+          console.error('Failed to log goal activity:', err);
+        }
+      }
 
       res.json({
         success: true,
