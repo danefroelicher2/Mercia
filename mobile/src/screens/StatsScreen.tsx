@@ -221,8 +221,6 @@ const StatsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.screenTitle}>Stats</Text>
-
         {/* Streak Cards */}
         <View style={styles.streakContainer}>
           <View style={styles.streakCard}>
@@ -234,7 +232,7 @@ const StatsScreen: React.FC = () => {
                 <Text style={styles.streakNumber}>
                   {'\uD83D\uDD25'} {streakData?.currentStreak ?? 0}
                 </Text>
-                <Text style={styles.streakUnit}>days</Text>
+                <Text style={styles.streakUnit}> </Text>
               </>
             )}
           </View>
@@ -246,7 +244,7 @@ const StatsScreen: React.FC = () => {
             ) : (
               <>
                 <Text style={styles.streakNumber}>
-                  {'\uD83D\uDD25'} {streakData?.longestStreak.length ?? 0}
+                  {'\uD83C\uDFC6'} {streakData?.longestStreak.length ?? 0}
                 </Text>
                 <Text style={styles.streakUnit}>
                   {streakData?.longestStreak.isCurrent
@@ -305,50 +303,73 @@ const StatsScreen: React.FC = () => {
 
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
+          <Text style={styles.sectionTitle}>
+            Achievements{'  '}
+            <Text style={styles.achievementCounter}>
+              {achievements.filter((a) => a.unlocked).length}/{achievements.length}
+            </Text>
+          </Text>
 
           {loadingAchievements ? (
             <ActivityIndicator color={colors.primary} />
           ) : achievements.length === 0 ? (
             <Text style={styles.emptyText}>No achievements yet</Text>
           ) : (
-            achievements.map((achievement) => (
-              <View key={achievement.id} style={styles.achievementCard}>
-                <Text style={styles.achievementIcon}>
-                  {achievement.unlocked ? '\uD83C\uDFC6' : '\uD83D\uDD12'}
-                </Text>
-                <View style={styles.achievementContent}>
-                  <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                  <Text style={styles.achievementDescription}>
-                    {achievement.description}
-                  </Text>
-                  {achievement.unlocked ? (
-                    <Text style={styles.achievementUnlocked}>
-                      Unlocked {formatDate(achievement.unlockedAt)}
+            [...achievements]
+              .sort((a, b) => {
+                if (a.unlocked && !b.unlocked) return 1;
+                if (!a.unlocked && b.unlocked) return -1;
+                if (a.unlocked && b.unlocked) {
+                  return new Date(a.unlockedAt!).getTime() - new Date(b.unlockedAt!).getTime();
+                }
+                return 0;
+              })
+              .map((achievement) => {
+                const formatShortDate = (iso: string | null) => {
+                  if (!iso) return '';
+                  const d = new Date(iso);
+                  return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+                };
+
+                return (
+                  <View key={achievement.id} style={styles.achievementCard}>
+                    <Text style={styles.achievementIcon}>
+                      {achievement.unlocked ? '\u2713' : '\uD83D\uDD12'}
                     </Text>
-                  ) : (
-                    <>
-                      <Text style={styles.achievementProgress}>
-                        Progress: {achievement.progress}/{achievement.requirement}
+                    <View style={styles.achievementContent}>
+                      <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                      <Text style={styles.achievementDescription}>
+                        {achievement.description}
                       </Text>
-                      <View style={styles.progressBarBg}>
-                        <View
-                          style={[
-                            styles.progressBarFill,
-                            {
-                              width: `${Math.min(
-                                (achievement.progress / achievement.requirement) * 100,
-                                100
-                              )}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </>
-                  )}
-                </View>
-              </View>
-            ))
+                      {achievement.unlocked ? null : (
+                        <>
+                          <Text style={styles.achievementProgress}>
+                            Progress: {achievement.progress}/{achievement.requirement}
+                          </Text>
+                          <View style={styles.progressBarBg}>
+                            <View
+                              style={[
+                                styles.progressBarFill,
+                                {
+                                  width: `${Math.min(
+                                    (achievement.progress / achievement.requirement) * 100,
+                                    100
+                                  )}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </>
+                      )}
+                    </View>
+                    {achievement.unlocked && achievement.unlockedAt && (
+                      <Text style={styles.achievementDate}>
+                        {formatShortDate(achievement.unlockedAt)}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })
           )}
         </View>
       </ScrollView>
@@ -367,13 +388,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
   },
-  screenTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 24,
-  },
-
   // Streak Cards
   streakContainer: {
     flexDirection: 'row',
@@ -505,9 +519,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
   },
-  achievementUnlocked: {
-    fontSize: 14,
-    color: colors.primary,
+  achievementCounter: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.textSecondary,
+  },
+  achievementDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 8,
   },
   achievementProgress: {
     fontSize: 14,
