@@ -191,9 +191,28 @@ export interface StorageAdapter {
   resetAllTaskCompletions(): Promise<void>;
 
   /**
-   * Delete weekly goals from previous weeks
+   * Reset all weekly goal completions to false (Monday reset)
+   * Does NOT delete goals - only unchecks them
    */
-  deletePreviousWeekGoals(): Promise<void>;
+  resetAllWeeklyGoalCompletions(): Promise<void>;
+
+  /**
+   * Reset all monthly goal completions to false (1st of month reset)
+   * Does NOT delete goals - only unchecks them
+   */
+  resetAllMonthlyGoalCompletions(): Promise<void>;
+
+  /**
+   * Update all weekly goals to current week number and year
+   * Called during Monday reset to keep goals visible
+   */
+  updateWeeklyGoalsToCurrentWeek(): Promise<void>;
+
+  /**
+   * Update all monthly goals to current month and year
+   * Called during 1st of month reset to keep goals visible
+   */
+  updateMonthlyGoalsToCurrentMonth(): Promise<void>;
 
   // ============================================
   // QUOTE INTERACTION OPERATIONS

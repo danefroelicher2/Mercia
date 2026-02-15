@@ -14,7 +14,7 @@ import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
 
 // Import jobs
-import { startExtractionCronJob, startWeeklyResetCronJob } from './jobs/extractionJob';
+import { startExtractionCronJob, startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
 
 // Load environment variables
 dotenv.config();
@@ -74,8 +74,10 @@ async function startServer() {
     // Start cron jobs
     startExtractionCronJob();
     startWeeklyResetCronJob();
+    startMonthlyResetCronJob();
     console.log('  Chat extraction cron job started (runs at 3:00 AM daily)');
     console.log('  Weekly reset cron job started (runs Mondays at 12:00 AM)');
+    console.log('  Monthly reset cron job started (runs 1st of month at 12:00 AM)');
 
     app.listen(PORT, () => {
       console.log(`\n  Oasis AI Backend running on port ${PORT}`);

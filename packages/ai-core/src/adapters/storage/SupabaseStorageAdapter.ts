@@ -656,22 +656,70 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     console.log('[Reset] All task completions reset to false');
   }
 
-  async deletePreviousWeekGoals(): Promise<void> {
+  async resetAllWeeklyGoalCompletions(): Promise<void> {
+    const { error } = await this.client
+      .from('routine_goals')
+      .update({ completed: false })
+      .eq('type', 'weekly');
+
+    if (error) {
+      throw new Error(`Failed to reset weekly goal completions: ${error.message}`);
+    }
+
+    console.log('[Reset] All weekly goal completions reset to false');
+  }
+
+  async resetAllMonthlyGoalCompletions(): Promise<void> {
+    const { error } = await this.client
+      .from('routine_goals')
+      .update({ completed: false })
+      .eq('type', 'monthly');
+
+    if (error) {
+      throw new Error(`Failed to reset monthly goal completions: ${error.message}`);
+    }
+
+    console.log('[Reset] All monthly goal completions reset to false');
+  }
+
+  async updateWeeklyGoalsToCurrentWeek(): Promise<void> {
     const now = new Date();
     const currentWeek = this.getISOWeek(now);
     const currentYear = now.getFullYear();
 
     const { error } = await this.client
       .from('routine_goals')
-      .delete()
-      .eq('type', 'weekly')
-      .or(`week_number.neq.${currentWeek},year.neq.${currentYear}`);
+      .update({
+        week_number: currentWeek,
+        year: currentYear,
+      })
+      .eq('type', 'weekly');
 
     if (error) {
-      throw new Error(`Failed to delete previous week goals: ${error.message}`);
+      throw new Error(`Failed to update weekly goals to current week: ${error.message}`);
     }
 
-    console.log('[Reset] Previous week goals deleted');
+    console.log(`[Reset] Updated all weekly goals to week ${currentWeek}, year ${currentYear}`);
+  }
+
+  async updateMonthlyGoalsToCurrentMonth(): Promise<void> {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const { error } = await this.client
+      .from('routine_goals')
+      .update({
+        month: currentMonth,
+        year: currentYear,
+      })
+      .eq('type', 'monthly');
+
+    if (error) {
+      throw new Error(`Failed to update monthly goals to current month: ${error.message}`);
+    }
+
+    console.log(`[Reset] Updated all monthly goals to month ${currentMonth}, year ${currentYear}`);
   }
 
   // ============================================
