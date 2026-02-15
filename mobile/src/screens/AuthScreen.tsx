@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,26 +9,41 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { signInWithGoogle, signInWithApple, isAppleAuthAvailable } from '../services/socialAuth';
 import { AxiosError } from 'axios';
+import { AuthStackParamList } from '../navigation/AuthNavigator';
 
 type AuthMode = 'signin' | 'signup';
 
 const AuthScreen: React.FC = () => {
-  const { login, register, isLoading } = useAuth();
+  const { login, register, socialLogin, isLoading } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(false);
+
+  useEffect(() => {
+    const checkAppleAuth = async () => {
+      const available = await isAppleAuthAvailable();
+      setAppleAuthAvailable(available);
+    };
+    checkAppleAuth();
+  }, []);
 
   const handleSubmit = async () => {
-    // Clear previous errors
     setError(null);
 
-    // Basic validation
     if (!email.trim()) {
       setError('Email is required');
       return;
@@ -56,6 +71,33 @@ const AuthScreen: React.FC = () => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setSocialLoading(true);
+      setError(null);
+      const { idToken } = await signInWithGoogle();
+      await socialLogin('google', idToken);
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setSocialLoading(true);
+      setError(null);
+      const { idToken, nonce } = await signInWithApple();
+      await socialLogin('apple', idToken, nonce);
+    } catch (err: any) {
+      if (err.message === 'Apple sign-in was canceled') return;
+      setError(err.message || 'Apple sign-in failed');
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
   const toggleMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setError(null);
@@ -63,6 +105,8 @@ const AuthScreen: React.FC = () => {
     setPassword('');
     setUsername('');
   };
+
+  const isDisabled = isLoading || socialLoading;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -82,6 +126,37 @@ const AuthScreen: React.FC = () => {
           </View>
 
           <View style={styles.formContainer}>
+            {/* Social Sign-In Buttons */}
+            <View style={styles.socialContainer}>
+              {appleAuthAvailable && (
+                <TouchableOpacity
+                  style={styles.socialButton}
+                  onPress={handleAppleSignIn}
+                  disabled={isDisabled}
+                >
+                  <Ionicons name="logo-apple" size={24} color="#FFFFFF" />
+                  <Text style={styles.socialButtonText}>Continue with Apple</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+                onPress={handleGoogleSignIn}
+                disabled={isDisabled}
+              >
+                <Ionicons name="logo-google" size={24} color="#FFFFFF" />
+                <Text style={styles.socialButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Email/Password Fields */}
             {mode === 'signup' && (
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Username (optional)</Text>
@@ -125,6 +200,15 @@ const AuthScreen: React.FC = () => {
               />
             </View>
 
+            {mode === 'signin' && (
+              <TouchableOpacity
+                style={styles.forgotPasswordButton}
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
+
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -132,9 +216,9 @@ const AuthScreen: React.FC = () => {
             )}
 
             <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
+              style={[styles.button, isDisabled && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isDisabled}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
@@ -196,6 +280,42 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  socialContainer: {
+    gap: 12,
+    marginBottom: 0,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+  },
+  socialButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#999',
+    fontSize: 14,
+  },
   inputContainer: {
     marginBottom: 16,
   },
@@ -213,6 +333,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     backgroundColor: '#fafafa',
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    color: '#FF6B35',
+    fontSize: 14,
   },
   errorContainer: {
     backgroundColor: '#ffebee',

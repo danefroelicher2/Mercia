@@ -67,6 +67,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Social login function
+  const socialLogin = useCallback(async (provider: 'google' | 'apple', idToken: string, nonce?: string) => {
+    setIsLoading(true);
+    try {
+      const { user: socialUser } = await authService.socialLogin(provider, idToken, nonce);
+      setUser(socialUser);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Logout function
   const logout = useCallback(async () => {
     setIsLoading(true);
@@ -87,6 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     login,
     register,
+    socialLogin,
     logout,
   };
 

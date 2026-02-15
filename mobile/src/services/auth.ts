@@ -39,6 +39,24 @@ export const login = async (
   return { user, tokens };
 };
 
+// Social login - send provider token to backend, store returned tokens
+export const socialLogin = async (
+  provider: 'google' | 'apple',
+  idToken: string,
+  nonce?: string
+): Promise<{ user: User; tokens: AuthTokens }> => {
+  const response = await api.post<AuthResponse>(`/api/auth/${provider}`, {
+    idToken,
+    ...(nonce && { nonce }),
+  });
+
+  const { user, tokens } = response.data.data;
+  await storeTokens(tokens);
+  await storeUser(user);
+
+  return { user, tokens };
+};
+
 // Logout - clear all stored auth data
 export const logout = async (): Promise<void> => {
   await AsyncStorage.multiRemove([

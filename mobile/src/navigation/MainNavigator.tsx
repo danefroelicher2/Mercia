@@ -6,7 +6,7 @@ import OasisHomeScreen from '../screens/OasisHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import { OasisStackParamList } from '../types/navigation';
 
 // Main tab param list
@@ -34,7 +34,7 @@ const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }
       icon = '📊';
       break;
     case 'Profile':
-      icon = '👤';
+      icon = '⚙️';
       break;
     default:
       icon = '•';
@@ -103,7 +103,7 @@ const MainNavigator: React.FC = () => {
       />
       <Tab.Screen name="Routine" component={RoutineScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={SettingsScreen} />
     </Tab.Navigator>
   );
 };

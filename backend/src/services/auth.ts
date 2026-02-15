@@ -4,7 +4,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 // Lazy-initialized Supabase client
 let supabaseClient: SupabaseClient | null = null;
 
-function getSupabase(): SupabaseClient {
+export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
@@ -163,7 +163,7 @@ export function verifyToken(token: string): User {
 /**
  * Generate JWT tokens
  */
-function generateTokens(user: User): AuthTokens {
+export function generateTokens(user: User): AuthTokens {
   const payload = {
     id: user.id,
     email: user.email,
