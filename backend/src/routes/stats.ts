@@ -350,35 +350,55 @@ async function checkAndUnlockAchievements(
   userId: string,
   supabase: ReturnType<typeof getSupabase>
 ): Promise<Array<{ id: string; title: string }>> {
+  console.log('[checkAndUnlockAchievements] ===== START =====');
+  console.log('[checkAndUnlockAchievements] User ID:', userId);
+
   // Get all achievements and user's already-unlocked ones
   const [achievementsResult, userAchievementsResult] = await Promise.all([
     supabase.schema('oasis').from('achievements').select('*'),
     supabase.schema('oasis').from('user_achievements').select('achievement_id').eq('user_id', userId),
   ]);
 
-  if (achievementsResult.error || userAchievementsResult.error) {
-    console.error('[checkAndUnlockAchievements] Error fetching data:', achievementsResult.error, userAchievementsResult.error);
+  if (achievementsResult.error) {
+    console.error('[checkAndUnlockAchievements] ERROR fetching achievements:', achievementsResult.error);
+    return [];
+  }
+  if (userAchievementsResult.error) {
+    console.error('[checkAndUnlockAchievements] ERROR fetching user achievements:', userAchievementsResult.error);
     return [];
   }
 
   const achievements: Achievement[] = achievementsResult.data;
   const unlockedIds = new Set(userAchievementsResult.data.map((ua: any) => ua.achievement_id));
 
+  console.log('[checkAndUnlockAchievements] Total achievements:', achievements.length);
+  console.log('[checkAndUnlockAchievements] Already unlocked:', unlockedIds.size);
+
   // Only check locked achievements
   const lockedAchievements = achievements.filter(a => !unlockedIds.has(a.id));
-  console.log(`[checkAndUnlockAchievements] User: ${userId} | Locked: ${lockedAchievements.length}/${achievements.length}`);
-  if (lockedAchievements.length === 0) return [];
+  console.log('[checkAndUnlockAchievements] Locked achievements to check:', lockedAchievements.length);
+
+  if (lockedAchievements.length === 0) {
+    console.log('[checkAndUnlockAchievements] All achievements already unlocked!');
+    return [];
+  }
 
   // Calculate current progress
+  console.log('[checkAndUnlockAchievements] Calculating progress...');
   const progress = await calculateProgress(userId, supabase);
-  console.log('[checkAndUnlockAchievements] Progress values:', progress);
+  console.log('[checkAndUnlockAchievements] Progress values:', JSON.stringify(progress, null, 2));
 
   const newlyUnlocked: Array<{ id: string; title: string }> = [];
 
   for (const achievement of lockedAchievements) {
     const currentValue = progress[achievement.requirement_type] ?? 0;
+
+    console.log(`[checkAndUnlockAchievements] Checking: ${achievement.title} (${achievement.requirement_type})`);
+    console.log(`[checkAndUnlockAchievements]   Current: ${currentValue}, Required: ${achievement.requirement_value}`);
+
     if (currentValue >= achievement.requirement_value) {
-      console.log(`[checkAndUnlockAchievements] Unlocking: ${achievement.title} (${achievement.requirement_type}: ${currentValue}/${achievement.requirement_value})`);
+      console.log(`[checkAndUnlockAchievements]   ✅ UNLOCKING: ${achievement.title}`);
+
       // Unlock this achievement
       const { error } = await supabase
         .schema('oasis')
@@ -388,11 +408,19 @@ async function checkAndUnlockAchievements(
           achievement_id: achievement.id,
         });
 
-      if (!error) {
+      if (error) {
+        console.error(`[checkAndUnlockAchievements]   ❌ ERROR unlocking ${achievement.title}:`, error);
+      } else {
+        console.log(`[checkAndUnlockAchievements]   ✅ Successfully unlocked ${achievement.title}`);
         newlyUnlocked.push({ id: achievement.id, title: achievement.title });
       }
+    } else {
+      console.log(`[checkAndUnlockAchievements]   ❌ Not met (${currentValue}/${achievement.requirement_value})`);
     }
   }
+
+  console.log('[checkAndUnlockAchievements] ===== END =====');
+  console.log('[checkAndUnlockAchievements] Newly unlocked:', newlyUnlocked.length);
 
   return newlyUnlocked;
 }

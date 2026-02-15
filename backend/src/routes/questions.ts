@@ -105,14 +105,21 @@ router.post(
         }
 
         // Check and unlock achievements
-        const { checkAndUnlockAchievements } = require('./stats');
-        const newAchievements = await checkAndUnlockAchievements(userId, supabase);
+        try {
+          console.log('[Questions] Checking achievements for user:', userId);
+          const { checkAndUnlockAchievements } = require('./stats');
+          const newAchievements = await checkAndUnlockAchievements(userId, supabase);
 
-        if (newAchievements.length > 0) {
-          console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
+          if (newAchievements.length > 0) {
+            console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
+          } else {
+            console.log('[Questions] No new achievements unlocked');
+          }
+        } catch (achievementError) {
+          console.error('[Questions] ERROR checking achievements:', achievementError);
         }
       } catch (err) {
-        console.error('Failed to log question activity or check achievements:', err);
+        console.error('Failed to log question activity:', err);
       }
 
       res.json({
