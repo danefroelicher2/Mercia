@@ -56,7 +56,7 @@ const SettingsScreen: React.FC = () => {
     try {
       setChangingPassword(true);
 
-      const response = await api.post('/auth/change-password', {
+      const response = await api.post('/api/auth/change-password', {
         currentPassword,
         newPassword,
       });
@@ -94,7 +94,7 @@ const SettingsScreen: React.FC = () => {
   const confirmDeleteAccount = async () => {
     try {
       setDeletingAccount(true);
-      await api.delete('/auth/account');
+      await api.delete('/api/auth/account');
       logout();
     } catch (error: any) {
       Alert.alert('Error', 'Failed to delete account. Please try again.');

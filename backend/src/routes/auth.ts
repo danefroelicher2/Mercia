@@ -276,6 +276,12 @@ router.post('/forgot-password', async (req: Request, res: Response): Promise<voi
  * Change password (requires authentication)
  */
 router.post('/change-password', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  console.log('[Change Password] Request received from user:', req.user?.id);
+  console.log('[Change Password] Request body:', {
+    hasCurrentPassword: !!req.body.currentPassword,
+    hasNewPassword: !!req.body.newPassword,
+  });
+
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user?.id;
@@ -355,6 +361,8 @@ router.post('/change-password', authenticateToken, async (req: Request, res: Res
  * Delete user account (requires authentication)
  */
 router.delete('/account', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  console.log('[Delete Account] Request received from user:', req.user?.id);
+
   try {
     const userId = req.user?.id;
 

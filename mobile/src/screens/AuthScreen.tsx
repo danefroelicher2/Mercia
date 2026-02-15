@@ -139,14 +139,16 @@ const AuthScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                style={[styles.socialButton, styles.googleButton]}
-                onPress={handleGoogleSignIn}
-                disabled={isDisabled}
-              >
-                <Ionicons name="logo-google" size={24} color="#FFFFFF" />
-                <Text style={styles.socialButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
+              {false && (
+                <TouchableOpacity
+                  style={[styles.socialButton, styles.googleButton]}
+                  onPress={handleGoogleSignIn}
+                  disabled={isDisabled}
+                >
+                  <Ionicons name="logo-google" size={24} color="#FFFFFF" />
+                  <Text style={styles.socialButtonText}>Continue with Google</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Divider */}
