@@ -111,11 +111,14 @@ router.patch(
       const storage = getStorage();
       const task = await storage.updateRoutineTaskCompletion(id, userId, completed);
 
-      // Log activity for stats (only if marking as completed)
+      // Log activity for stats AND check achievements (only if marking as completed)
       if (completed === true) {
         try {
           const supabase = getSupabase();
-          await supabase
+
+          console.log('[Routine] Inserting activity log for task completion, user:', userId);
+          // Log the activity
+          const { error: logError } = await supabase
             .schema('oasis')
             .from('user_activity_log')
             .insert({
@@ -123,8 +126,22 @@ router.patch(
               activity_type: 'task_completed',
               activity_date: new Date().toISOString().split('T')[0],
             });
+
+          if (logError) {
+            console.error('[Routine] FAILED to insert task activity log:', logError);
+          } else {
+            console.log('[Routine] Task activity log inserted successfully');
+          }
+
+          // Check and unlock achievements
+          const { checkAndUnlockAchievements } = require('./stats');
+          const newAchievements = await checkAndUnlockAchievements(userId, supabase);
+
+          if (newAchievements.length > 0) {
+            console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
+          }
         } catch (err) {
-          console.error('Failed to log task activity:', err);
+          console.error('Failed to log task activity or check achievements:', err);
         }
       }
 
@@ -259,11 +276,14 @@ router.patch(
       const storage = getStorage();
       const goal = await storage.updateRoutineGoalCompletion(id, userId, completed);
 
-      // Log activity for stats (only if marking as completed)
+      // Log activity for stats AND check achievements (only if marking as completed)
       if (completed === true) {
         try {
           const supabase = getSupabase();
-          await supabase
+
+          console.log('[Routine] Inserting activity log for goal completion, user:', userId);
+          // Log the activity
+          const { error: logError } = await supabase
             .schema('oasis')
             .from('user_activity_log')
             .insert({
@@ -271,8 +291,22 @@ router.patch(
               activity_type: 'goal_completed',
               activity_date: new Date().toISOString().split('T')[0],
             });
+
+          if (logError) {
+            console.error('[Routine] FAILED to insert goal activity log:', logError);
+          } else {
+            console.log('[Routine] Goal activity log inserted successfully');
+          }
+
+          // Check and unlock achievements
+          const { checkAndUnlockAchievements } = require('./stats');
+          const newAchievements = await checkAndUnlockAchievements(userId, supabase);
+
+          if (newAchievements.length > 0) {
+            console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
+          }
         } catch (err) {
-          console.error('Failed to log goal activity:', err);
+          console.error('Failed to log goal activity or check achievements:', err);
         }
       }
 

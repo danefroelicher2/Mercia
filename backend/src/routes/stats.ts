@@ -261,15 +261,33 @@ async function calculateProgress(
     questionCountResult,
     chatCountResult,
     taskCountResult,
+    taskStreakResult,
+    balancedWeekResult,
+    tripleThreadResult,
+    fullEngagementResult,
+    firstMonthResult,
+    activeMonthsResult,
   ] = await Promise.all([
     // Current streak
     supabase.rpc('get_current_streak', { p_user_id: userId }),
     // Total questions answered
-    supabase.schema('oasis').from('user_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    supabase.schema('oasis').from('user_question_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
     // Total distinct chats where user sent a message
     supabase.schema('oasis').from('chat_messages').select('chat_id', { count: 'exact', head: true }).eq('user_id', userId).eq('role', 'user'),
     // Total tasks + goals completed
     supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true }).eq('user_id', userId).in('activity_type', ['task_completed', 'goal_completed']),
+    // Task completion streak (consecutive days)
+    supabase.rpc('get_task_streak', { p_user_id: userId }),
+    // Balanced week progress (questions + tasks same week)
+    supabase.rpc('get_balanced_week_progress', { p_user_id: userId }),
+    // Triple threat status (all 3 features same day)
+    supabase.rpc('get_triple_threat_status', { p_user_id: userId }),
+    // Full engagement streak (all 3 features for consecutive days)
+    supabase.rpc('get_full_engagement_streak', { p_user_id: userId }),
+    // First month activity (unique days in first 30 days)
+    supabase.rpc('get_first_month_activity_days', { p_user_id: userId }),
+    // Active months count
+    supabase.rpc('get_active_months_count', { p_user_id: userId }),
   ]);
 
   // For routine_weekly_completion, check if user had activity on all 7 days of any week
@@ -280,11 +298,9 @@ async function calculateProgress(
 
   let routineWeeklyCompletion = 0;
   if (weeklyData && weeklyData.length > 0) {
-    // Group by ISO week and check for any 7-day week
     const datesByWeek = new Map<string, Set<string>>();
     for (const row of weeklyData) {
       const date = new Date(row.activity_date);
-      // Get ISO week number
       const weekKey = getISOWeekKey(date);
       if (!datesByWeek.has(weekKey)) {
         datesByWeek.set(weekKey, new Set());
@@ -299,11 +315,24 @@ async function calculateProgress(
     }
   }
 
+  // For balanced_week, check if BOTH conditions met (5+ questions AND 5+ tasks this week)
+  const balancedWeekData = balancedWeekResult.data?.[0];
+  const balancedWeekComplete = (
+    balancedWeekData?.questions_this_week >= 5 &&
+    balancedWeekData?.tasks_this_week >= 5
+  ) ? 1 : 0;
+
   return {
     streak: streakResult.data ?? 0,
     question_total: questionCountResult.count ?? 0,
     chat_total: chatCountResult.count ?? 0,
     task_total: taskCountResult.count ?? 0,
+    task_streak: taskStreakResult.data ?? 0,
+    balanced_week: balancedWeekComplete,
+    triple_threat: tripleThreadResult.data ?? 0,
+    full_engagement: fullEngagementResult.data ?? 0,
+    first_month_active: firstMonthResult.data ?? 0,
+    active_months: activeMonthsResult.data ?? 0,
     routine_weekly_completion: routineWeeklyCompletion,
   };
 }
@@ -327,23 +356,29 @@ async function checkAndUnlockAchievements(
     supabase.schema('oasis').from('user_achievements').select('achievement_id').eq('user_id', userId),
   ]);
 
-  if (achievementsResult.error || userAchievementsResult.error) return [];
+  if (achievementsResult.error || userAchievementsResult.error) {
+    console.error('[checkAndUnlockAchievements] Error fetching data:', achievementsResult.error, userAchievementsResult.error);
+    return [];
+  }
 
   const achievements: Achievement[] = achievementsResult.data;
   const unlockedIds = new Set(userAchievementsResult.data.map((ua: any) => ua.achievement_id));
 
   // Only check locked achievements
   const lockedAchievements = achievements.filter(a => !unlockedIds.has(a.id));
+  console.log(`[checkAndUnlockAchievements] User: ${userId} | Locked: ${lockedAchievements.length}/${achievements.length}`);
   if (lockedAchievements.length === 0) return [];
 
   // Calculate current progress
   const progress = await calculateProgress(userId, supabase);
+  console.log('[checkAndUnlockAchievements] Progress values:', progress);
 
   const newlyUnlocked: Array<{ id: string; title: string }> = [];
 
   for (const achievement of lockedAchievements) {
     const currentValue = progress[achievement.requirement_type] ?? 0;
     if (currentValue >= achievement.requirement_value) {
+      console.log(`[checkAndUnlockAchievements] Unlocking: ${achievement.title} (${achievement.requirement_type}: ${currentValue}/${achievement.requirement_value})`);
       // Unlock this achievement
       const { error } = await supabase
         .schema('oasis')
@@ -361,5 +396,8 @@ async function checkAndUnlockAchievements(
 
   return newlyUnlocked;
 }
+
+// Export the achievement checking function so other routes can use it
+export { checkAndUnlockAchievements };
 
 export default router;

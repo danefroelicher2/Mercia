@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   PanResponder,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -64,6 +65,16 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+// Format date as M/D/YY (e.g., "1/14/25")
+const formatCompletionDate = (isoDate: string | null): string => {
+  if (!isoDate) return '';
+  const date = new Date(isoDate);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const year = date.getFullYear().toString().slice(-2);
+  return `${month}/${day}/${year}`;
+};
+
 const StatsScreen: React.FC = () => {
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [loadingStreak, setLoadingStreak] = useState(true);
@@ -75,6 +86,8 @@ const StatsScreen: React.FC = () => {
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loadingAchievements, setLoadingAchievements] = useState(true);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Refs for swipe navigation (to access latest state in PanResponder)
   const heatmapRef = useRef(heatmapData);
@@ -129,6 +142,16 @@ const StatsScreen: React.FC = () => {
   useEffect(() => {
     fetchHeatmapData();
   }, [currentYear, currentMonth]);
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchStreakData(),
+      fetchHeatmapData(),
+      fetchAchievements(),
+    ]);
+    setIsRefreshing(false);
+  };
 
   const fetchStreakData = async () => {
     try {
@@ -220,7 +243,16 @@ const StatsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {/* Streak Cards */}
         <View style={styles.streakContainer}>
           <View style={styles.streakCard}>
@@ -304,10 +336,7 @@ const StatsScreen: React.FC = () => {
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
           <Text style={styles.sectionTitle}>
-            Achievements{'  '}
-            <Text style={styles.achievementCounter}>
-              {achievements.filter((a) => a.unlocked).length}/{achievements.length}
-            </Text>
+            Achievements  {achievements.filter((a) => a.unlocked).length}/{achievements.length}
           </Text>
 
           {loadingAchievements ? (
@@ -315,61 +344,46 @@ const StatsScreen: React.FC = () => {
           ) : achievements.length === 0 ? (
             <Text style={styles.emptyText}>No achievements yet</Text>
           ) : (
-            [...achievements]
-              .sort((a, b) => {
-                if (a.unlocked && !b.unlocked) return 1;
-                if (!a.unlocked && b.unlocked) return -1;
-                if (a.unlocked && b.unlocked) {
-                  return new Date(a.unlockedAt!).getTime() - new Date(b.unlockedAt!).getTime();
-                }
-                return 0;
-              })
-              .map((achievement) => {
-                const formatShortDate = (iso: string | null) => {
-                  if (!iso) return '';
-                  const d = new Date(iso);
-                  return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
-                };
-
-                return (
-                  <View key={achievement.id} style={styles.achievementCard}>
-                    <Text style={styles.achievementIcon}>
-                      {achievement.unlocked ? '\u2713' : '\uD83D\uDD12'}
-                    </Text>
-                    <View style={styles.achievementContent}>
+            achievements.map((achievement) => (
+                <View key={achievement.id} style={styles.achievementCard}>
+                  <Text style={styles.achievementIcon}>
+                    {achievement.unlocked ? '\u2713' : '\uD83D\uDD12'}
+                  </Text>
+                  <View style={styles.achievementContent}>
+                    <View style={styles.achievementTitleRow}>
                       <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                      <Text style={styles.achievementDescription}>
-                        {achievement.description}
-                      </Text>
-                      {achievement.unlocked ? null : (
-                        <>
-                          <Text style={styles.achievementProgress}>
-                            Progress: {achievement.progress}/{achievement.requirement}
-                          </Text>
-                          <View style={styles.progressBarBg}>
-                            <View
-                              style={[
-                                styles.progressBarFill,
-                                {
-                                  width: `${Math.min(
-                                    (achievement.progress / achievement.requirement) * 100,
-                                    100
-                                  )}%`,
-                                },
-                              ]}
-                            />
-                          </View>
-                        </>
+                      {achievement.unlocked && achievement.unlockedAt && (
+                        <Text style={styles.achievementDate}>
+                          {formatCompletionDate(achievement.unlockedAt)}
+                        </Text>
                       )}
                     </View>
-                    {achievement.unlocked && achievement.unlockedAt && (
-                      <Text style={styles.achievementDate}>
-                        {formatShortDate(achievement.unlockedAt)}
-                      </Text>
+                    <Text style={styles.achievementDescription}>
+                      {achievement.description}
+                    </Text>
+                    {!achievement.unlocked && (
+                      <>
+                        <Text style={styles.achievementProgress}>
+                          Progress: {achievement.progress}/{achievement.requirement}
+                        </Text>
+                        <View style={styles.progressBarBg}>
+                          <View
+                            style={[
+                              styles.progressBarFill,
+                              {
+                                width: `${Math.min(
+                                  (achievement.progress / achievement.requirement) * 100,
+                                  100
+                                )}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </>
                     )}
                   </View>
-                );
-              })
+                </View>
+              ))
           )}
         </View>
       </ScrollView>
@@ -508,26 +522,27 @@ const styles = StyleSheet.create({
   achievementContent: {
     flex: 1,
   },
+  achievementTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   achievementTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  achievementDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  achievementCounter: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: colors.textSecondary,
+    flex: 1,
   },
   achievementDate: {
     fontSize: 12,
     color: colors.textSecondary,
     marginLeft: 8,
+  },
+  achievementDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 4,
   },
   achievementProgress: {
     fontSize: 14,

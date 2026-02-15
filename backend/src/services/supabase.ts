@@ -11,7 +11,10 @@ export function getSupabase(): SupabaseClient {
       throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY are required in .env');
     }
 
+    console.log('[Supabase] Connecting to:', url);
+    console.log('[Supabase] Using schema: oasis');
     supabaseClient = createClient(url, key);
+    console.log('[Supabase] Connection established');
   }
 
   return supabaseClient;
