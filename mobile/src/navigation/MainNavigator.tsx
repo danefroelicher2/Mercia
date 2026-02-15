@@ -7,6 +7,7 @@ import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import { OasisStackParamList } from '../types/navigation';
 
 // Main tab param list
@@ -17,8 +18,14 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type ProfileStackParamList = {
+  Settings: undefined;
+  SummaryHistory: undefined;
+};
+
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const OasisStack = createNativeStackNavigator<OasisStackParamList>();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 // Simple icon component using text/emoji (we can replace with proper icons later)
 const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }) => {
@@ -80,6 +87,36 @@ const OasisStackNavigator: React.FC = () => {
   );
 };
 
+// Profile Stack Navigator (contains Settings and SummaryHistory)
+const ProfileStackNavigator: React.FC = () => {
+  return (
+    <ProfileStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+      <ProfileStack.Screen
+        name="SummaryHistory"
+        component={SummaryHistoryScreen}
+        options={{
+          headerShown: true,
+          title: 'Summary History',
+          headerBackTitle: 'Back',
+          headerStyle: {
+            backgroundColor: '#1A1A1A',
+          },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 17,
+          },
+        }}
+      />
+    </ProfileStack.Navigator>
+  );
+};
+
 const MainNavigator: React.FC = () => {
   return (
     <Tab.Navigator
@@ -103,7 +140,7 @@ const MainNavigator: React.FC = () => {
       />
       <Tab.Screen name="Routine" component={RoutineScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
-      <Tab.Screen name="Profile" component={SettingsScreen} />
+      <Tab.Screen name="Profile" component={ProfileStackNavigator} />
     </Tab.Navigator>
   );
 };

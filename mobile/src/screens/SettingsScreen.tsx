@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -26,6 +27,7 @@ const colors = {
 
 const SettingsScreen: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigation = useNavigation<any>();
 
   // Change Password Modal State
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -136,6 +138,14 @@ const SettingsScreen: React.FC = () => {
           onPress={() => setChangePasswordVisible(true)}
         >
           <Text style={styles.settingLabel}>Change Password</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('SummaryHistory')}
+        >
+          <Text style={styles.settingLabel}>Summary History</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 

@@ -15,7 +15,10 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import QuoteCard from '../components/QuoteCard';
+import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
+import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
+import { WeeklySummary } from '../types/summary';
 
 const colors = {
   screenBg: '#1A1A1A',
@@ -51,6 +54,10 @@ const RoutineScreen: React.FC = () => {
   const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Weekly summary state
+  const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
+  const [summaryModalVisible, setSummaryModalVisible] = useState(false);
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -91,12 +98,32 @@ const RoutineScreen: React.FC = () => {
     setSelectedDay(DAYS[dayIndex]);
   }, []);
 
+  // Load weekly summary on mount
+  useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        const response = await api.get('/api/summaries/current');
+        if (response.data.success && response.data.data) {
+          setCurrentSummary(response.data.data);
+        }
+      } catch (error) {
+        console.error('[RoutineScreen] Error loading summary:', error);
+      }
+    };
+    loadSummary();
+  }, []);
+
   // Load data when day changes
   useEffect(() => {
     if (user) {
       loadData();
     }
   }, [user, selectedDay]);
+
+  const handleSaveSummary = async (summaryId: string) => {
+    await api.patch(`/api/summaries/${summaryId}/save`);
+    setCurrentSummary(prev => prev ? { ...prev, is_saved: true } : null);
+  };
 
   const loadData = async () => {
     try {
@@ -393,6 +420,12 @@ const RoutineScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Weekly Summary Banner - Monday only */}
+      <WeeklySummaryBanner
+        summary={currentSummary}
+        onPress={() => setSummaryModalVisible(true)}
+      />
+
       {/* Quote Card - positioned above day switcher */}
       <QuoteCard quote={currentQuote} />
 
@@ -598,6 +631,14 @@ const RoutineScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Weekly Summary Modal */}
+      <WeeklySummaryModal
+        visible={summaryModalVisible}
+        summary={currentSummary}
+        onDismiss={() => setSummaryModalVisible(false)}
+        onSave={handleSaveSummary}
+      />
     </SafeAreaView>
   );
 };

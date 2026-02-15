@@ -1,0 +1,98 @@
+import { Router, Request, Response } from 'express';
+import { authenticateToken } from '../middleware/auth';
+import { getSupabase } from '../services/supabase';
+
+const router = Router();
+
+router.use(authenticateToken);
+
+// GET /api/summaries/current - Returns the most recent weekly summary
+router.get('/current', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .select('*')
+      .eq('user_id', userId)
+      .order('week_end_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ success: true, data: data || null });
+  } catch (error: any) {
+    console.error('[Summaries] Error fetching current:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/summaries/history - Returns all saved summaries
+router.get('/history', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_saved', true)
+      .order('week_end_date', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    console.error('[Summaries] Error fetching history:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/summaries/:id/save - Mark a summary as saved
+router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .update({ is_saved: true })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    console.error('[Summaries] Error saving:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/summaries/trigger-generation - Manually trigger summary generation (testing/admin)
+// Calls the Supabase pg_cron function directly
+router.post('/trigger-generation', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase.rpc('generate_weekly_summaries');
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Weekly summary generation triggered', data });
+  } catch (error: any) {
+    console.error('[Summaries] Error triggering generation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+export default router;

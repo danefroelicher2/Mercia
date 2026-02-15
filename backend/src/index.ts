@@ -12,6 +12,7 @@ import chatRoutes from './routes/chat';
 import extractionRoutes from './routes/extraction';
 import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
+import summaryRoutes from './routes/summaries';
 
 // Import jobs
 import { startExtractionCronJob, startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
@@ -61,6 +62,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/summaries', summaryRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
