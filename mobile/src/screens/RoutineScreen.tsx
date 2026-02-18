@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
@@ -58,6 +59,7 @@ const RoutineScreen: React.FC = () => {
   // Weekly summary state
   const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
   const [summaryModalVisible, setSummaryModalVisible] = useState(false);
+  const [tuesdayModalVisible, setTuesdayModalVisible] = useState(false);
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -98,13 +100,15 @@ const RoutineScreen: React.FC = () => {
     setSelectedDay(DAYS[dayIndex]);
   }, []);
 
-  // Load weekly summary on mount
+  // Load weekly summary on mount and check for Tuesday last-chance modal
   useEffect(() => {
     const loadSummary = async () => {
       try {
         const response = await api.get('/api/summaries/current');
         if (response.data.success && response.data.data) {
-          setCurrentSummary(response.data.data);
+          const summary: WeeklySummary = response.data.data;
+          setCurrentSummary(summary);
+          await checkTuesdayModal(summary);
         }
       } catch (error) {
         console.error('[RoutineScreen] Error loading summary:', error);
@@ -112,6 +116,39 @@ const RoutineScreen: React.FC = () => {
     };
     loadSummary();
   }, []);
+
+  const checkTuesdayModal = async (summary: WeeklySummary) => {
+    const isTuesday = new Date().getDay() === 2;
+    if (!isTuesday || summary.is_saved) return;
+
+    const key = `dismissed_summary_${summary.week_start_date}`;
+    const alreadyShown = await AsyncStorage.getItem(key);
+    if (alreadyShown) return;
+
+    // Mark as shown before displaying — prevents repeat on subsequent opens
+    await AsyncStorage.setItem(key, 'true');
+    setTuesdayModalVisible(true);
+    await cleanupOldSummaryKeys(summary.week_start_date);
+  };
+
+  const cleanupOldSummaryKeys = async (currentWeekStart: string) => {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const summaryKeys = allKeys.filter(k => k.startsWith('dismissed_summary_'));
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const keysToRemove = summaryKeys.filter(k => {
+        const dateStr = k.replace('dismissed_summary_', '');
+        const date = new Date(dateStr);
+        return !isNaN(date.getTime()) && date < twoWeeksAgo;
+      });
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
+    } catch (error) {
+      console.error('[RoutineScreen] Error cleaning up summary keys:', error);
+    }
+  };
 
   // Load data when day changes
   useEffect(() => {
@@ -123,6 +160,11 @@ const RoutineScreen: React.FC = () => {
   const handleSaveSummary = async (summaryId: string) => {
     await api.patch(`/api/summaries/${summaryId}/save`);
     setCurrentSummary(prev => prev ? { ...prev, is_saved: true } : null);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const loadData = async () => {
@@ -634,6 +676,46 @@ const RoutineScreen: React.FC = () => {
         </View>
       </Modal>
 
+      {/* Tuesday Last Chance Modal */}
+      <Modal
+        visible={tuesdayModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTuesdayModalVisible(false)}
+      >
+        <View style={styles.tuesdayOverlay}>
+          <View style={styles.tuesdayCard}>
+            <TouchableOpacity
+              style={styles.tuesdayCloseButton}
+              onPress={() => setTuesdayModalVisible(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.tuesdayCloseText}>✕</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.tuesdayTitle}>Last Chance: Weekly Summary</Text>
+
+            {currentSummary && (
+              <Text style={styles.tuesdaySubtitle}>
+                Your weekly summary from{'\n'}
+                {formatDate(currentSummary.week_start_date)} – {formatDate(currentSummary.week_end_date)}
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.tuesdayViewButton}
+              onPress={() => {
+                setTuesdayModalVisible(false);
+                setSummaryModalVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.tuesdayViewButtonText}>View Summary</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Weekly Summary Modal */}
       <WeeklySummaryModal
         visible={summaryModalVisible}
@@ -849,6 +931,57 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: colors.textPrimary,
+  },
+
+  // Tuesday Last Chance Modal
+  tuesdayOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  tuesdayCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: 16,
+    padding: 28,
+    width: '100%',
+    maxWidth: 360,
+  },
+  tuesdayCloseButton: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    padding: 4,
+  },
+  tuesdayCloseText: {
+    fontSize: 18,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  tuesdayTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 12,
+    marginRight: 24,
+  },
+  tuesdaySubtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  tuesdayViewButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  tuesdayViewButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
 });
