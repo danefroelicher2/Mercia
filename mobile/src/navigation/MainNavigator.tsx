@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import OasisHomeScreen from '../screens/OasisHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
@@ -30,32 +30,6 @@ export type ProfileStackParamList = {
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const OasisStack = createNativeStackNavigator<OasisStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
-
-// Simple icon component using text/emoji (we can replace with proper icons later)
-const TabIcon: React.FC<{ name: string; focused: boolean }> = ({ name, focused }) => {
-  let icon = '';
-  switch (name) {
-    case 'OasisTab':
-      icon = '🏠';
-      break;
-    case 'Routine':
-      icon = '📅';
-      break;
-    case 'Stats':
-      icon = '📊';
-      break;
-    case 'Profile':
-      icon = '⚙️';
-      break;
-    default:
-      icon = '•';
-  }
-  return (
-    <Text style={[styles.icon, focused && styles.iconFocused]}>
-      {icon}
-    </Text>
-  );
-};
 
 // Oasis Stack Navigator (contains OasisHome and ChatScreen)
 const OasisStackNavigator: React.FC = () => {
@@ -139,48 +113,39 @@ const MainNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused }: { focused: boolean }) => (
-          <TabIcon name={route.name} focused={focused} />
-        ),
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#666',
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarShowLabel: false,
+        tabBarIcon: ({ focused }: { focused: boolean }) => {
+          const iconMap: Record<string, { active: string; inactive: string }> = {
+            OasisTab: { active: 'home', inactive: 'home-outline' },
+            Routine: { active: 'calendar', inactive: 'calendar-outline' },
+            Stats: { active: 'bar-chart', inactive: 'bar-chart-outline' },
+            Profile: { active: 'person', inactive: 'person-outline' },
+          };
+          const icons = iconMap[route.name] || { active: 'ellipse', inactive: 'ellipse-outline' };
+          return (
+            <Ionicons
+              name={(focused ? icons.active : icons.inactive) as any}
+              size={24}
+              color={focused ? '#FFFFFF' : '#555555'}
+            />
+          );
+        },
+        tabBarStyle: {
+          backgroundColor: '#1A1A1A',
+          borderTopWidth: 1,
+          borderTopColor: '#2A2A2A',
+          height: 85,
+          paddingBottom: 16,
+          paddingTop: 10,
+        },
       })}
     >
-      <Tab.Screen
-        name="OasisTab"
-        component={OasisStackNavigator}
-        options={{
-          tabBarLabel: 'Oasis',
-        }}
-      />
+      <Tab.Screen name="OasisTab" component={OasisStackNavigator} />
       <Tab.Screen name="Routine" component={RoutineScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
       <Tab.Screen name="Profile" component={ProfileStackNavigator} />
     </Tab.Navigator>
   );
 };
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingTop: 8,
-    paddingBottom: 8,
-    height: 60,
-  },
-  tabBarLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  icon: {
-    fontSize: 20,
-  },
-  iconFocused: {
-    fontSize: 22,
-  },
-});
 
 export default MainNavigator;
