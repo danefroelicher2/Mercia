@@ -6,8 +6,10 @@ import OasisHomeScreen from '../screens/OasisHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
+import OasisMemoryScreen from '../screens/OasisMemoryScreen';
 import { OasisStackParamList } from '../types/navigation';
 
 // Main tab param list
@@ -19,8 +21,10 @@ export type MainTabParamList = {
 };
 
 export type ProfileStackParamList = {
+  Profile: undefined;
   Settings: undefined;
   SummaryHistory: undefined;
+  OasisMemory: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -87,7 +91,7 @@ const OasisStackNavigator: React.FC = () => {
   );
 };
 
-// Profile Stack Navigator (contains Settings and SummaryHistory)
+// Profile Stack Navigator
 const ProfileStackNavigator: React.FC = () => {
   return (
     <ProfileStack.Navigator
@@ -95,6 +99,7 @@ const ProfileStackNavigator: React.FC = () => {
         headerShown: false,
       }}
     >
+      <ProfileStack.Screen name="Profile" component={ProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen
         name="SummaryHistory"
@@ -111,6 +116,18 @@ const ProfileStackNavigator: React.FC = () => {
             fontWeight: '600',
             fontSize: 17,
           },
+        }}
+      />
+      <ProfileStack.Screen
+        name="OasisMemory"
+        component={OasisMemoryScreen}
+        options={{
+          headerShown: true,
+          title: 'Oasis Memory',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
       />
     </ProfileStack.Navigator>

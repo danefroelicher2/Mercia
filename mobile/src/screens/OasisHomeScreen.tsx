@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, NavigationProp } from '@react-navigation/native';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { cacheQuestionState, getCachedQuestionState } from '../services/questionCache';
@@ -26,10 +26,10 @@ import { Chat, ChatsListApiResponse, CreateChatApiResponse } from '../types/chat
 import {
   MemoryProfile,
   MemoryProfileApiResponse,
-  InsightEntry,
   GroupedInsightsApiResponse,
 } from '../types/memory';
 import { OasisScreenNavigationProp } from '../types/navigation';
+import { MainTabParamList } from '../navigation/MainNavigator';
 import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
 
 // Enable LayoutAnimation on Android
@@ -41,9 +41,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const MEMORY_COLLAPSED_KEY = 'oasis_memory_collapsed';
 
 // Constants
-const QUESTION_FACTS_MAX = 40;
-const CONVERSATION_FACTS_MAX = 60;
-const INSIGHT_DISPLAY_CAP = 8;
 const MAX_CHARS = 2100;
 const MIN_CHARS = 10;
 const CHATS_PER_PAGE = 10;
@@ -54,6 +51,7 @@ const OasisHomeScreen: React.FC = () => {
   // NAVIGATION & AUTH
   // ============================================
   const navigation = useNavigation<OasisScreenNavigationProp>();
+  const rootNavigation = useNavigation<NavigationProp<MainTabParamList>>();
   const { user } = useAuth();
 
   // ============================================
@@ -469,6 +467,12 @@ const OasisHomeScreen: React.FC = () => {
     }
   };
 
+  const handleViewOasisMemory = () => {
+    rootNavigation.navigate('Profile', {
+      screen: 'OasisMemory',
+    } as any);
+  };
+
   // ============================================
   // EFFECTS
   // ============================================
@@ -763,20 +767,6 @@ const OasisHomeScreen: React.FC = () => {
   // MEMORY PROFILE RENDER HELPERS
   // ============================================
 
-  const hasMemoryData = () => {
-    if (groupedInsights) {
-      return (
-        groupedInsights.from_questions.length > 0 ||
-        groupedInsights.from_conversations.length > 0
-      );
-    }
-    if (!memoryProfile) return false;
-    const valuesCount = memoryProfile.core_values?.length || 0;
-    const beliefsCount = Object.keys(memoryProfile.beliefs || {}).length;
-    const interestsCount = Object.keys(memoryProfile.interests || {}).length;
-    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0;
-  };
-
   const renderMemoryLoading = () => (
     <View style={styles.memoryCenterContainer}>
       <ActivityIndicator size="small" color={colors.primary} />
@@ -803,118 +793,31 @@ const OasisHomeScreen: React.FC = () => {
     </View>
   );
 
-  // ============================================
-  // GROUPED INSIGHT HELPERS
-  // ============================================
-
-  /**
-   * Render a categorised list of InsightEntry items capped at INSIGHT_DISPLAY_CAP.
-   * Groups entries by category with a label row above each group.
-   */
-  const renderInsightList = (entries: InsightEntry[]) => {
-    if (entries.length === 0) return null;
-
-    const display = entries.slice(0, INSIGHT_DISPLAY_CAP);
-    const overflow = entries.length - INSIGHT_DISPLAY_CAP;
-
-    // Group display entries by category
-    const grouped: Record<string, InsightEntry[]> = {};
-    for (const entry of display) {
-      if (!grouped[entry.category]) grouped[entry.category] = [];
-      grouped[entry.category].push(entry);
-    }
-
-    const CATEGORY_LABELS: Record<string, string> = {
-      value: 'VALUES',
-      belief: 'BELIEFS',
-      interest: 'INTERESTS',
-      pattern: 'PATTERNS',
-      goal: 'GOALS',
-      quote: 'QUOTES',
-    };
-
-    return (
-      <View style={styles.insightListContainer}>
-        {Object.entries(grouped).map(([category, items]) => (
-          <View key={category} style={styles.insightCategoryGroup}>
-            <Text style={styles.insightCategoryLabel}>
-              {CATEGORY_LABELS[category] ?? category.toUpperCase()}
-            </Text>
-            {items.map((item, idx) => (
-              <Text key={item.id ?? idx} style={styles.memoryBulletItem}>
-                {'\u2022'} {item.content}
-              </Text>
-            ))}
-          </View>
-        ))}
-        {overflow > 0 && (
-          <Text style={styles.memoryMoreText}>and {overflow} more</Text>
-        )}
-      </View>
-    );
-  };
-
-  /**
-   * Progress bar row: track + fill + count label.
-   */
-  const renderProgressBar = (count: number, max: number) => {
-    const pct = max > 0 ? Math.min(count / max, 1) : 0;
-    return (
-      <View style={styles.progressBarRow}>
-        <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${pct * 100}%` }]} />
-        </View>
-        <Text style={styles.progressBarLabel}>{count} / {max}</Text>
-      </View>
-    );
-  };
-
-  /**
-   * One dual-source sub-section (questions or conversations).
-   */
-  const renderInsightSubsection = (
-    label: string,
-    entries: InsightEntry[],
-    count: number,
-    max: number,
-    emptyText: string
-  ) => (
-    <View style={styles.insightSubsection}>
-      <Text style={styles.insightSectionTitle}>{label}</Text>
-      {renderProgressBar(count, max)}
-      {entries.length === 0 ? (
-        <Text style={styles.insightEmptyText}>{emptyText}</Text>
-      ) : (
-        renderInsightList(entries)
-      )}
-    </View>
-  );
-
   const renderMemoryData = () => {
     const questions = groupedInsights?.from_questions ?? [];
     const conversations = groupedInsights?.from_conversations ?? [];
-    const qCount = groupedInsights?.question_facts_count ?? (memoryProfile?.question_facts_count ?? 0);
-    const cCount = groupedInsights?.conversation_facts_count ?? (memoryProfile?.conversation_facts_count ?? 0);
+    const combined = [...questions, ...conversations]
+      .sort((a, b) => b.semantic_importance - a.semantic_importance)
+      .slice(0, 10);
+
+    if (combined.length === 0) {
+      return (
+        <Text style={styles.memoryEmptyText}>
+          Answer questions above to help Oasis learn about you.
+        </Text>
+      );
+    }
 
     return (
-      <View style={styles.memoryDataContainer}>
-        {renderInsightSubsection(
-          'FROM YOUR QUESTIONS',
-          questions,
-          qCount,
-          QUESTION_FACTS_MAX,
-          'Answer today\u2019s question and Oasis will start learning about you.'
-        )}
-
-        <View style={styles.insightDivider} />
-
-        {renderInsightSubsection(
-          'FROM YOUR CONVERSATIONS',
-          conversations,
-          cCount,
-          CONVERSATION_FACTS_MAX,
-          'Have a conversation with Oasis and it will begin learning from what you share.'
-        )}
+      <View>
+        {combined.map((item, idx) => (
+          <Text key={item.id ?? idx} style={styles.memoryBulletItem}>
+            {'\u2022'} {item.content}
+          </Text>
+        ))}
+        <TouchableOpacity onPress={handleViewOasisMemory} style={styles.viewMemoryLink}>
+          <Text style={styles.viewMemoryLinkText}>View Oasis Memory</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -1354,71 +1257,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingLeft: spacing.smallGap,
   },
-  memoryMoreText: {
-    ...typography.timestamp,
-    fontStyle: 'italic',
-    paddingLeft: spacing.smallGap,
-    marginTop: 4,
+  viewMemoryLink: {
+    alignSelf: 'flex-end',
+    marginTop: spacing.elementGap,
   },
-  // Dual-source layout
-  insightSubsection: {
-    paddingVertical: 4,
-  },
-  insightSectionTitle: {
+  viewMemoryLinkText: {
+    color: colors.primary,
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: spacing.elementGap,
-  },
-  insightDivider: {
-    height: 1,
-    backgroundColor: colors.divider,
-    marginVertical: spacing.sectionGap,
-  },
-  // Progress bar
-  progressBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.elementGap,
-  },
-  progressBarTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 3,
-  },
-  progressBarLabel: {
-    ...typography.timestamp,
-    marginLeft: 10,
-    minWidth: 42,
-    textAlign: 'right',
-  },
-  // Insight list
-  insightListContainer: {
-    gap: 4,
-  },
-  insightCategoryGroup: {
-    marginBottom: spacing.smallGap,
-  },
-  insightCategoryLabel: {
-    ...typography.timestamp,
-    fontWeight: '600',
-    color: colors.textTertiary,
-    letterSpacing: 0.4,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  insightEmptyText: {
-    ...typography.caption,
-    textAlign: 'center',
-    paddingVertical: spacing.sectionGap,
+    fontWeight: '500',
   },
 });
 
