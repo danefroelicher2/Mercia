@@ -23,7 +23,12 @@ import { cacheQuestionState, getCachedQuestionState } from '../services/question
 import { formatRelativeTime } from '../utils/dateUtils';
 import { DailyQuestion, QuestionState, DailyQuestionApiResponse, AnswerApiResponse } from '../types/question';
 import { Chat, ChatsListApiResponse, CreateChatApiResponse } from '../types/chat';
-import { MemoryProfile, MemoryProfileApiResponse } from '../types/memory';
+import {
+  MemoryProfile,
+  MemoryProfileApiResponse,
+  InsightEntry,
+  GroupedInsightsApiResponse,
+} from '../types/memory';
 import { OasisScreenNavigationProp } from '../types/navigation';
 import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
 
@@ -36,6 +41,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const MEMORY_COLLAPSED_KEY = 'oasis_memory_collapsed';
 
 // Constants
+const QUESTION_FACTS_MAX = 40;
+const CONVERSATION_FACTS_MAX = 60;
+const INSIGHT_DISPLAY_CAP = 8;
 const MAX_CHARS = 2100;
 const MIN_CHARS = 10;
 const CHATS_PER_PAGE = 10;
@@ -82,6 +90,7 @@ const OasisHomeScreen: React.FC = () => {
   const [memoryError, setMemoryError] = useState<string | null>(null);
   const [isMemoryCollapsed, setIsMemoryCollapsed] = useState<boolean>(false);
   const memoryHeightAnim = useRef(new Animated.Value(1)).current;
+  const [groupedInsights, setGroupedInsights] = useState<GroupedInsightsApiResponse['data'] | null>(null);
 
   // ============================================
   // QUESTION API CALLS
@@ -181,9 +190,10 @@ const OasisHomeScreen: React.FC = () => {
         setQuestionState('answered');
         console.log('[OasisHomeScreen] Answer saved successfully');
 
-        // Refresh memory profile to show updated insights
+        // Refresh memory profile and grouped insights to show updated data
         console.log('[OasisHomeScreen] Refreshing memory profile after answer...');
         fetchMemoryProfile();
+        fetchGroupedInsights();
       } else {
         throw new Error('Failed to submit answer');
       }
@@ -364,6 +374,17 @@ const OasisHomeScreen: React.FC = () => {
     }
   }, []);
 
+  const fetchGroupedInsights = useCallback(async () => {
+    try {
+      const response = await api.get<GroupedInsightsApiResponse>('/api/memory/insights');
+      if (response.data.success && response.data.data) {
+        setGroupedInsights(response.data.data);
+      }
+    } catch (error) {
+      console.error('[OasisHomeScreen] Error fetching grouped insights:', error);
+    }
+  }, []);
+
   const loadMemoryCollapseState = useCallback(async () => {
     try {
       const stored = await AsyncStorage.getItem(MEMORY_COLLAPSED_KEY);
@@ -456,15 +477,17 @@ const OasisHomeScreen: React.FC = () => {
     fetchDailyQuestion();
     fetchChats();
     fetchMemoryProfile();
+    fetchGroupedInsights();
     loadMemoryCollapseState();
-  }, [fetchDailyQuestion, fetchChats, fetchMemoryProfile, loadMemoryCollapseState]);
+  }, [fetchDailyQuestion, fetchChats, fetchMemoryProfile, fetchGroupedInsights, loadMemoryCollapseState]);
 
   useFocusEffect(
     useCallback(() => {
       console.log('[OasisHomeScreen] Screen focused, refreshing chats and memory...');
       fetchChats();
       fetchMemoryProfile();
-    }, [fetchChats, fetchMemoryProfile])
+      fetchGroupedInsights();
+    }, [fetchChats, fetchMemoryProfile, fetchGroupedInsights])
   );
 
   // ============================================
@@ -485,6 +508,7 @@ const OasisHomeScreen: React.FC = () => {
       fetchDailyQuestion(true),
       fetchChats(),
       fetchMemoryProfile(),
+      fetchGroupedInsights(),
     ]);
     setIsRefreshing(false);
   };
@@ -740,12 +764,17 @@ const OasisHomeScreen: React.FC = () => {
   // ============================================
 
   const hasMemoryData = () => {
+    if (groupedInsights) {
+      return (
+        groupedInsights.from_questions.length > 0 ||
+        groupedInsights.from_conversations.length > 0
+      );
+    }
     if (!memoryProfile) return false;
     const valuesCount = memoryProfile.core_values?.length || 0;
     const beliefsCount = Object.keys(memoryProfile.beliefs || {}).length;
     const interestsCount = Object.keys(memoryProfile.interests || {}).length;
-    const hasConversationInsights = (memoryProfile.chat_extractions_count || 0) > 0;
-    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0 || hasConversationInsights;
+    return valuesCount > 0 || beliefsCount > 0 || interestsCount > 0;
   };
 
   const renderMemoryLoading = () => (
@@ -774,184 +803,135 @@ const OasisHomeScreen: React.FC = () => {
     </View>
   );
 
-  const renderCoreValues = () => {
-    const values = memoryProfile?.core_values || [];
-    if (values.length === 0) return null;
+  // ============================================
+  // GROUPED INSIGHT HELPERS
+  // ============================================
 
-    const displayValues = values.slice(0, 5);
-    const remaining = values.length - 5;
+  /**
+   * Render a categorised list of InsightEntry items capped at INSIGHT_DISPLAY_CAP.
+   * Groups entries by category with a label row above each group.
+   */
+  const renderInsightList = (entries: InsightEntry[]) => {
+    if (entries.length === 0) return null;
 
-    return (
-      <View style={styles.memorySubsection}>
-        <Text style={styles.memorySubsectionTitle}>Core Values</Text>
-        {displayValues.map((value, index) => (
-          <Text key={index} style={styles.memoryBulletItem}>• {value}</Text>
-        ))}
-        {remaining > 0 && (
-          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
-        )}
-      </View>
-    );
-  };
+    const display = entries.slice(0, INSIGHT_DISPLAY_CAP);
+    const overflow = entries.length - INSIGHT_DISPLAY_CAP;
 
-  const renderBeliefs = () => {
-    const beliefs = memoryProfile?.beliefs || {};
-    const beliefEntries = Object.entries(beliefs);
-    if (beliefEntries.length === 0) return null;
-
-    const displayBeliefs = beliefEntries.slice(0, 5);
-    const remaining = beliefEntries.length - 5;
-
-    return (
-      <View style={styles.memorySubsection}>
-        <Text style={styles.memorySubsectionTitle}>Key Beliefs</Text>
-        {displayBeliefs.map(([category, belief], index) => (
-          <Text key={index} style={styles.memoryBulletItem}>
-            • {category}: {typeof belief === 'string' ? belief : JSON.stringify(belief)}
-          </Text>
-        ))}
-        {remaining > 0 && (
-          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
-        )}
-      </View>
-    );
-  };
-
-  const renderInterests = () => {
-    const interests = memoryProfile?.interests || {};
-    const interestEntries = Object.entries(interests);
-    if (interestEntries.length === 0) return null;
-
-    const sortedInterests = interestEntries.sort(([, a], [, b]) => b - a);
-    const displayInterests = sortedInterests.slice(0, 5);
-    const remaining = sortedInterests.length - 5;
-
-    return (
-      <View style={styles.memorySubsection}>
-        <Text style={styles.memorySubsectionTitle}>Top Interests</Text>
-        {displayInterests.map(([interest], index) => (
-          <Text key={index} style={styles.memoryBulletItem}>• {interest}</Text>
-        ))}
-        {remaining > 0 && (
-          <Text style={styles.memoryMoreText}>and {remaining} more</Text>
-        )}
-      </View>
-    );
-  };
-
-  const getProgressHint = (profile: MemoryProfile): string => {
-    const questionsNeeded = Math.max(0, 20 - profile.questions_answered);
-    const chatsNeeded = Math.max(0, 50 - (profile.chat_messages_analyzed || 0));
-    const extractionsNeeded = Math.max(0, 10 - (profile.chat_extractions_count || 0));
-
-    const hints: string[] = [];
-
-    if (questionsNeeded > 0) {
-      hints.push(`${questionsNeeded} more question${questionsNeeded === 1 ? '' : 's'}`);
+    // Group display entries by category
+    const grouped: Record<string, InsightEntry[]> = {};
+    for (const entry of display) {
+      if (!grouped[entry.category]) grouped[entry.category] = [];
+      grouped[entry.category].push(entry);
     }
 
-    if (extractionsNeeded > 0 && (profile.chat_extractions_count || 0) > 0) {
-      hints.push(`${extractionsNeeded} more conversation extraction${extractionsNeeded === 1 ? '' : 's'}`);
-    } else if (extractionsNeeded > 0) {
-      hints.push('keep chatting for deeper insights');
-    }
-
-    if (hints.length === 0) return '';
-    return hints.join(' and ') + ' to reach 100%';
-  };
-
-  const renderMemoryStats = () => {
-    if (!memoryProfile) return null;
-
-    const questionsAnswered = memoryProfile.questions_answered || 0;
-    const chatExtractions = memoryProfile.chat_extractions_count || 0;
-    const completeness = Math.round((memoryProfile.profile_completeness || 0) * 100);
-    const progressHint = getProgressHint(memoryProfile);
+    const CATEGORY_LABELS: Record<string, string> = {
+      value: 'VALUES',
+      belief: 'BELIEFS',
+      interest: 'INTERESTS',
+      pattern: 'PATTERNS',
+      goal: 'GOALS',
+      quote: 'QUOTES',
+    };
 
     return (
-      <View style={styles.memoryStatsContainer}>
-        <Text style={styles.memoryStatsText}>
-          Based on {questionsAnswered} question{questionsAnswered !== 1 ? 's' : ''} answered
-          {chatExtractions > 0 && ` \u2022 ${chatExtractions} conversation${chatExtractions !== 1 ? 's' : ''} analyzed`}
-          {'\n'}
-          Profile: {completeness}% complete
-        </Text>
-        {memoryProfile.profile_completeness < 1.0 && progressHint.length > 0 && (
-          <Text style={styles.memoryProgressHint}>
-            {progressHint}
-          </Text>
+      <View style={styles.insightListContainer}>
+        {Object.entries(grouped).map(([category, items]) => (
+          <View key={category} style={styles.insightCategoryGroup}>
+            <Text style={styles.insightCategoryLabel}>
+              {CATEGORY_LABELS[category] ?? category.toUpperCase()}
+            </Text>
+            {items.map((item, idx) => (
+              <Text key={item.id ?? idx} style={styles.memoryBulletItem}>
+                {'\u2022'} {item.content}
+              </Text>
+            ))}
+          </View>
+        ))}
+        {overflow > 0 && (
+          <Text style={styles.memoryMoreText}>and {overflow} more</Text>
         )}
       </View>
     );
   };
 
-  const renderConversationInsights = () => {
-    if (!memoryProfile) return null;
-    const chatExtractions = memoryProfile.chat_extractions_count || 0;
-    if (chatExtractions === 0) return null;
-
+  /**
+   * Progress bar row: track + fill + count label.
+   */
+  const renderProgressBar = (count: number, max: number) => {
+    const pct = max > 0 ? Math.min(count / max, 1) : 0;
     return (
-      <View style={styles.memoryInsightSection}>
-        <View style={styles.insightSectionHeader}>
-          <Text style={styles.insightSectionIcon}>💬</Text>
-          <Text style={styles.insightSectionTitle}>FROM CONVERSATIONS</Text>
+      <View style={styles.progressBarRow}>
+        <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarFill, { width: `${pct * 100}%` }]} />
         </View>
-
-        <Text style={styles.conversationInsightsText}>
-          Analyzed {chatExtractions} conversation{chatExtractions !== 1 ? 's' : ''}
-        </Text>
-        <Text style={styles.conversationInsightsHint}>
-          Insights from your chats are merged into the profile above
-        </Text>
+        <Text style={styles.progressBarLabel}>{count} / {max}</Text>
       </View>
     );
   };
+
+  /**
+   * One dual-source sub-section (questions or conversations).
+   */
+  const renderInsightSubsection = (
+    label: string,
+    entries: InsightEntry[],
+    count: number,
+    max: number,
+    emptyText: string
+  ) => (
+    <View style={styles.insightSubsection}>
+      <Text style={styles.insightSectionTitle}>{label}</Text>
+      {renderProgressBar(count, max)}
+      {entries.length === 0 ? (
+        <Text style={styles.insightEmptyText}>{emptyText}</Text>
+      ) : (
+        renderInsightList(entries)
+      )}
+    </View>
+  );
 
   const renderMemoryData = () => {
-    if (!memoryProfile) return null;
-
-    const hasQuestionInsights = (
-      (memoryProfile.core_values?.length || 0) > 0 ||
-      Object.keys(memoryProfile.beliefs || {}).length > 0 ||
-      Object.keys(memoryProfile.interests || {}).length > 0
-    );
-    const hasConversationInsights = (memoryProfile.chat_extractions_count || 0) > 0;
+    const questions = groupedInsights?.from_questions ?? [];
+    const conversations = groupedInsights?.from_conversations ?? [];
+    const qCount = groupedInsights?.question_facts_count ?? (memoryProfile?.question_facts_count ?? 0);
+    const cCount = groupedInsights?.conversation_facts_count ?? (memoryProfile?.conversation_facts_count ?? 0);
 
     return (
       <View style={styles.memoryDataContainer}>
-        {/* Section 1: From Questions */}
-        {hasQuestionInsights && (
-          <View style={styles.memoryInsightSection}>
-            <View style={styles.insightSectionHeader}>
-              <Text style={styles.insightSectionIcon}>📋</Text>
-              <Text style={styles.insightSectionTitle}>FROM QUESTIONS</Text>
-            </View>
-            {renderCoreValues()}
-            {renderBeliefs()}
-            {renderInterests()}
-          </View>
+        {renderInsightSubsection(
+          'FROM YOUR QUESTIONS',
+          questions,
+          qCount,
+          QUESTION_FACTS_MAX,
+          'Answer today\u2019s question and Oasis will start learning about you.'
         )}
 
-        {/* Section 2: From Conversations */}
-        {hasConversationInsights && renderConversationInsights()}
+        <View style={styles.insightDivider} />
 
-        {/* Stats Footer */}
-        {renderMemoryStats()}
+        {renderInsightSubsection(
+          'FROM YOUR CONVERSATIONS',
+          conversations,
+          cCount,
+          CONVERSATION_FACTS_MAX,
+          'Have a conversation with Oasis and it will begin learning from what you share.'
+        )}
       </View>
     );
   };
 
   const renderMemoryContent = () => {
-    if (isLoadingMemory && !memoryProfile) {
+    if (isLoadingMemory && !memoryProfile && !groupedInsights) {
       return renderMemoryLoading();
     }
-    if (memoryError && !memoryProfile) {
+    if (memoryError && !memoryProfile && !groupedInsights) {
       return renderMemoryError();
     }
-    if (!hasMemoryData()) {
-      return renderMemoryEmpty();
+    // Always show dual-source layout once we have profile or insights data.
+    // Empty states for each pool are rendered inside renderMemoryData.
+    if (memoryProfile || groupedInsights) {
+      return renderMemoryData();
     }
-    return renderMemoryData();
+    return renderMemoryEmpty();
   };
 
   // ============================================
@@ -1366,15 +1346,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   memoryDataContainer: {
-    gap: spacing.elementGap,
-  },
-  memorySubsection: {
-    marginBottom: spacing.smallGap,
-  },
-  memorySubsectionTitle: {
-    ...typography.caption,
-    fontWeight: '600',
-    marginBottom: spacing.smallGap,
+    gap: 0,
   },
   memoryBulletItem: {
     fontSize: 14,
@@ -1388,48 +1360,65 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.smallGap,
     marginTop: 4,
   },
-  memoryInsightSection: {
-    marginBottom: spacing.sectionGap,
-  },
-  insightSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.elementGap,
-    gap: 8,
-  },
-  insightSectionIcon: {
-    fontSize: 16,
+  // Dual-source layout
+  insightSubsection: {
+    paddingVertical: 4,
   },
   insightSectionTitle: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
     letterSpacing: 0.5,
+    marginBottom: spacing.elementGap,
   },
-  conversationInsightsText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 4,
+  insightDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: spacing.sectionGap,
   },
-  conversationInsightsHint: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
+  // Progress bar
+  progressBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.elementGap,
   },
-  memoryStatsContainer: {
-    marginTop: spacing.smallGap,
+  progressBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
   },
-  memoryStatsText: {
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  progressBarLabel: {
     ...typography.timestamp,
-    textAlign: 'center',
-    marginTop: spacing.sectionGap,
+    marginLeft: 10,
+    minWidth: 42,
+    textAlign: 'right',
   },
-  memoryProgressHint: {
-    fontSize: 11,
+  // Insight list
+  insightListContainer: {
+    gap: 4,
+  },
+  insightCategoryGroup: {
+    marginBottom: spacing.smallGap,
+  },
+  insightCategoryLabel: {
+    ...typography.timestamp,
+    fontWeight: '600',
     color: colors.textTertiary,
+    letterSpacing: 0.4,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  insightEmptyText: {
+    ...typography.caption,
     textAlign: 'center',
-    marginTop: 4,
-    fontStyle: 'italic',
+    paddingVertical: spacing.sectionGap,
   },
 });
 

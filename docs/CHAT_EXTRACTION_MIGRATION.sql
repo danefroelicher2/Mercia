@@ -64,3 +64,22 @@ CREATE INDEX idx_job_log_date ON oasis.extraction_job_log(job_date DESC);
 ALTER TABLE oasis.user_memory_profiles
 ADD COLUMN IF NOT EXISTS insights_metadata JSONB DEFAULT '[]'::jsonb;
 -- This will store array of insight objects with scoring data
+
+-- ============================================
+-- DUAL-SOURCE MEMORY MIGRATION
+-- Run after the above; adds per-pool counts and pending staging store.
+-- ============================================
+
+ALTER TABLE oasis.user_memory_profiles
+ADD COLUMN IF NOT EXISTS question_facts_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS conversation_facts_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS pending_insights JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS question_facts_completeness FLOAT DEFAULT 0.0,
+ADD COLUMN IF NOT EXISTS conversation_facts_completeness FLOAT DEFAULT 0.0;
+
+-- question_facts_count / conversation_facts_count: maintained counts per pool;
+--   updated every time insights_metadata is written so the UI reads a single integer.
+-- pending_insights: conversation-sourced insights staged until commit threshold is met.
+--   Same shape as InsightMetadataEntry. Never shown to users or counted toward any cap.
+-- question_facts_completeness / conversation_facts_completeness: count / cap (0.0–1.0).
+--   profile_completeness = average of the two (kept for backwards compat).

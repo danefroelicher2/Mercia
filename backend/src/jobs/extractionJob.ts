@@ -3,43 +3,9 @@ import { getStorage, getLLM } from '../services/oasisCore';
 import { ChatExtractor } from '@oasis/ai-core';
 
 /**
- * Daily chat extraction cron job
- * Runs at 3:00 AM every day
- * Processes yesterday's chats for all active users
- */
-export function startExtractionCronJob(): CronJob {
-  const job = new CronJob(
-    '0 3 * * *',  // 3:00 AM daily (cron syntax: minute hour day month dayOfWeek)
-    async () => {
-      console.log('\n[CRON] ========================================');
-      console.log('[CRON] Starting daily chat extraction job');
-      console.log('[CRON] ========================================\n');
-
-      const startTime = Date.now();
-
-      try {
-        await runDailyExtraction();
-
-        const duration = Math.round((Date.now() - startTime) / 1000);
-        console.log(`\n[CRON] ========================================`);
-        console.log(`[CRON] Extraction job completed in ${duration}s`);
-        console.log(`[CRON] ========================================\n`);
-      } catch (error) {
-        console.error('[CRON] FATAL ERROR in extraction job:', error);
-      }
-    },
-    null,      // onComplete callback
-    true,      // Start immediately
-    'America/New_York'  // Timezone (adjust as needed)
-  );
-
-  console.log('[CRON] Daily extraction job scheduled for 3:00 AM');
-
-  return job;
-}
-
-/**
- * Main extraction logic (can be called by cron or manual trigger)
+ * Main extraction logic — callable manually or by pg_cron via Supabase.
+ * The Node.js cron scheduling has been removed; scheduling is handled by
+ * pg_cron on the Supabase side (5:00 AM UTC daily).
  */
 export async function runDailyExtraction(): Promise<{
   usersProcessed: number;

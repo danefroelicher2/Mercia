@@ -1,7 +1,20 @@
+export interface InsightMetadataEntry {
+  id: string;                   // UUID
+  content: string;              // Human-readable fact, e.g. "Values family above career"
+  category: 'value' | 'belief' | 'interest' | 'pattern' | 'goal' | 'quote';
+  source_type: 'question' | 'conversation';
+  source_id: string;            // question_id or chat_id
+  confidence: number;           // 0.0 to 1.0
+  semantic_importance: number;  // 0.0 to 1.0
+  source_count: number;         // How many times this insight has been observed
+  first_identified: string;     // ISO timestamp
+  last_reinforced: string;      // ISO timestamp
+}
+
 export interface MemoryProfile {
   user_id: string;
 
-  // Core Identity
+  // Core Identity (rebuilt from insights_metadata for backwards-compat & LLM context)
   core_values: string[];
   beliefs: Record<string, any>;
   interests: Record<string, number>; // topic -> confidence score (0-1)
@@ -12,12 +25,23 @@ export interface MemoryProfile {
   // Supporting Evidence
   supporting_quotes: SupportingQuote[];
 
-  // Metadata
-  profile_completeness: number; // 0.0 to 1.0
+  // Dual-source insight store
+  insights_metadata: InsightMetadataEntry[];
+
+  // Conversation insights awaiting commit threshold — never sent to clients
+  pending_insights: InsightMetadataEntry[];
+
+  // Per-pool counts and completeness (0.0–1.0)
+  question_facts_count: number;
+  conversation_facts_count: number;
+  question_facts_completeness: number;
+  conversation_facts_completeness: number;
+
+  // Legacy metadata
+  profile_completeness: number; // average of the two completeness values
   questions_answered: number;
-  chat_messages_analyzed: number;        // For future chat extraction (Phase 2B)
-  chat_extractions_count: number;        // Number of times chat insights extracted (Phase 2B)
-  insights_metadata: any[];              // Insight objects with scoring data for weighted eviction
+  chat_messages_analyzed: number;
+  chat_extractions_count: number;
   total_interactions: number;
   last_updated: Date;
   created_at: Date;

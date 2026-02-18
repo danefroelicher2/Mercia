@@ -60,7 +60,7 @@ CREATE INDEX idx_user_responses_answered ON oasis.user_question_responses(answer
 CREATE TABLE oasis.user_memory_profiles (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
 
-  -- Core Identity (JSONB for flexible schema)
+  -- Core Identity — derived views rebuilt from insights_metadata
   core_values JSONB DEFAULT '[]'::jsonb,
   beliefs JSONB DEFAULT '{}'::jsonb,
   interests JSONB DEFAULT '{}'::jsonb,
@@ -71,9 +71,27 @@ CREATE TABLE oasis.user_memory_profiles (
   -- Supporting Evidence
   supporting_quotes JSONB DEFAULT '[]'::jsonb,
 
-  -- Metadata
+  -- Dual-source insight store (InsightMetadataEntry[])
+  insights_metadata JSONB DEFAULT '[]'::jsonb,
+
+  -- Staging area for conversation insights awaiting commit threshold
+  -- Same shape as InsightMetadataEntry; never exposed to clients.
+  pending_insights JSONB DEFAULT '[]'::jsonb,
+
+  -- Per-pool counts (maintained on every write for fast UI reads)
+  question_facts_count INTEGER DEFAULT 0,
+  conversation_facts_count INTEGER DEFAULT 0,
+
+  -- Per-pool completeness: count / cap (0.0–1.0)
+  question_facts_completeness FLOAT DEFAULT 0.0,
+  conversation_facts_completeness FLOAT DEFAULT 0.0,
+
+  -- Legacy completeness: average of the two above
   profile_completeness FLOAT DEFAULT 0.0 CHECK (profile_completeness >= 0 AND profile_completeness <= 1),
+
   questions_answered INT DEFAULT 0,
+  chat_messages_analyzed INTEGER DEFAULT 0,
+  chat_extractions_count INTEGER DEFAULT 0,
   total_interactions INT DEFAULT 0,
   last_updated TIMESTAMPTZ DEFAULT NOW(),
 

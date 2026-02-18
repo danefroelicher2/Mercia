@@ -1,6 +1,9 @@
+import { randomUUID } from 'crypto';
 import { StorageAdapter } from '../adapters/storage';
 import { LLMAdapter } from '../adapters/llm';
-import { Chat, ChatMessage, MemoryProfile, SupportingQuote } from '../types';
+import { Chat, ChatMessage, InsightMetadataEntry, MemoryProfile, SupportingQuote } from '../types';
+import { MEMORY_CAPS, CONVERSATION_COMMIT_THRESHOLDS } from '../constants/memory';
+import { MemoryManager } from './MemoryManager';
 
 interface ChatAnalysisCandidate {
   chat: Chat;
@@ -18,22 +21,31 @@ interface QualityCheckResult {
 }
 
 interface ExtractedInsights {
-  interests: Record<string, number>;          // topic -> confidence
-  beliefs: Record<string, string>;            // domain -> belief
+  interests: Record<string, number>;
+  beliefs: Record<string, string>;
   behavioral_patterns: string[];
   thinking_style: string;
   key_quotes: string[];
-  semantic_importance_scores: Record<string, number>;  // insight -> importance
+  semantic_importance_scores: Record<string, number>;
 }
 
 export class ChatExtractor {
+  private memoryManager: MemoryManager;
+
   constructor(
     private storage: StorageAdapter,
     private llm: LLMAdapter
-  ) {}
+  ) {
+    this.memoryManager = new MemoryManager(storage, llm);
+  }
+
+  // ============================================
+  // PUBLIC API
+  // ============================================
 
   /**
-   * Main entry point: Process yesterday's chats for a user
+   * Main entry point: process a day's chats for a user.
+   * Determines per-chat whether insights go to the question pool or conversation pool.
    */
   async processUserChats(userId: string, date: Date): Promise<{
     chatsAnalyzed: number;
@@ -43,11 +55,9 @@ export class ChatExtractor {
 
     const startTime = Date.now();
 
-    // Get all chats from the target date
     const allChats = await this.getUserChatsForDate(userId, date);
     console.log(`[ChatExtractor] Found ${allChats.length} chats for date`);
 
-    // Filter chats using cheap rules
     const candidates = await this.filterChats(allChats);
     console.log(`[ChatExtractor] ${candidates.length}/${allChats.length} chats passed filters`);
 
@@ -55,15 +65,22 @@ export class ChatExtractor {
       return { chatsAnalyzed: 0, insightsExtracted: 0 };
     }
 
-    // Quality check each candidate
-    const worthExtracting: { candidate: ChatAnalysisCandidate; quality: QualityCheckResult }[] = [];
+    const worthExtracting: {
+      candidate: ChatAnalysisCandidate;
+      quality: QualityCheckResult;
+      targetPool: 'question' | 'conversation';
+    }[] = [];
 
     for (const candidate of candidates) {
       try {
         const quality = await this.checkChatQuality(candidate);
 
         if (quality.contains_insights && quality.confidence >= 0.5) {
-          worthExtracting.push({ candidate, quality });
+          // Route: question-linked chats always go to the question pool
+          const targetPool: 'question' | 'conversation' =
+            candidate.chat.chat_type === 'question' ? 'question' : 'conversation';
+
+          worthExtracting.push({ candidate, quality, targetPool });
         }
       } catch (error) {
         console.error(`[ChatExtractor] Error in quality check for chat ${candidate.chat.id}:`, error);
@@ -76,14 +93,12 @@ export class ChatExtractor {
       return { chatsAnalyzed: candidates.length, insightsExtracted: 0 };
     }
 
-    // Extract insights from quality chats
     let totalInsights = 0;
 
-    for (const { candidate, quality } of worthExtracting) {
+    for (const { candidate, quality, targetPool } of worthExtracting) {
       try {
         const insights = await this.extractInsights(candidate);
 
-        // Save extraction history
         await this.saveExtractionHistory(
           userId,
           candidate.chat.id,
@@ -94,8 +109,13 @@ export class ChatExtractor {
           Date.now() - startTime
         );
 
-        // Update user memory profile
-        await this.updateMemoryProfile(userId, insights, candidate.chat.id);
+        await this.updateMemoryProfile(
+          userId,
+          insights,
+          candidate.chat.id,
+          targetPool,
+          candidate.userMessageCount
+        );
 
         totalInsights += this.countInsights(insights);
 
@@ -104,11 +124,13 @@ export class ChatExtractor {
       }
     }
 
-    // Update user stats
     await this.updateUserStats(userId, candidates.length, worthExtracting.length);
 
     const duration = Date.now() - startTime;
-    console.log(`[ChatExtractor] Completed for user ${userId}: ${worthExtracting.length} chats, ${totalInsights} insights, ${duration}ms`);
+    console.log(
+      `[ChatExtractor] Completed for user ${userId}: ` +
+      `${worthExtracting.length} chats, ${totalInsights} insights, ${duration}ms`
+    );
 
     return {
       chatsAnalyzed: worthExtracting.length,
@@ -116,32 +138,30 @@ export class ChatExtractor {
     };
   }
 
-  /**
-   * Filter chats using cheap rules (no LLM cost)
-   */
+  // ============================================
+  // PRIVATE: CHAT FILTERING & QUALITY CHECK
+  // ============================================
+
   private async filterChats(chats: Chat[]): Promise<ChatAnalysisCandidate[]> {
     const candidates: ChatAnalysisCandidate[] = [];
 
     for (const chat of chats) {
       const messages = await this.storage.getChatMessages(chat.id);
 
-      // Count user vs AI messages
       const userMessages = messages.filter(m => m.role === 'user');
       const aiMessages = messages.filter(m => m.role === 'assistant');
 
-      // Calculate average message length
       const avgLength = messages.length > 0
         ? messages.reduce((sum, m) => sum + m.content.length, 0) / messages.length
         : 0;
 
-      // Apply filters
-      if (userMessages.length < 3) continue;              // Min 3 user messages
-      if (aiMessages.length < 3) continue;                // Min 3 AI responses
-      if (messages.length < 6) continue;                  // Min 6 total messages
-      if (avgLength < 20) continue;                       // Min 20 char avg (avoid "ok", "thanks")
+      if (userMessages.length < 3) continue;
+      if (aiMessages.length < 3) continue;
+      if (messages.length < 6) continue;
+      if (avgLength < 20) continue;
 
-      // Check age (don't analyze chats older than 60 days)
-      const daysSinceCreation = (Date.now() - new Date(chat.created_at).getTime()) / (1000 * 60 * 60 * 24);
+      const daysSinceCreation =
+        (Date.now() - new Date(chat.created_at).getTime()) / 86400000;
       if (daysSinceCreation > 60) continue;
 
       candidates.push({
@@ -156,9 +176,6 @@ export class ChatExtractor {
     return candidates;
   }
 
-  /**
-   * Quality check: Does this chat contain insights? (LLM call ~$0.0003)
-   */
   private async checkChatQuality(candidate: ChatAnalysisCandidate): Promise<QualityCheckResult> {
     const conversationText = this.formatMessagesForAnalysis(candidate.messages);
 
@@ -196,14 +213,10 @@ DOES NOT contain insights if conversation is:
       { temperature: 0.3, maxTokens: 200 }
     );
 
-    // Parse JSON response
     const cleaned = response.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(cleaned);
   }
 
-  /**
-   * Extract insights from chat (LLM call ~$0.0013)
-   */
   private async extractInsights(candidate: ChatAnalysisCandidate): Promise<ExtractedInsights> {
     const conversationText = this.formatMessagesForAnalysis(candidate.messages);
 
@@ -243,185 +256,299 @@ Only extract what's clearly supported by conversation. Be selective and high-con
     return JSON.parse(cleaned);
   }
 
+  // ============================================
+  // PRIVATE: MEMORY PROFILE UPDATE (DUAL-POOL)
+  // ============================================
+
   /**
-   * Update user memory profile with new insights
+   * Write extracted insights into the appropriate memory pool.
+   *
+   * - targetPool === 'question': commit directly (bypasses staging).
+   * - targetPool === 'conversation': run through pending_insights staging;
+   *   commits only after threshold is met or high-importance override applies.
    */
   private async updateMemoryProfile(
     userId: string,
     insights: ExtractedInsights,
-    chatId: string
+    chatId: string,
+    targetPool: 'question' | 'conversation',
+    userMessageCount: number
   ): Promise<void> {
     const profile = await this.storage.getMemoryProfile(userId);
     if (!profile) return;
 
-    const updates: Partial<MemoryProfile> = {};
+    const now = new Date().toISOString();
 
-    // Merge interests (with confidence scoring)
-    if (insights.interests && Object.keys(insights.interests).length > 0) {
-      const existingInterests = { ...(profile.interests || {}) };
+    // Convert raw LLM output to typed InsightMetadataEntry candidates
+    const candidates = this.extractedInsightsToEntries(insights, chatId, targetPool, now);
+    if (candidates.length === 0) return;
 
-      for (const [topic, confidence] of Object.entries(insights.interests)) {
-        if (confidence < 0.6) continue;  // Min confidence threshold
+    let metadata: InsightMetadataEntry[] = [...(profile.insights_metadata || [])];
+    let pending: InsightMetadataEntry[] = [...(profile.pending_insights || [])];
 
-        // If interest exists, reinforce it
-        if (existingInterests[topic]) {
-          existingInterests[topic] = Math.min(
-            (existingInterests[topic] + confidence) / 2 * 1.1,  // Boost for confirmation
-            1.0
-          );
+    if (targetPool === 'question') {
+      // Question-linked chats bypass staging — commit directly to question pool
+      let questionEntries = metadata.filter(e => e.source_type === 'question');
+      const conversationEntries = metadata.filter(e => e.source_type === 'conversation');
+
+      for (const entry of candidates) {
+        const existingIdx = questionEntries.findIndex(
+          e => e.content.toLowerCase() === entry.content.toLowerCase()
+        );
+
+        if (existingIdx >= 0) {
+          questionEntries[existingIdx] = {
+            ...questionEntries[existingIdx],
+            source_count: (questionEntries[existingIdx].source_count || 1) + 1,
+            last_reinforced: now,
+            confidence: Math.min(questionEntries[existingIdx].confidence + 0.05, 1.0),
+          };
         } else {
-          existingInterests[topic] = confidence;
+          if (questionEntries.length >= MEMORY_CAPS.QUESTION_FACTS_MAX) {
+            questionEntries = this.memoryManager.evictLowestFromPool(questionEntries);
+          }
+          questionEntries.push(entry);
         }
       }
 
-      updates.interests = existingInterests;
-    }
+      metadata = [...questionEntries, ...conversationEntries];
 
-    // Merge beliefs (with confidence threshold)
-    if (insights.beliefs && Object.keys(insights.beliefs).length > 0) {
-      const existingBeliefs = { ...(profile.beliefs || {}) };
-
-      for (const [domain, belief] of Object.entries(insights.beliefs)) {
-        // For core beliefs, require 75% confidence (extracted from semantic_importance)
-        const importance = insights.semantic_importance_scores?.[`belief_${domain}`] || 0.7;
-        if (importance < 0.75) continue;
-
-        existingBeliefs[domain] = belief;
+    } else {
+      // Conversation pool — route each candidate through staging
+      for (const entry of candidates) {
+        const result = this.stageOrCommitConversationInsight(
+          entry,
+          pending,
+          metadata,
+          userMessageCount,
+          now
+        );
+        metadata = result.metadata;
+        pending = result.pending;
       }
-
-      updates.beliefs = existingBeliefs;
     }
 
-    // Add key quotes
-    if (insights.key_quotes && insights.key_quotes.length > 0) {
-      const existingQuotes = [...(profile.supporting_quotes || [])];
+    // Rebuild flat fields and recalculate counts/completeness
+    const flatFields = this.memoryManager.rebuildFlatFields(metadata);
+    const questionFactsCount = metadata.filter(e => e.source_type === 'question').length;
+    const conversationFactsCount = metadata.filter(e => e.source_type === 'conversation').length;
+    const questionFactsCompleteness = questionFactsCount / MEMORY_CAPS.QUESTION_FACTS_MAX;
+    const conversationFactsCompleteness = conversationFactsCount / MEMORY_CAPS.CONVERSATION_FACTS_MAX;
+    const profileCompleteness = (questionFactsCompleteness + conversationFactsCompleteness) / 2;
 
-      for (const quoteText of insights.key_quotes) {
-        const quote: SupportingQuote = {
-          quote: quoteText,
-          source_type: 'chat',
-          source_id: chatId,
-          context: 'From conversation',
-          timestamp: new Date(),
-          confidence: 0.7,
-        };
-
-        existingQuotes.push(quote);
-      }
-
-      // Keep only top 100 quotes by confidence
-      updates.supporting_quotes = existingQuotes
-        .sort((a, b) => b.confidence - a.confidence)
-        .slice(0, 100);
+    // Append supporting quotes
+    const existingQuotes = [...(profile.supporting_quotes || [])];
+    for (const quoteText of insights.key_quotes || []) {
+      existingQuotes.push({
+        quote: quoteText,
+        source_type: 'chat',
+        source_id: chatId,
+        context: 'From conversation',
+        timestamp: new Date(),
+        confidence: 0.7,
+      } as SupportingQuote);
     }
-
-    // Store metadata for weighted scoring (insights with importance scores)
-    if (insights.semantic_importance_scores) {
-      const metadata = [...(profile.insights_metadata || [])];
-
-      // Add new insights to metadata
-      for (const [key, importance] of Object.entries(insights.semantic_importance_scores)) {
-        metadata.push({
-          type: key.split('_')[0],  // interest, belief, pattern
-          content: key,
-          semantic_importance: importance,
-          confidence: insights.interests?.[key] || 0.7,
-          source_chat_id: chatId,
-          source_count: 1,
-          first_identified: new Date(),
-          last_reinforced: new Date(),
-        });
-      }
-
-      updates.insights_metadata = metadata;
-    }
-
-    // Check memory capacity and evict if needed
-    const totalSlots = this.calculateSlotsUsed(profile);
-    if (totalSlots > 500) {
-      await this.evictLowestScoring(userId, profile);
-    }
-
-    // Save updates
-    await this.storage.updateMemoryProfile(userId, updates);
-  }
-
-  /**
-   * Calculate total memory slots used
-   */
-  private calculateSlotsUsed(profile: MemoryProfile): number {
-    const values = (profile.core_values || []).length;
-    const beliefs = Object.keys(profile.beliefs || {}).length;
-    const interests = Object.keys(profile.interests || {}).length;
-    const quotes = (profile.supporting_quotes || []).length;
-    const metadata = (profile.insights_metadata || []).length;
-
-    return values + beliefs + interests + quotes + metadata;
-  }
-
-  /**
-   * Evict lowest-scoring insight when memory is full (500 slots)
-   */
-  private async evictLowestScoring(userId: string, profile: MemoryProfile): Promise<void> {
-    const metadata = profile.insights_metadata || [];
-
-    if (metadata.length === 0) return;
-
-    // Score each insight
-    const scored = metadata.map((insight: any) => ({
-      insight,
-      score: this.calculateInsightScore(insight),
-    }));
-
-    // Sort by score (lowest first)
-    scored.sort((a: any, b: any) => a.score - b.score);
-
-    // Remove lowest scoring
-    const toRemove = scored[0].insight;
-
-    console.log(`[ChatExtractor] EVICTION: Removing "${toRemove.content}" (score: ${scored[0].score.toFixed(2)})`);
-
-    // Remove from metadata
-    const updatedMetadata = metadata.filter((i: any) => i !== toRemove);
 
     await this.storage.updateMemoryProfile(userId, {
-      insights_metadata: updatedMetadata,
+      ...flatFields,
+      insights_metadata: metadata,
+      pending_insights: pending,
+      supporting_quotes: existingQuotes
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 100),
+      chat_messages_analyzed: (profile.chat_messages_analyzed || 0) + 1,
+      question_facts_count: questionFactsCount,
+      conversation_facts_count: conversationFactsCount,
+      question_facts_completeness: questionFactsCompleteness,
+      conversation_facts_completeness: conversationFactsCompleteness,
+      profile_completeness: profileCompleteness,
     });
   }
 
   /**
-   * Calculate insight importance score (weighted)
+   * Route a conversation-sourced insight through the staging check.
+   *
+   * Returns updated { metadata, pending } arrays without mutating inputs.
    */
-  private calculateInsightScore(insight: any): number {
-    // Semantic importance (40%) - AI's judgment of content value
-    const importanceScore = insight.semantic_importance || 0.5;
+  private stageOrCommitConversationInsight(
+    entry: InsightMetadataEntry,
+    pending: InsightMetadataEntry[],
+    metadata: InsightMetadataEntry[],
+    userMessageCount: number,
+    now: string
+  ): { metadata: InsightMetadataEntry[]; pending: InsightMetadataEntry[] } {
+    // High-importance override: bypass staging and commit directly
+    if (
+      entry.semantic_importance >= CONVERSATION_COMMIT_THRESHOLDS.HIGH_IMPORTANCE_OVERRIDE &&
+      userMessageCount >= CONVERSATION_COMMIT_THRESHOLDS.MIN_USER_MESSAGES_FOR_OVERRIDE
+    ) {
+      console.log(`[ChatExtractor] High-importance override: committing "${entry.content}" directly`);
+      const committed = this.commitToConversationPool(entry, metadata);
+      return { metadata: committed, pending };
+    }
 
-    // Cross-validation (30%) - Multiple sources = truth
-    const validationScore = Math.min((insight.source_count || 1) / 3, 1.0);
+    // Check pending for a matching (overlapping) entry
+    const matchIdx = pending.findIndex(p => this.contentOverlaps(p.content, entry.content));
 
-    // Confidence (20%) - How sure AI is
-    const confidenceScore = insight.confidence || 0.5;
+    if (matchIdx >= 0) {
+      const updated = { ...pending[matchIdx] };
+      updated.source_count = (updated.source_count || 1) + 1;
+      updated.last_reinforced = now;
+      updated.confidence = Math.min((updated.confidence + entry.confidence) / 2, 1.0);
 
-    // Recency (10%) - Recent is relevant, but not dominant
-    const daysSince = (Date.now() - new Date(insight.last_reinforced).getTime()) / (1000 * 60 * 60 * 24);
-    const recencyScore = daysSince < 30 ? 1.0 :
-                        daysSince < 60 ? 0.7 :
-                        daysSince < 90 ? 0.4 : 0.2;
+      if (updated.source_count >= CONVERSATION_COMMIT_THRESHOLDS.MIN_SOURCE_COUNT) {
+        // Graduate from staging to committed metadata
+        console.log(`[ChatExtractor] Graduating "${updated.content}" from pending to metadata (source_count: ${updated.source_count})`);
+        const newPending = pending.filter((_, i) => i !== matchIdx);
+        const committed = this.commitToConversationPool(updated, metadata);
+        return { metadata: committed, pending: newPending };
+      }
 
-    return (
-      importanceScore * 0.40 +
-      validationScore * 0.30 +
-      confidenceScore * 0.20 +
-      recencyScore * 0.10
+      // Not yet at threshold — update in pending
+      const newPending = [...pending];
+      newPending[matchIdx] = updated;
+      return { metadata, pending: newPending };
+    }
+
+    // No match in pending — add as new staged entry
+    return { metadata, pending: [...pending, entry] };
+  }
+
+  /**
+   * Commit a conversation insight to insights_metadata, enforcing the conversation cap.
+   * Never evicts from the question pool.
+   */
+  private commitToConversationPool(
+    entry: InsightMetadataEntry,
+    metadata: InsightMetadataEntry[]
+  ): InsightMetadataEntry[] {
+    let convEntries = metadata.filter(e => e.source_type === 'conversation');
+    const questionEntries = metadata.filter(e => e.source_type === 'question');
+
+    // Check for duplicate content before committing
+    const existingIdx = convEntries.findIndex(
+      e => e.content.toLowerCase() === entry.content.toLowerCase()
     );
+
+    if (existingIdx >= 0) {
+      const now = new Date().toISOString();
+      convEntries[existingIdx] = {
+        ...convEntries[existingIdx],
+        source_count: (convEntries[existingIdx].source_count || 1) + 1,
+        last_reinforced: now,
+        confidence: Math.min(convEntries[existingIdx].confidence + 0.05, 1.0),
+      };
+    } else {
+      if (convEntries.length >= MEMORY_CAPS.CONVERSATION_FACTS_MAX) {
+        convEntries = this.memoryManager.evictLowestFromPool(convEntries);
+      }
+      convEntries.push({ ...entry, source_type: 'conversation' });
+    }
+
+    return [...questionEntries, ...convEntries];
   }
 
   // ============================================
-  // HELPER METHODS
+  // PRIVATE: INSIGHT CONVERSION
+  // ============================================
+
+  /**
+   * Convert raw ExtractedInsights to typed InsightMetadataEntry objects.
+   * Filters entries below confidence/importance thresholds before returning.
+   */
+  private extractedInsightsToEntries(
+    insights: ExtractedInsights,
+    chatId: string,
+    sourceType: 'question' | 'conversation',
+    now: string
+  ): InsightMetadataEntry[] {
+    const entries: InsightMetadataEntry[] = [];
+    const scores = insights.semantic_importance_scores || {};
+
+    // Interests
+    for (const [topic, confidence] of Object.entries(insights.interests || {})) {
+      if (confidence < 0.6) continue;
+      const importance = scores[topic] ?? scores[`interest_${topic}`] ?? 0.6;
+      entries.push({
+        id: randomUUID(),
+        content: topic,
+        category: 'interest',
+        source_type: sourceType,
+        source_id: chatId,
+        confidence,
+        semantic_importance: importance,
+        source_count: 1,
+        first_identified: now,
+        last_reinforced: now,
+      });
+    }
+
+    // Beliefs
+    for (const [domain, belief] of Object.entries(insights.beliefs || {})) {
+      const importance = scores[domain] ?? scores[`belief_${domain}`] ?? 0.7;
+      if (importance < 0.75) continue;
+      entries.push({
+        id: randomUUID(),
+        content: `${domain}: ${belief}`,
+        category: 'belief',
+        source_type: sourceType,
+        source_id: chatId,
+        confidence: 0.75,
+        semantic_importance: importance,
+        source_count: 1,
+        first_identified: now,
+        last_reinforced: now,
+      });
+    }
+
+    // Behavioral patterns
+    for (const pattern of insights.behavioral_patterns || []) {
+      const importance = scores[pattern] ?? 0.6;
+      entries.push({
+        id: randomUUID(),
+        content: pattern,
+        category: 'pattern',
+        source_type: sourceType,
+        source_id: chatId,
+        confidence: 0.7,
+        semantic_importance: importance,
+        source_count: 1,
+        first_identified: now,
+        last_reinforced: now,
+      });
+    }
+
+    return entries;
+  }
+
+  // ============================================
+  // PRIVATE: CONTENT SIMILARITY
+  // ============================================
+
+  /**
+   * Cheap keyword-overlap check for deduplication in pending_insights staging.
+   * Returns true if two content strings share at least 2 meaningful words.
+   */
+  private contentOverlaps(a: string, b: string): boolean {
+    const stopWords = new Set(['the', 'is', 'in', 'and', 'or', 'to', 'of', 'that', 'it', 'on', 'for', 'with']);
+    const tokenize = (s: string) =>
+      new Set(s.toLowerCase().split(/\W+/).filter(w => w.length > 3 && !stopWords.has(w)));
+
+    const wordsA = tokenize(a);
+    const wordsB = tokenize(b);
+
+    let overlap = 0;
+    for (const word of wordsA) {
+      if (wordsB.has(word)) overlap++;
+    }
+    return overlap >= 2;
+  }
+
+  // ============================================
+  // PRIVATE: HELPERS
   // ============================================
 
   private async getUserChatsForDate(userId: string, date: Date): Promise<Chat[]> {
-    // Get chats updated on this date
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -460,9 +587,10 @@ Only extract what's clearly supported by conversation. Be selective and high-con
     messageCount: number,
     processingTime: number
   ): Promise<void> {
-    // This would save to chat_extraction_history table
-    // Implementation depends on StorageAdapter extension
-    console.log(`[ChatExtractor] Saved extraction history for chat ${chatId} (quality: ${qualityScore.toFixed(2)}, messages: ${messageCount}, ${processingTime}ms)`);
+    console.log(
+      `[ChatExtractor] Saved extraction history for chat ${chatId} ` +
+      `(quality: ${qualityScore.toFixed(2)}, messages: ${messageCount}, ${processingTime}ms)`
+    );
   }
 
   private async updateUserStats(
@@ -474,7 +602,6 @@ Only extract what's clearly supported by conversation. Be selective and high-con
     if (!profile) return;
 
     await this.storage.updateMemoryProfile(userId, {
-      chat_messages_analyzed: (profile.chat_messages_analyzed || 0) + chatsAnalyzed,
       chat_extractions_count: (profile.chat_extractions_count || 0) + chatsExtracted,
     });
   }

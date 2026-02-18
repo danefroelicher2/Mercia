@@ -14,8 +14,8 @@ import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
 import summaryRoutes from './routes/summaries';
 
-// Import jobs
-import { startExtractionCronJob, startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
+// Import jobs (extraction scheduling is handled by pg_cron on Supabase)
+import { startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
 
 // Load environment variables
 dotenv.config();
@@ -74,12 +74,11 @@ async function startServer() {
     initializeOasisCore();
 
     // Start cron jobs
-    startExtractionCronJob();
     startWeeklyResetCronJob();
     startMonthlyResetCronJob();
-    console.log('  Chat extraction cron job started (runs at 3:00 AM daily)');
     console.log('  Weekly reset cron job started (runs Mondays at 12:00 AM)');
     console.log('  Monthly reset cron job started (runs 1st of month at 12:00 AM)');
+    console.log('  Chat extraction: scheduled via pg_cron on Supabase (5:00 AM UTC daily)');
 
     app.listen(PORT, () => {
       console.log(`\n  Oasis AI Backend running on port ${PORT}`);

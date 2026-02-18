@@ -14,5 +14,8 @@ export * from './adapters/llm';
 // Types
 export * from './types';
 
+// Constants
+export * from './constants/memory';
+
 // Version
 export const VERSION = '0.1.0';
