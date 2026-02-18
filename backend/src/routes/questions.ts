@@ -10,10 +10,26 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+function getLocalDateString(timezone?: string): string {
+  const now = new Date();
+  if (!timezone) return now.toISOString().split('T')[0];
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  } catch {
+    return now.toISOString().split('T')[0];
+  }
+}
+
 // Validation schemas
 const answerSchema = z.object({
   questionId: z.string().uuid(),
   responseText: z.string().min(10).max(5000),
+  timezone: z.string().optional(),
 });
 
 const skipSchema = z.object({
@@ -62,7 +78,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { questionId, responseText } = req.body;
+      const { questionId, responseText, timezone } = req.body;
 
       const questionEngine = getQuestionEngine();
       const memoryManager = getMemoryManager();
@@ -95,7 +111,7 @@ router.post(
           .insert({
             user_id: userId,
             activity_type: 'question_answered',
-            activity_date: new Date().toISOString().split('T')[0],
+            activity_date: getLocalDateString(timezone),
           });
 
         if (logError) {

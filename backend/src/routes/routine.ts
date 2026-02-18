@@ -10,6 +10,21 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+function getLocalDateString(timezone?: string): string {
+  const now = new Date();
+  if (!timezone) return now.toISOString().split('T')[0];
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  } catch {
+    return now.toISOString().split('T')[0];
+  }
+}
+
 // Validation schemas
 const createTaskSchema = z.object({
   text: z.string().min(1).max(500),
@@ -24,6 +39,7 @@ const createGoalSchema = z.object({
 
 const toggleCompletionSchema = z.object({
   completed: z.boolean(),
+  timezone: z.string().optional(),
 });
 
 const quoteInteractionSchema = z.object({
@@ -106,7 +122,7 @@ router.patch(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { completed } = req.body;
+      const { completed, timezone } = req.body;
 
       const storage = getStorage();
       const task = await storage.updateRoutineTaskCompletion(id, userId, completed);
@@ -124,7 +140,7 @@ router.patch(
             .insert({
               user_id: userId,
               activity_type: 'task_completed',
-              activity_date: new Date().toISOString().split('T')[0],
+              activity_date: getLocalDateString(timezone),
             });
 
           if (logError) {
@@ -271,7 +287,7 @@ router.patch(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { completed } = req.body;
+      const { completed, timezone } = req.body;
 
       const storage = getStorage();
       const goal = await storage.updateRoutineGoalCompletion(id, userId, completed);
@@ -289,7 +305,7 @@ router.patch(
             .insert({
               user_id: userId,
               activity_type: 'goal_completed',
-              activity_date: new Date().toISOString().split('T')[0],
+              activity_date: getLocalDateString(timezone),
             });
 
           if (logError) {

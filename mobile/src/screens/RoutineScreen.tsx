@@ -202,6 +202,7 @@ const RoutineScreen: React.FC = () => {
     try {
       const response = await api.patch(`/api/routine/tasks/${taskId}`, {
         completed: !currentStatus,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       if (response.data.success) {
@@ -266,6 +267,7 @@ const RoutineScreen: React.FC = () => {
     try {
       const response = await api.patch(`/api/routine/goals/${goalId}`, {
         completed: !currentStatus,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       if (response.data.success) {

@@ -10,9 +10,25 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+function getLocalDateString(timezone?: string): string {
+  const now = new Date();
+  if (!timezone) return now.toISOString().split('T')[0];
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  } catch {
+    return now.toISOString().split('T')[0];
+  }
+}
+
 // Validation schemas
 const logActivitySchema = z.object({
   activityType: z.enum(['question_answered', 'ai_chat_sent', 'task_completed', 'goal_completed']),
+  timezone: z.string().optional(),
 });
 
 // ============================================
@@ -216,7 +232,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { activityType } = req.body;
+      const { activityType, timezone } = req.body;
       const supabase = getSupabase();
 
       // Insert activity log
@@ -226,7 +242,7 @@ router.post(
         .insert({
           user_id: userId,
           activity_type: activityType,
-          activity_date: new Date().toISOString().split('T')[0],
+          activity_date: getLocalDateString(timezone),
         });
 
       if (logError) throw logError;

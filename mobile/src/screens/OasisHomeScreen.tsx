@@ -159,6 +159,7 @@ const OasisHomeScreen: React.FC = () => {
       const response = await api.post<AnswerApiResponse>('/api/questions/answer', {
         questionId: question.question_id,
         responseText: answerText,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       console.log('[OasisHomeScreen] Answer submitted:', response.data);
 

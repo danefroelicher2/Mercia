@@ -14,6 +14,21 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+function getLocalDateString(timezone?: string): string {
+  const now = new Date();
+  if (!timezone) return now.toISOString().split('T')[0];
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  } catch {
+    return now.toISOString().split('T')[0];
+  }
+}
+
 // Validation schemas
 const newChatSchema = z.object({
   title: z.string().optional(),
@@ -24,6 +39,7 @@ const newChatSchema = z.object({
 const messageSchema = z.object({
   chatId: z.string().uuid(),
   content: z.string().min(1).max(10000),
+  timezone: z.string().optional(),
 });
 
 /**
@@ -122,7 +138,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { chatId, content } = req.body;
+      const { chatId, content, timezone } = req.body;
 
       const storage = getStorage();
       const llm = getLLM();
@@ -169,7 +185,7 @@ router.post(
           .insert({
             user_id: userId,
             activity_type: 'ai_chat_sent',
-            activity_date: new Date().toISOString().split('T')[0],
+            activity_date: getLocalDateString(timezone),
           });
 
         if (logError) {

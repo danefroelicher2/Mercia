@@ -268,6 +268,7 @@ const ChatScreen: React.FC = () => {
       const requestBody: any = {
         chatId,
         content: trimmedContent,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
 
       // Include question context if this is from a question
