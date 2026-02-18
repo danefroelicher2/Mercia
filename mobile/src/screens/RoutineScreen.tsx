@@ -36,6 +36,56 @@ const colors = {
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+
+const getNextMonday = (): Date => {
+  const now = new Date();
+  const dayUTC = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // If today is Monday and the reset (5 AM UTC) hasn't happened yet, use today
+  if (dayUTC === 1) {
+    const todayReset = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 5, 0, 0, 0
+    ));
+    if (now < todayReset) return todayReset;
+  }
+
+  const daysUntil = (8 - dayUTC) % 7 || 7;
+  return new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntil, 5, 0, 0, 0
+  ));
+};
+
+const getNextFirstOfMonth = (): Date => {
+  const now = new Date();
+
+  // If today is the 1st and the reset hasn't happened yet, use today
+  if (now.getUTCDate() === 1) {
+    const todayReset = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), 1, 5, 0, 0, 0
+    ));
+    if (now < todayReset) return todayReset;
+  }
+
+  return new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 5, 0, 0, 0
+  ));
+};
+
+const formatTimeRemaining = (ms: number): string => {
+  if (ms <= 0) return 'Resetting...';
+  const totalMinutes = Math.floor(ms / 60000);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h remaining`;
+  if (totalHours > 0) return `${totalHours}h ${minutes}m remaining`;
+  return `${minutes}m remaining`;
+};
+
+const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS;
+
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
 
@@ -55,6 +105,10 @@ const RoutineScreen: React.FC = () => {
   const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Countdown state
+  const [weeklyCountdown, setWeeklyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
+  const [monthlyCountdown, setMonthlyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
 
   // Weekly summary state
   const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
@@ -77,6 +131,20 @@ const RoutineScreen: React.FC = () => {
     const index = dayOfYear % availableQuotes.length;
     return availableQuotes[index];
   }, [availableQuotes]);
+
+  // Countdown timers
+  useEffect(() => {
+    const updateCountdowns = () => {
+      const now = new Date();
+      const weeklyMs = getNextMonday().getTime() - now.getTime();
+      const monthlyMs = getNextFirstOfMonth().getTime() - now.getTime();
+      setWeeklyCountdown({ text: formatTimeRemaining(weeklyMs), urgent: shouldShowUrgent(weeklyMs) });
+      setMonthlyCountdown({ text: formatTimeRemaining(monthlyMs), urgent: shouldShowUrgent(monthlyMs) });
+    };
+    updateCountdowns();
+    const interval = setInterval(updateCountdowns, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Load disliked quotes on mount
   useEffect(() => {
@@ -456,11 +524,22 @@ const RoutineScreen: React.FC = () => {
     title: string,
     items: any[],
     onAddPress: () => void,
-    renderItem: (item: any) => React.ReactNode
+    renderItem: (item: any) => React.ReactNode,
+    countdown?: { text: string; urgent: boolean }
   ) => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.sectionHeaderLeft}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {countdown?.text ? (
+            <Text
+              style={[styles.countdownText, countdown.urgent && styles.countdownUrgent]}
+              numberOfLines={1}
+            >
+              {countdown.text}
+            </Text>
+          ) : null}
+        </View>
         <TouchableOpacity onPress={onAddPress} style={styles.addButton}>
           <Text style={styles.addButtonText}>+ Add</Text>
         </TouchableOpacity>
@@ -524,7 +603,8 @@ const RoutineScreen: React.FC = () => {
             setGoalType('weekly');
             setGoalModalVisible(true);
           },
-          renderGoalItem
+          renderGoalItem,
+          weeklyCountdown
         )}
 
         {renderSection(
@@ -534,7 +614,8 @@ const RoutineScreen: React.FC = () => {
             setGoalType('monthly');
             setGoalModalVisible(true);
           },
-          renderGoalItem
+          renderGoalItem,
+          monthlyCountdown
         )}
       </ScrollView>
 
@@ -795,6 +876,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.textPrimary,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'column',
+  },
+  countdownText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B0B0B0',
+    marginTop: 4,
+  },
+  countdownUrgent: {
+    color: '#FF6B6B',
   },
   addButton: {
     paddingHorizontal: 16,
