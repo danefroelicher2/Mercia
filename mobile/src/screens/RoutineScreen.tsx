@@ -102,6 +102,9 @@ const RoutineScreen: React.FC = () => {
 
   // Load weekly summary on mount and check for Tuesday last-chance modal
   useEffect(() => {
+    // Fire-and-forget: delete old unsaved summaries from DB on each mount
+    api.delete('/api/summaries/cleanup-old').catch(() => {});
+
     const loadSummary = async () => {
       try {
         const response = await api.get('/api/summaries/current');
@@ -118,8 +121,17 @@ const RoutineScreen: React.FC = () => {
   }, []);
 
   const checkTuesdayModal = async (summary: WeeklySummary) => {
-    const isTuesday = new Date().getDay() === 2;
-    if (!isTuesday || summary.is_saved) return;
+    const today = new Date();
+    if (today.getDay() !== 2 || summary.is_saved) return;
+
+    // Calculate the week_start_date we expect: last week's Monday
+    // (today is Tuesday, so "last Monday" is yesterday; the summary covers
+    //  the week starting 7 days before that Monday)
+    const expectedStart = new Date(today);
+    expectedStart.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 7);
+    const expectedStartStr = expectedStart.toISOString().split('T')[0];
+
+    if (summary.week_start_date !== expectedStartStr) return;
 
     const key = `dismissed_summary_${summary.week_start_date}`;
     const alreadyShown = await AsyncStorage.getItem(key);
@@ -128,10 +140,10 @@ const RoutineScreen: React.FC = () => {
     // Mark as shown before displaying — prevents repeat on subsequent opens
     await AsyncStorage.setItem(key, 'true');
     setTuesdayModalVisible(true);
-    await cleanupOldSummaryKeys(summary.week_start_date);
+    await cleanupOldSummaryKeys();
   };
 
-  const cleanupOldSummaryKeys = async (currentWeekStart: string) => {
+  const cleanupOldSummaryKeys = async () => {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       const summaryKeys = allKeys.filter(k => k.startsWith('dismissed_summary_'));

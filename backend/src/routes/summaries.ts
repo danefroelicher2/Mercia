@@ -53,6 +53,33 @@ router.get('/history', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// DELETE /api/summaries/cleanup-old - Delete unsaved summaries older than 14 days
+router.delete('/cleanup-old', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
+
+    const { error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .delete()
+      .eq('user_id', userId)
+      .eq('is_saved', false)
+      .lt('week_start_date', cutoff);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Summaries] Error cleaning up old summaries:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PATCH /api/summaries/:id/save - Mark a summary as saved
 router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => {
   try {
