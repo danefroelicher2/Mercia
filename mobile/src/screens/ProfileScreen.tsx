@@ -168,6 +168,16 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.navRowChevron}>›</Text>
         </TouchableOpacity>
 
+        {/* Notifications */}
+        <TouchableOpacity
+          style={styles.navRow}
+          onPress={() => navigation.navigate('NotificationSettings')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.navRowLabel}>Notifications</Text>
+          <Text style={styles.navRowChevron}>›</Text>
+        </TouchableOpacity>
+
         {/* Summary History */}
         <TouchableOpacity
           style={styles.navRow}

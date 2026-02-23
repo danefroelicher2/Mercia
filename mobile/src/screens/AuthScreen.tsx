@@ -141,7 +141,7 @@ const AuthScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {false && (
+              {true && (
                 <TouchableOpacity
                   style={[styles.socialButton, styles.googleButton]}
                   onPress={handleGoogleSignIn}

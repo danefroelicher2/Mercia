@@ -30,7 +30,9 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-           "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@react-native-google-signin/google-signin",
+      "expo-notifications"
     ]
   }
 }

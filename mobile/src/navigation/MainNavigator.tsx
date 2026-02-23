@@ -10,6 +10,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import OasisMemoryScreen from '../screens/OasisMemoryScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import { OasisStackParamList } from '../types/navigation';
 
 // Main tab param list
@@ -25,6 +26,7 @@ export type ProfileStackParamList = {
   Settings: undefined;
   SummaryHistory: undefined;
   OasisMemory: undefined;
+  NotificationSettings: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -98,6 +100,18 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Oasis Memory',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{
+          headerShown: true,
+          title: 'Notification Settings',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
