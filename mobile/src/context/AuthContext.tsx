@@ -19,15 +19,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
 
     const initializeAuth = async () => {
-console.log('initializeAuth starrted');
-
       try {
         const storedTokens = await authService.getStoredTokens();
         const storedUser = await authService.getStoredUser();
-console.log('tokens:', storedTokens, 'user:'. storedUser);
         if (storedTokens && storedUser) {
           // Verify token is still valid by making a test request
-console.log('refreshing token');
           try {
             // Try to refresh the token to ensure it's still valid
             await authService.refreshAccessToken(storedTokens.refreshToken);
@@ -42,9 +38,7 @@ console.log('refreshing token');
         console.error('Error initializing auth:', error);
         await authService.logout();
       } finally {
-console.log('finally reached')
         setIsLoading(false);
-console.log('isloading set to false')
       }
     };
 
@@ -52,15 +46,11 @@ console.log('isloading set to false')
   }, []);
 
 const login = useCallback(async (email: string, password: string) => {
-  console.log('[AuthContext] login called');
   setIsLoading(true);
   try {
-    console.log('[AuthContext] calling authService.login');
     const { user: loggedInUser } = await authService.login(email, password);
-    console.log('[AuthContext] authService.login returned:', loggedInUser);
     setUser(loggedInUser);
   } catch(error) {
-    console.log('[AuthContext] login error:', error);
     throw error;
   } finally {
     setIsLoading(false);
