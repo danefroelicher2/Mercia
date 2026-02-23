@@ -1,14 +1,13 @@
-// import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 
-// const GOOGLE_WEB_CLIENT_ID = '569611512008-qp85oac30v529f05337kodb6ugtevfsl.apps.googleusercontent.com';
-
-// GoogleSignin.configure({
-//   webClientId: GOOGLE_WEB_CLIENT_ID,
-//   offlineAccess: false,
-// });
+GoogleSignin.configure({
+  webClientId: '569611512008-mq71v2a6ut8ognkrugk53o5b8cqcis4d.apps.googleusercontent.com',
+  iosClientId: '569611512008-qp85oac30v529f05337kodb6ugtevfsl.apps.googleusercontent.com',
+  offlineAccess: false,
+});
 
 export interface SocialAuthResult {
   idToken: string;
@@ -16,7 +15,12 @@ export interface SocialAuthResult {
 }
 
 export const signInWithGoogle = async (): Promise<SocialAuthResult> => {
-  throw new Error('Google Sign-In requires development build. Please use email/password for now.');
+  await GoogleSignin.hasPlayServices();
+  const { data } = await GoogleSignin.signIn();
+  if (!data?.idToken) {
+    throw new Error('No ID token received from Google');
+  }
+  return { idToken: data.idToken };
 };
 
 export const signInWithApple = async (): Promise<SocialAuthResult> => {
