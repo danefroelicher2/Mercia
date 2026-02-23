@@ -14,4 +14,4 @@
 - **AI Core:** TypeScript, database-agnostic, LLM-agnostic
 - **Backend:** Node.js, Express, TypeScript, Supabase
 - **LLM:** Groq API (primary), Ollama (batch processing)
-- **Database:** PostgreSQL (via Supabase)
+- **Database:** PostgreSQL (via Supabase)1
