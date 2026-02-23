@@ -42,6 +42,7 @@ const AuthScreen: React.FC = () => {
   }, []);
 
   const handleSubmit = async () => {
+    console.log('[AuthScreen] handleSubmit fired, email:', email, 'password length:', password.length, 'isDisabled:', isDisabled, 'isLoading:', isLoading);
     setError(null);
 
     if (!email.trim()) {
@@ -55,7 +56,9 @@ const AuthScreen: React.FC = () => {
 
     try {
       if (mode === 'signin') {
+        console.log('[AuthScreen] about to call login');
         await login(email.trim(), password);
+        console.log('[AuthScreen] login returned successfully');
       } else {
         await register(email.trim(), password, username.trim() || undefined);
       }
