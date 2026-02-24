@@ -1,10 +1,12 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import PaywallScreen from '../screens/PaywallScreen';
 import AuthScreen from '../screens/AuthScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 
 // Auth stack param list
 export type AuthStackParamList = {
+  Paywall: undefined;
   Auth: undefined;
   ForgotPassword: undefined;
 };
@@ -18,6 +20,7 @@ const AuthNavigator: React.FC = () => {
         headerShown: false,
       }}
     >
+      <Stack.Screen name="Paywall" component={PaywallScreen} />
       <Stack.Screen name="Auth" component={AuthScreen} />
       <Stack.Screen
         name="ForgotPassword"
