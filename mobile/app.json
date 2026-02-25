@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oasisai.app"
+      "bundleIdentifier": "com.oasisai.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,6 +36,11 @@
       "expo-apple-authentication",
       "@react-native-google-signin/google-signin",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fbd25170-76e4-4a51-a5a7-c0e69a11a1e2"
+      }
+    }
   }
 }
