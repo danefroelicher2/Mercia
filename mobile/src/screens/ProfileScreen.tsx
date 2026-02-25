@@ -13,11 +13,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import api from '../services/api';
 import { colors, spacing } from '../constants/theme';
 
 const ProfileScreen: React.FC = () => {
   const { user, logout, isLoading } = useAuth();
+  const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
 
   // Change Password state
@@ -158,15 +160,17 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.navRowChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Oasis Memory */}
-        <TouchableOpacity
-          style={styles.navRow}
-          onPress={() => navigation.navigate('OasisMemory')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navRowLabel}>Oasis Memory</Text>
-          <Text style={styles.navRowChevron}>›</Text>
-        </TouchableOpacity>
+        {/* Oasis Memory - subscribers only */}
+        {isSubscribed && (
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('OasisMemory')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Oasis Memory</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Notifications */}
         <TouchableOpacity
@@ -178,15 +182,17 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.navRowChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Summary History */}
-        <TouchableOpacity
-          style={styles.navRow}
-          onPress={() => navigation.navigate('SummaryHistory')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navRowLabel}>Summary History</Text>
-          <Text style={styles.navRowChevron}>›</Text>
-        </TouchableOpacity>
+        {/* Summary History - subscribers only */}
+        {isSubscribed && (
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('SummaryHistory')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Summary History</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+        )}
 
         {/* App Version */}
         <View style={styles.navRow}>

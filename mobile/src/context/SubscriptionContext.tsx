@@ -31,7 +31,14 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     const initialize = async () => {
       try {
         initializePurchases();
+      } catch (error) {
+        console.error('Error initializing RevenueCat:', error);
+      }
+      try {
         await refreshSubscriptionStatus();
+      } catch (error) {
+        console.error('Error fetching initial subscription status:', error);
+        setIsSubscribed(false);
       } finally {
         setIsLoadingSubscription(false);
       }

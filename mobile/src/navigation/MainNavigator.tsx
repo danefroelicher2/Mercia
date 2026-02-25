@@ -1,7 +1,10 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import OasisHomeScreen from '../screens/OasisHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
@@ -11,7 +14,15 @@ import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import OasisMemoryScreen from '../screens/OasisMemoryScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import PaywallScreen from '../screens/PaywallScreen';
+import { useSubscription } from '../context/SubscriptionContext';
 import { OasisStackParamList } from '../types/navigation';
+
+// Root stack param list (tabs + paywall modal)
+export type MainRootStackParamList = {
+  Tabs: undefined;
+  Paywall: undefined;
+};
 
 // Main tab param list
 export type MainTabParamList = {
@@ -32,6 +43,7 @@ export type ProfileStackParamList = {
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const OasisStack = createNativeStackNavigator<OasisStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const MainRootStack = createNativeStackNavigator<MainRootStackParamList>();
 
 // Oasis Stack Navigator (contains OasisHome and ChatScreen)
 const OasisStackNavigator: React.FC = () => {
@@ -122,28 +134,16 @@ const ProfileStackNavigator: React.FC = () => {
   );
 };
 
-const MainNavigator: React.FC = () => {
+// Internal tabs component - rendered inside MainRootStack so useNavigation gives root stack navigation
+const MainTabs: React.FC = () => {
+  const { isSubscribed } = useSubscription();
+  const rootNavigation = useNavigation<NativeStackNavigationProp<MainRootStackParamList>>();
+
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarIcon: ({ focused }: { focused: boolean }) => {
-          const iconMap: Record<string, { active: string; inactive: string }> = {
-            OasisTab: { active: 'home', inactive: 'home-outline' },
-            Routine: { active: 'calendar', inactive: 'calendar-outline' },
-            Stats: { active: 'bar-chart', inactive: 'bar-chart-outline' },
-            Profile: { active: 'person', inactive: 'person-outline' },
-          };
-          const icons = iconMap[route.name] || { active: 'ellipse', inactive: 'ellipse-outline' };
-          return (
-            <Ionicons
-              name={(focused ? icons.active : icons.inactive) as any}
-              size={24}
-              color={focused ? '#FFFFFF' : '#555555'}
-            />
-          );
-        },
         tabBarStyle: {
           backgroundColor: '#1A1A1A',
           borderTopWidth: 1,
@@ -152,14 +152,121 @@ const MainNavigator: React.FC = () => {
           paddingBottom: 16,
           paddingTop: 10,
         },
-      })}
+      }}
     >
-      <Tab.Screen name="OasisTab" component={OasisStackNavigator} />
-      <Tab.Screen name="Routine" component={RoutineScreen} />
-      <Tab.Screen name="Stats" component={StatsScreen} />
-      <Tab.Screen name="Profile" component={ProfileStackNavigator} />
+      <Tab.Screen
+        name="OasisTab"
+        component={OasisStackNavigator}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.iconWrapper}>
+              <Ionicons
+                name={focused ? 'home' : 'home-outline'}
+                size={24}
+                color={focused ? '#FFFFFF' : '#555555'}
+              />
+              {!isSubscribed && (
+                <View style={styles.lockBadge}>
+                  <Ionicons name="lock-closed" size={9} color="#888888" />
+                </View>
+              )}
+            </View>
+          ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!isSubscribed) {
+              e.preventDefault();
+              rootNavigation.navigate('Paywall');
+            }
+          },
+        }}
+      />
+      <Tab.Screen
+        name="Routine"
+        component={RoutineScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Ionicons
+              name={focused ? 'calendar' : 'calendar-outline'}
+              size={24}
+              color={focused ? '#FFFFFF' : '#555555'}
+            />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Stats"
+        component={StatsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.iconWrapper}>
+              <Ionicons
+                name={focused ? 'bar-chart' : 'bar-chart-outline'}
+                size={24}
+                color={focused ? '#FFFFFF' : '#555555'}
+              />
+              {!isSubscribed && (
+                <View style={styles.lockBadge}>
+                  <Ionicons name="lock-closed" size={9} color="#888888" />
+                </View>
+              )}
+            </View>
+          ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!isSubscribed) {
+              e.preventDefault();
+              rootNavigation.navigate('Paywall');
+            }
+          },
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStackNavigator}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <Ionicons
+              name={focused ? 'person' : 'person-outline'}
+              size={24}
+              color={focused ? '#FFFFFF' : '#555555'}
+            />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 };
+
+const MainNavigator: React.FC = () => {
+  return (
+    <MainRootStack.Navigator screenOptions={{ headerShown: false }}>
+      <MainRootStack.Screen name="Tabs" component={MainTabs} />
+      <MainRootStack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+    </MainRootStack.Navigator>
+  );
+};
+
+const styles = StyleSheet.create({
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -8,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 6,
+    padding: 1,
+  },
+});
 
 export default MainNavigator;

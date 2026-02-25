@@ -10,17 +10,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { PurchasesPackage, PurchasesOfferings } from 'react-native-purchases';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, buttonStyles } from '../constants/theme';
 import { getOfferings, purchasePackage, restorePurchases } from '../services/purchases';
 import { useSubscription } from '../context/SubscriptionContext';
-import { AuthStackParamList } from '../navigation/AuthNavigator';
-
-type PaywallScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Paywall'>;
-
-interface PaywallScreenProps {
-  navigation: PaywallScreenNavigationProp;
-}
 
 const FEATURES = [
   'Daily personalized questions that learn who you are',
@@ -28,7 +22,8 @@ const FEATURES = [
   'Routine tracking, goals, and weekly insights',
 ];
 
-const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
+const PaywallScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +58,7 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
       const status = await purchasePackage(monthlyPackage);
       await refreshSubscriptionStatus();
       if (status.isSubscribed) {
-        // Navigation will be handled by RootNavigator observing subscription state
+        navigation.goBack();
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -79,7 +74,9 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
     try {
       const status = await restorePurchases();
       await refreshSubscriptionStatus();
-      if (!status.isSubscribed) {
+      if (status.isSubscribed) {
+        navigation.goBack();
+      } else {
         Alert.alert('No Purchases Found', 'No previous purchases were found for this account.');
       }
     } catch (e: any) {
@@ -93,6 +90,15 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Close button */}
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={() => navigation.goBack()}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="close" size={24} color={colors.textSecondary} />
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Logo / Name */}
         <View style={styles.logoContainer}>
@@ -152,11 +158,6 @@ const PaywallScreen: React.FC<PaywallScreenProps> = ({ navigation }) => {
             <Text style={styles.restoreText}>Restore Purchases</Text>
           )}
         </TouchableOpacity>
-
-        {/* Sign In link */}
-        <TouchableOpacity onPress={() => navigation.navigate('Auth')} style={styles.signInButton}>
-          <Text style={styles.signInText}>Already a subscriber? Sign In</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -166,6 +167,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.screenBg,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 56,
+    right: 20,
+    zIndex: 10,
+    padding: 4,
   },
   scrollContent: {
     flexGrow: 1,
@@ -270,14 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textDecorationLine: 'underline',
-  },
-  signInButton: {
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  signInText: {
-    fontSize: 14,
-    color: colors.textTertiary,
   },
 });
 
