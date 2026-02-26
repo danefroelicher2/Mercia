@@ -8,12 +8,12 @@ import RootNavigator from './navigation/RootNavigator';
 const App: React.FC = () => {
   return (
     <SafeAreaProvider>
-      <SubscriptionProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <SubscriptionProvider>
           <StatusBar style="auto" />
           <RootNavigator />
-        </AuthProvider>
-      </SubscriptionProvider>
+        </SubscriptionProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 };

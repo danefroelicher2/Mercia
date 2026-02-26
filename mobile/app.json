@@ -16,8 +16,16 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oasisai.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.569611512008-qp85oac30v529f05337kodb6ugtevfsl"
+            ]
+          }
+        ]
       }
     },
     "android": {

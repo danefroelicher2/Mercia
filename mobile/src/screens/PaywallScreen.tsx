@@ -86,7 +86,7 @@ const PaywallScreen: React.FC = () => {
     }
   };
 
-  const priceString = monthlyPackage?.product.priceString ?? '$9.99';
+  const priceString = monthlyPackage?.product.priceString ?? '$4.99';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -146,7 +146,7 @@ const PaywallScreen: React.FC = () => {
           {isPurchasing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={buttonStyles.primaryText}>Start Free Trial</Text>
+            <Text style={buttonStyles.primaryText}>Subscribe for $4.99/month</Text>
           )}
         </TouchableOpacity>
 

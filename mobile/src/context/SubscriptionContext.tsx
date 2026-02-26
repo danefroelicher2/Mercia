@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import Purchases from 'react-native-purchases';
 import { initializePurchases, getSubscriptionStatus } from '../services/purchases';
+import { useAuth } from './AuthContext';
 
 interface SubscriptionContextType {
   isSubscribed: boolean;
@@ -16,6 +18,8 @@ interface SubscriptionProviderProps {
 export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ children }) => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+  const { user } = useAuth();
+  const isFirstAuthChange = useRef(true);
 
   const refreshSubscriptionStatus = useCallback(async () => {
     try {
@@ -27,10 +31,14 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     }
   }, []);
 
+  // Initialize RevenueCat on mount, logIn if user is already authenticated
   useEffect(() => {
     const initialize = async () => {
       try {
         initializePurchases();
+        if (user?.id) {
+          await Purchases.logIn(user.id);
+        }
       } catch (error) {
         console.error('Error initializing RevenueCat:', error);
       }
@@ -44,6 +52,28 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       }
     };
     initialize();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // logIn / logOut when auth state changes after initial mount
+  useEffect(() => {
+    if (isFirstAuthChange.current) {
+      isFirstAuthChange.current = false;
+      return;
+    }
+    if (user?.id) {
+      Purchases.logIn(user.id).catch((e) => console.error('RevenueCat logIn error:', e));
+    } else {
+      Purchases.logOut().catch((e) => console.error('RevenueCat logOut error:', e));
+    }
+  }, [user?.id]);
+
+  // Register customerInfo listener on mount, remove on unmount
+  useEffect(() => {
+    const removeListener = Purchases.addCustomerInfoUpdateListener(() => {
+      refreshSubscriptionStatus();
+    });
+    return removeListener;
   }, [refreshSubscriptionStatus]);
 
   return (

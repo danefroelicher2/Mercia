@@ -165,7 +165,7 @@ const MainTabs: React.FC = () => {
                 size={24}
                 color={focused ? '#FFFFFF' : '#555555'}
               />
-              {(!isSubscribed || isLoadingSubscription) && (
+              {(!isSubscribed && !isLoadingSubscription) && (
                 <View style={styles.lockBadge}>
                   <Ionicons name="lock-closed" size={9} color="#888888" />
                 </View>
@@ -175,7 +175,7 @@ const MainTabs: React.FC = () => {
         }}
         listeners={{
           tabPress: (e) => {
-            if (!isSubscribed || isLoadingSubscription) {
+            if (!isSubscribed && !isLoadingSubscription) {
               e.preventDefault();
               rootNavigation.navigate('Paywall');
             }
@@ -206,7 +206,7 @@ const MainTabs: React.FC = () => {
                 size={24}
                 color={focused ? '#FFFFFF' : '#555555'}
               />
-              {(!isSubscribed || isLoadingSubscription) && (
+              {(!isSubscribed && !isLoadingSubscription) && (
                 <View style={styles.lockBadge}>
                   <Ionicons name="lock-closed" size={9} color="#888888" />
                 </View>
@@ -216,7 +216,7 @@ const MainTabs: React.FC = () => {
         }}
         listeners={{
           tabPress: (e) => {
-            if (!isSubscribed || isLoadingSubscription) {
+            if (!isSubscribed && !isLoadingSubscription) {
               e.preventDefault();
               rootNavigation.navigate('Paywall');
             }

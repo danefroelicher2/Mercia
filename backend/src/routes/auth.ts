@@ -143,6 +143,19 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Upsert profile so returning users don't hit duplicate key errors
+    const { error: profileError } = await supabase
+      .schema('oasis')
+      .from('user_profiles')
+      .upsert(
+        { id: data.user.id, username: data.user.email!.split('@')[0] },
+        { onConflict: 'id' }
+      );
+
+    if (profileError) {
+      console.error('Failed to upsert Google user profile:', profileError);
+    }
+
     // Generate our own JWT tokens for consistent auth
     const user: User = {
       id: data.user.id,
@@ -205,6 +218,19 @@ router.post('/apple', async (req: Request, res: Response): Promise<void> => {
         error: 'Authentication failed',
       });
       return;
+    }
+
+    // Upsert profile so returning users don't hit duplicate key errors
+    const { error: profileError } = await supabase
+      .schema('oasis')
+      .from('user_profiles')
+      .upsert(
+        { id: data.user.id, username: data.user.email!.split('@')[0] },
+        { onConflict: 'id' }
+      );
+
+    if (profileError) {
+      console.error('Failed to upsert Apple user profile:', profileError);
     }
 
     // Generate our own JWT tokens for consistent auth

@@ -6,7 +6,7 @@ export interface SubscriptionStatus {
   productIdentifier: string | null;
 }
 
-const ENTITLEMENT_ID = 'premium';
+const ENTITLEMENT_ID = 'Oasis Pro';
 
 export const initializePurchases = (): void => {
   Purchases.configure({ apiKey: 'appl_dOKvJLyzkasdLQSMzVbifZDcJQX' });
