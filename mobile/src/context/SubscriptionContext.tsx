@@ -21,14 +21,16 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     try {
       const status = await getSubscriptionStatus();
       setIsSubscribed(status.isSubscribed);
+      console.log('isSubscribed set to:', status.isSubscribed);
     } catch (error) {
-      console.error('Error fetching subscription status:', error);
+      console.log('RevenueCat error, defaulting to not subscribed:', error);
       setIsSubscribed(false);
     }
   }, []);
 
   useEffect(() => {
     const initialize = async () => {
+      console.log('SubscriptionContext mounted, initializing...');
       try {
         initializePurchases();
       } catch (error) {
@@ -40,6 +42,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         console.error('Error fetching initial subscription status:', error);
         setIsSubscribed(false);
       } finally {
+        console.log('Final isSubscribed:', isSubscribed);
         setIsLoadingSubscription(false);
       }
     };
