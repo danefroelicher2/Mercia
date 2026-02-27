@@ -54,6 +54,12 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Skip refresh logic for auth endpoints — no token exists yet during login/register/social auth
+    const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/google', '/api/auth/apple', '/api/auth/refresh'];
+    if (authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint))) {
+      return Promise.reject(error);
+    }
+
     // If already refreshing, queue this request
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
