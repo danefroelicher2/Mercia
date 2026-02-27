@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +22,7 @@ import { AuthStackParamList } from '../navigation/AuthNavigator';
 type AuthMode = 'signin' | 'signup';
 
 const AuthScreen: React.FC = () => {
-  const { login, register, socialLogin, isLoading } = useAuth();
+  const { login, register, socialLogin } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
@@ -31,7 +30,7 @@ const AuthScreen: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
-  const [socialLoading, setSocialLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const checkAppleAuth = async () => {
@@ -53,6 +52,7 @@ const AuthScreen: React.FC = () => {
       return;
     }
 
+    setIsLoading(true);
     try {
       if (mode === 'signin') {
         console.log('[AuthScreen] about to call login');
@@ -62,41 +62,44 @@ const AuthScreen: React.FC = () => {
         await register(email.trim(), password, username.trim() || undefined);
       }
     } catch (err) {
-      const axiosError = err as AxiosError<{ error: { message: string } }>;
-      if (axiosError.response?.data?.error?.message) {
-        setError(axiosError.response.data.error.message);
+      const axiosError = err as AxiosError<{ error: string }>;
+      const serverMessage = axiosError.response?.data?.error;
+      if (typeof serverMessage === 'string' && serverMessage) {
+        setError(serverMessage);
       } else if (axiosError.message) {
         setError(axiosError.message);
       } else {
         setError('An unexpected error occurred');
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    setError(null);
+    setIsLoading(true);
     try {
-      setSocialLoading(true);
-      setError(null);
       const { idToken } = await signInWithGoogle();
       await socialLogin('google', idToken);
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
     } finally {
-      setSocialLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleAppleSignIn = async () => {
+    setError(null);
+    setIsLoading(true);
     try {
-      setSocialLoading(true);
-      setError(null);
       const { idToken, nonce } = await signInWithApple();
       await socialLogin('apple', idToken, nonce);
     } catch (err: any) {
       if (err.message === 'Apple sign-in was canceled') return;
       setError(err.message || 'Apple sign-in failed');
     } finally {
-      setSocialLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -107,8 +110,6 @@ const AuthScreen: React.FC = () => {
     setPassword('');
     setUsername('');
   };
-
-  const isDisabled = isLoading || socialLoading;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -134,7 +135,7 @@ const AuthScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.socialButton}
                   onPress={handleAppleSignIn}
-                  disabled={isDisabled}
+                  disabled={isLoading}
                 >
                   <Ionicons name="logo-apple" size={24} color="#FFFFFF" />
                   <Text style={styles.socialButtonText}>Continue with Apple</Text>
@@ -145,7 +146,7 @@ const AuthScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.socialButton, styles.googleButton]}
                   onPress={handleGoogleSignIn}
-                  disabled={isDisabled}
+                  disabled={isLoading}
                 >
                   <Ionicons name="logo-google" size={24} color="#FFFFFF" />
                   <Text style={styles.socialButtonText}>Continue with Google</Text>
@@ -220,9 +221,9 @@ const AuthScreen: React.FC = () => {
             )}
 
             <TouchableOpacity
-              style={[styles.button, isDisabled && styles.buttonDisabled]}
+              style={[styles.button, isLoading && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isDisabled}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />

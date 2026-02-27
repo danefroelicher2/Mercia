@@ -18,7 +18,8 @@ import api from '../services/api';
 import { colors, spacing } from '../constants/theme';
 
 const ProfileScreen: React.FC = () => {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
 
@@ -104,10 +105,13 @@ const ProfileScreen: React.FC = () => {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            setIsSigningOut(true);
             try {
               await logout();
             } catch (error) {
               Alert.alert('Error', 'Failed to sign out. Please try again.');
+            } finally {
+              setIsSigningOut(false);
             }
           },
         },
@@ -202,9 +206,9 @@ const ProfileScreen: React.FC = () => {
 
         {/* Sign Out */}
         <TouchableOpacity
-          style={[styles.signOutButton, isLoading && styles.buttonDisabled]}
+          style={[styles.signOutButton, isSigningOut && styles.buttonDisabled]}
           onPress={handleSignOut}
-          disabled={isLoading}
+          disabled={isSigningOut}
         >
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
