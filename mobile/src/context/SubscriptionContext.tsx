@@ -62,7 +62,9 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       return;
     }
     if (user?.id) {
-      Purchases.logIn(user.id).catch((e) => console.error('RevenueCat logIn error:', e));
+      Purchases.logIn(user.id)
+        .then(() => refreshSubscriptionStatus())
+        .catch((e) => console.error('RevenueCat logIn error:', e));
     } else {
       Purchases.logOut().catch((e) => console.error('RevenueCat logOut error:', e));
     }

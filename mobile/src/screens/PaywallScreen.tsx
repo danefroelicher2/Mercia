@@ -52,11 +52,9 @@ const PaywallScreen: React.FC = () => {
     if (!monthlyPackage) return;
     setIsPurchasing(true);
     try {
-      const status = await purchasePackage(monthlyPackage);
+      await purchasePackage(monthlyPackage);
       await refreshSubscriptionStatus();
-      if (status.isSubscribed) {
-        navigation.goBack();
-      }
+      navigation.goBack();
     } catch (e: any) {
       if (!e.userCancelled) {
         Alert.alert('Purchase Failed', e.message ?? 'Something went wrong. Please try again.');

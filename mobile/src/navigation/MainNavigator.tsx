@@ -175,9 +175,11 @@ const MainTabs: React.FC = () => {
         }}
         listeners={{
           tabPress: (e) => {
-            if (!isSubscribed && !isLoadingSubscription) {
+            if (!isSubscribed) {
               e.preventDefault();
-              rootNavigation.navigate('Paywall');
+              if (!isLoadingSubscription) {
+                rootNavigation.navigate('Paywall');
+              }
             }
           },
         }}

@@ -31,6 +31,7 @@ import {
 import { OasisScreenNavigationProp } from '../types/navigation';
 import { MainTabParamList } from '../navigation/MainNavigator';
 import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
+import { useSubscription } from '../context/SubscriptionContext';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -53,6 +54,11 @@ const OasisHomeScreen: React.FC = () => {
   const navigation = useNavigation<OasisScreenNavigationProp>();
   const rootNavigation = useNavigation<NavigationProp<MainTabParamList>>();
   const { user } = useAuth();
+  const { isSubscribed, isLoadingSubscription } = useSubscription();
+
+  if (!isLoadingSubscription && !isSubscribed) {
+    return null;
+  }
 
   // ============================================
   // QUESTION STATE MANAGEMENT
