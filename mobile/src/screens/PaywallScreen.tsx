@@ -6,20 +6,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  ScrollView,
   SafeAreaView,
 } from 'react-native';
 import { PurchasesPackage, PurchasesOfferings } from 'react-native-purchases';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, buttonStyles } from '../constants/theme';
-import { getOfferings, purchasePackage, restorePurchases } from '../services/purchases';
+import { getOfferings, purchasePackage } from '../services/purchases';
 import { useSubscription } from '../context/SubscriptionContext';
 
-const FEATURES = [
-  'Daily personalized questions that learn who you are',
-  'AI that remembers your conversations and grows with you',
-  'Routine tracking, goals, and weekly insights',
+const BENEFITS = [
+  'Daily questions that learn who you are',
+  'AI memory that grows with every conversation',
+  'Full access to your Oasis',
 ];
 
 const PaywallScreen: React.FC = () => {
@@ -28,7 +26,6 @@ const PaywallScreen: React.FC = () => {
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { refreshSubscriptionStatus } = useSubscription();
 
@@ -69,104 +66,77 @@ const PaywallScreen: React.FC = () => {
     }
   };
 
-  const handleRestore = async () => {
-    setIsRestoring(true);
-    try {
-      const status = await restorePurchases();
-      await refreshSubscriptionStatus();
-      if (status.isSubscribed) {
-        navigation.goBack();
-      } else {
-        Alert.alert('No Purchases Found', 'No previous purchases were found for this account.');
-      }
-    } catch (e: any) {
-      Alert.alert('Restore Failed', e.message ?? 'Something went wrong. Please try again.');
-    } finally {
-      setIsRestoring(false);
-    }
-  };
-
   const priceString = monthlyPackage?.product.priceString ?? '$4.99';
+  const isCtaDisabled = isPurchasing || isLoading || !!error;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container}>
       {/* Close button */}
       <TouchableOpacity
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="close" size={24} color={colors.textSecondary} />
+        <Ionicons name="close" size={22} color="#666666" />
       </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Logo / Name */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Oasis AI</Text>
-          <Text style={styles.tagline}>Your personal AI growth companion</Text>
+      <View style={styles.inner}>
+        {/* Top section */}
+        <View style={styles.topSection}>
+          <Text style={styles.headline}>Oasis Premium</Text>
+          <Text style={styles.subheadline}>Unlock your AI growth companion</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.benefits}>
+            {BENEFITS.map((benefit, i) => (
+              <Text key={i} style={styles.benefitText}>{benefit}</Text>
+            ))}
+          </View>
         </View>
 
-        {/* Feature bullets */}
-        <View style={styles.featuresContainer}>
-          {FEATURES.map((feature, index) => (
-            <View key={index} style={styles.featureRow}>
-              <Text style={styles.checkmark}>✓</Text>
-              <Text style={styles.featureText}>{feature}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Pricing */}
-        <View style={styles.pricingContainer}>
+        {/* Bottom section */}
+        <View style={styles.bottomSection}>
           {isLoading ? (
-            <ActivityIndicator color={colors.primary} size="large" />
+            <ActivityIndicator color="#FFFFFF" size="large" style={styles.priceLoader} />
           ) : error ? (
-            <View style={styles.errorContainer}>
+            <View style={styles.errorBlock}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={fetchOfferings}>
-                <Text style={styles.retryButtonText}>Retry</Text>
+              <TouchableOpacity onPress={fetchOfferings} style={styles.retryButton}>
+                <Text style={styles.retryText}>Retry</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <>
-              <Text style={styles.price}>{priceString}</Text>
+            <Text style={styles.price}>
+              {priceString}{' '}
               <Text style={styles.pricePeriod}>/ month</Text>
-              <Text style={styles.cancelAnytime}>Cancel anytime</Text>
-            </>
+            </Text>
           )}
+
+          <TouchableOpacity
+            style={[styles.ctaButton, isCtaDisabled && styles.ctaDisabled]}
+            onPress={handlePurchase}
+            disabled={isCtaDisabled}
+            activeOpacity={0.85}
+          >
+            {isPurchasing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.ctaText}>Get Oasis Premium</Text>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.cancelText}>Cancel anytime</Text>
         </View>
-
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={[buttonStyles.primary, styles.ctaButton, (isPurchasing || isLoading || !!error) && buttonStyles.disabled]}
-          onPress={handlePurchase}
-          disabled={isPurchasing || isLoading || !!error}
-          activeOpacity={0.8}
-        >
-          {isPurchasing ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={buttonStyles.primaryText}>Subscribe for $4.99/month</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Restore link */}
-        <TouchableOpacity onPress={handleRestore} disabled={isRestoring} style={styles.restoreButton}>
-          {isRestoring ? (
-            <ActivityIndicator color={colors.textSecondary} size="small" />
-          ) : (
-            <Text style={styles.restoreText}>Restore Purchases</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: colors.screenBg,
+    backgroundColor: '#1A1A1A',
   },
   closeButton: {
     position: 'absolute',
@@ -175,83 +145,72 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 4,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: 60,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  logoText: {
-    fontSize: 42,
-    fontWeight: '700',
-    color: colors.primary,
-    letterSpacing: 1,
-  },
-  tagline: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  featuresContainer: {
-    width: '100%',
-    backgroundColor: colors.cardBg,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 40,
-    gap: 16,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  checkmark: {
-    fontSize: 18,
-    color: colors.success,
-    fontWeight: '700',
-    lineHeight: 24,
-  },
-  featureText: {
+  inner: {
     flex: 1,
-    fontSize: 15,
-    color: colors.textPrimary,
-    lineHeight: 24,
+    paddingHorizontal: 32,
+    paddingTop: 80,
+    paddingBottom: 40,
+    justifyContent: 'space-between',
   },
-  pricingContainer: {
+  topSection: {
     alignItems: 'center',
+  },
+  headline: {
+    fontSize: 38,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subheadline: {
+    fontSize: 16,
+    color: '#888888',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  divider: {
+    width: 40,
+    height: 1,
+    backgroundColor: '#333333',
+    marginVertical: 36,
+  },
+  benefits: {
+    alignItems: 'center',
+    gap: 18,
+  },
+  benefitText: {
+    fontSize: 15,
+    color: '#CCCCCC',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  bottomSection: {
+    alignItems: 'center',
+  },
+  priceLoader: {
     marginBottom: 32,
-    minHeight: 80,
-    justifyContent: 'center',
   },
   price: {
-    fontSize: 48,
+    fontSize: 40,
     fontWeight: '700',
-    color: colors.textPrimary,
-    lineHeight: 56,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 32,
   },
   pricePeriod: {
-    fontSize: 18,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontSize: 20,
+    fontWeight: '400',
+    color: '#888888',
   },
-  cancelAnytime: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    marginTop: 8,
-  },
-  errorContainer: {
+  errorBlock: {
     alignItems: 'center',
+    marginBottom: 32,
     gap: 12,
   },
   errorText: {
     fontSize: 14,
-    color: colors.error,
+    color: '#FF453A',
     textAlign: 'center',
   },
   retryButton: {
@@ -259,25 +218,36 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: '#555555',
   },
-  retryButtonText: {
-    color: colors.primary,
+  retryText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#CCCCCC',
   },
   ctaButton: {
     width: '100%',
-    marginBottom: 16,
+    backgroundColor: '#E8622A',
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 58,
+    marginBottom: 14,
   },
-  restoreButton: {
-    paddingVertical: 12,
-    marginBottom: 8,
+  ctaDisabled: {
+    opacity: 0.45,
   },
-  restoreText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textDecorationLine: 'underline',
+  ctaText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  cancelText: {
+    fontSize: 13,
+    color: '#555555',
+    textAlign: 'center',
   },
 });
 
