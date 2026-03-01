@@ -200,27 +200,12 @@ const MainTabs: React.FC = () => {
         component={StatsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <View style={styles.iconWrapper}>
-              <Ionicons
-                name={focused ? 'bar-chart' : 'bar-chart-outline'}
-                size={24}
-                color={focused ? '#FFFFFF' : '#555555'}
-              />
-              {(!isSubscribed && !isLoadingSubscription) && (
-                <View style={styles.lockBadge}>
-                  <Ionicons name="lock-closed" size={9} color="#888888" />
-                </View>
-              )}
-            </View>
+            <Ionicons
+              name={focused ? 'bar-chart' : 'bar-chart-outline'}
+              size={24}
+              color={focused ? '#FFFFFF' : '#555555'}
+            />
           ),
-        }}
-        listeners={{
-          tabPress: (e) => {
-            if (!isSubscribed && !isLoadingSubscription) {
-              e.preventDefault();
-              rootNavigation.navigate('Paywall');
-            }
-          },
         }}
       />
       <Tab.Screen
