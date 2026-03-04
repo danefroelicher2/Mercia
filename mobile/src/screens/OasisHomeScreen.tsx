@@ -56,10 +56,6 @@ const OasisHomeScreen: React.FC = () => {
   const { user } = useAuth();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
 
-  if (!isLoadingSubscription && !isSubscribed) {
-    return null;
-  }
-
   // ============================================
   // QUESTION STATE MANAGEMENT
   // ============================================
@@ -499,6 +495,13 @@ const OasisHomeScreen: React.FC = () => {
       fetchGroupedInsights();
     }, [fetchChats, fetchMemoryProfile, fetchGroupedInsights])
   );
+
+  // Redirect non-subscribers to Paywall — must be after all hooks
+  useEffect(() => {
+    if (!isLoadingSubscription && !isSubscribed) {
+      (rootNavigation as any).navigate('Paywall');
+    }
+  }, [isSubscribed, isLoadingSubscription]);
 
   // ============================================
   // HANDLERS
