@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -17,6 +17,7 @@ import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
 import { OasisStackParamList } from '../types/navigation';
+import { getConsent } from '../services/consentService';
 
 // Root stack param list (tabs + paywall modal)
 export type MainRootStackParamList = {
@@ -138,6 +139,13 @@ const ProfileStackNavigator: React.FC = () => {
 const MainTabs: React.FC = () => {
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const rootNavigation = useNavigation<NativeStackNavigationProp<MainRootStackParamList>>();
+  const [hasConsent, setHasConsent] = useState(false);
+
+  useEffect(() => {
+    getConsent().then(setHasConsent);
+  }, []);
+
+  const isLocked = !isLoadingSubscription && (!isSubscribed || !hasConsent);
 
   return (
     <Tab.Navigator
@@ -165,7 +173,7 @@ const MainTabs: React.FC = () => {
                 size={24}
                 color={focused ? '#FFFFFF' : '#555555'}
               />
-              {(!isSubscribed && !isLoadingSubscription) && (
+              {isLocked && (
                 <View style={styles.lockBadge}>
                   <Ionicons name="lock-closed" size={9} color="#888888" />
                 </View>
@@ -173,16 +181,19 @@ const MainTabs: React.FC = () => {
             </View>
           ),
         }}
-        listeners={{
+        listeners={({ navigation: tabNav }) => ({
           tabPress: (e) => {
             if (!isSubscribed) {
               e.preventDefault();
               if (!isLoadingSubscription) {
                 rootNavigation.navigate('Paywall');
               }
+            } else if (!hasConsent) {
+              e.preventDefault();
+              tabNav.navigate('Profile');
             }
           },
-        }}
+        })}
       />
       <Tab.Screen
         name="Routine"

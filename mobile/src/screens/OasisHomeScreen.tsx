@@ -32,6 +32,7 @@ import { OasisScreenNavigationProp } from '../types/navigation';
 import { MainTabParamList } from '../navigation/MainNavigator';
 import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
 import { useSubscription } from '../context/SubscriptionContext';
+import { getConsent } from '../services/consentService';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -55,6 +56,8 @@ const OasisHomeScreen: React.FC = () => {
   const rootNavigation = useNavigation<NavigationProp<MainTabParamList>>();
   const { user } = useAuth();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
+  const [hasConsent, setHasConsent] = useState<boolean>(false);
+  const [isLoadingConsent, setIsLoadingConsent] = useState<boolean>(true);
 
   // ============================================
   // QUESTION STATE MANAGEMENT
@@ -496,12 +499,24 @@ const OasisHomeScreen: React.FC = () => {
     }, [fetchChats, fetchMemoryProfile, fetchGroupedInsights])
   );
 
-  // Redirect non-subscribers to Paywall — must be after all hooks
+  // Load consent state once on mount
   useEffect(() => {
-    if (!isLoadingSubscription && !isSubscribed) {
-      (rootNavigation as any).navigate('Paywall');
+    getConsent().then(value => {
+      setHasConsent(value);
+      setIsLoadingConsent(false);
+    });
+  }, []);
+
+  // Redirect non-subscribers to Paywall, or non-consenting subscribers to Profile
+  useEffect(() => {
+    if (!isLoadingSubscription && !isLoadingConsent) {
+      if (!isSubscribed) {
+        (rootNavigation as any).navigate('Paywall');
+      } else if (!hasConsent) {
+        rootNavigation.navigate('Profile');
+      }
     }
-  }, [isSubscribed, isLoadingSubscription]);
+  }, [isSubscribed, isLoadingSubscription, hasConsent, isLoadingConsent]);
 
   // ============================================
   // HANDLERS

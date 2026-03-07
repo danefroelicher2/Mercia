@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import api from '../services/api';
 import { colors, spacing } from '../constants/theme';
+import { getConsent, setConsent } from '../services/consentService';
 
 const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
@@ -32,6 +34,18 @@ const ProfileScreen: React.FC = () => {
 
   // Delete Account state
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // AI Data Consent state
+  const [aiConsent, setAiConsent] = useState(false);
+
+  useEffect(() => {
+    getConsent().then(setAiConsent);
+  }, []);
+
+  const handleConsentToggle = async (value: boolean) => {
+    setAiConsent(value);
+    await setConsent(value);
+  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -197,6 +211,20 @@ const ProfileScreen: React.FC = () => {
             <Text style={styles.navRowChevron}>›</Text>
           </TouchableOpacity>
         )}
+
+        {/* AI Data Consent */}
+        <View style={styles.navRow}>
+          <View style={styles.consentLabelContainer}>
+            <Text style={styles.navRowLabel}>AI Data Consent</Text>
+            <Text style={styles.consentSubtitle}>Allow Oasis to process your data with Groq AI</Text>
+          </View>
+          <Switch
+            value={aiConsent}
+            onValueChange={handleConsentToggle}
+            trackColor={{ false: '#333333', true: '#E8622A' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
 
         {/* App Version */}
         <View style={styles.navRow}>
@@ -377,6 +405,15 @@ const styles = StyleSheet.create({
   versionValue: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  consentLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  consentSubtitle: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: 2,
   },
   signOutButton: {
     backgroundColor: colors.cardBg,
