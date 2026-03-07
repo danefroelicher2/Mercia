@@ -45,6 +45,7 @@
       "@react-native-google-signin/google-signin",
       "expo-notifications"
     ],
+    "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
     "extra": {
       "eas": {
         "projectId": "fbd25170-76e4-4a51-a5a7-c0e69a11a1e2"

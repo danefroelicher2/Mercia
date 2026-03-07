@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import { PurchasesPackage, PurchasesOfferings } from 'react-native-purchases';
 import { useNavigation } from '@react-navigation/native';
@@ -125,6 +126,16 @@ const PaywallScreen: React.FC = () => {
           </TouchableOpacity>
 
           <Text style={styles.cancelText}>Cancel anytime</Text>
+
+          <View style={styles.legalLinks}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://tranquil-marigold-3d7831.netlify.app')}>
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSeparator}> · </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://tranquil-marigold-3d7831.netlify.app/terms.html')}>
+              <Text style={styles.legalLinkText}>Terms of Use</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -246,6 +257,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555555',
     textAlign: 'center',
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  legalLinkText: {
+    fontSize: 11,
+    color: '#555555',
+  },
+  legalSeparator: {
+    fontSize: 11,
+    color: '#555555',
   },
 });
 
