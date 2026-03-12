@@ -11,6 +11,16 @@ const api = axios.create({
   timeout: 60000,
 });
 
+// Separate instance for auth endpoints — 120s to survive Render cold start
+// plus Supabase Apple/Google token verification round-trip
+export const authApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 120000,
+});
+
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false;
 let failedQueue: Array<{

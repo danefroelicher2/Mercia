@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from './api';
+import api, { authApi } from './api';
 import { STORAGE_KEYS } from '../constants/config';
 import { AuthTokens, User, AuthResponse } from '../types';
 
@@ -9,7 +9,7 @@ export const register = async (
   password: string,
   username?: string
 ): Promise<{ user: User; tokens: AuthTokens }> => {
-  const response = await api.post<AuthResponse>('/api/auth/register', {
+  const response = await authApi.post<AuthResponse>('/api/auth/register', {
     email,
     password,
     ...(username && { username }),
@@ -27,7 +27,7 @@ export const login = async (
   email: string,
   password: string
 ): Promise<{ user: User; tokens: AuthTokens }> => {
-  const response = await api.post<AuthResponse>('/api/auth/login', {
+  const response = await authApi.post<AuthResponse>('/api/auth/login', {
     email,
     password,
   });
@@ -45,7 +45,7 @@ export const socialLogin = async (
   idToken: string,
   nonce?: string
 ): Promise<{ user: User; tokens: AuthTokens }> => {
-  const response = await api.post<AuthResponse>(`/api/auth/${provider}`, {
+  const response = await authApi.post<AuthResponse>(`/api/auth/${provider}`, {
     idToken,
     ...(nonce && { nonce }),
   });
@@ -110,7 +110,7 @@ export const storeUser = async (user: User): Promise<void> => {
 export const refreshAccessToken = async (
   refreshToken: string
 ): Promise<AuthTokens> => {
-  const response = await api.post<AuthResponse>('/api/auth/refresh', {
+  const response = await authApi.post<AuthResponse>('/api/auth/refresh', {
     refreshToken,
   });
 

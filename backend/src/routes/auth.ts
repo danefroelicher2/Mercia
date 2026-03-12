@@ -144,11 +144,14 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Upsert profile so returning users don't hit duplicate key errors
+    const googleUsername = data.user.email
+      ? data.user.email.split('@')[0]
+      : `user_${data.user.id.substring(0, 8)}`;
     const { error: profileError } = await supabase
       .schema('oasis')
       .from('user_profiles')
       .upsert(
-        { id: data.user.id, username: data.user.email!.split('@')[0] },
+        { id: data.user.id, username: googleUsername },
         { onConflict: 'id' }
       );
 
@@ -221,11 +224,15 @@ router.post('/apple', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Upsert profile so returning users don't hit duplicate key errors
+    // Apple only provides email on first sign-in; fall back to user ID prefix on subsequent logins
+    const appleUsername = data.user.email
+      ? data.user.email.split('@')[0]
+      : `user_${data.user.id.substring(0, 8)}`;
     const { error: profileError } = await supabase
       .schema('oasis')
       .from('user_profiles')
       .upsert(
-        { id: data.user.id, username: data.user.email!.split('@')[0] },
+        { id: data.user.id, username: appleUsername },
         { onConflict: 'id' }
       );
 
