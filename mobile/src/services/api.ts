@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 60000,
 });
 
 // Flag to prevent multiple refresh attempts
@@ -51,6 +51,12 @@ api.interceptors.response.use(
 
     // If error is not 401 or request already retried, reject
     if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    // Skip refresh logic for auth endpoints — no token exists yet during login/register/social auth
+    const authEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/google', '/api/auth/apple', '/api/auth/refresh'];
+    if (authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint))) {
       return Promise.reject(error);
     }
 

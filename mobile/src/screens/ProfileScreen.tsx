@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,20 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import api from '../services/api';
 import { colors, spacing } from '../constants/theme';
+import { getConsent, setConsent } from '../services/consentService';
 
 const ProfileScreen: React.FC = () => {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
 
   // Change Password state
@@ -29,6 +34,18 @@ const ProfileScreen: React.FC = () => {
 
   // Delete Account state
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // AI Data Consent state
+  const [aiConsent, setAiConsent] = useState(false);
+
+  useEffect(() => {
+    getConsent().then(setAiConsent);
+  }, []);
+
+  const handleConsentToggle = async (value: boolean) => {
+    setAiConsent(value);
+    await setConsent(value);
+  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -102,10 +119,13 @@ const ProfileScreen: React.FC = () => {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            setIsSigningOut(true);
             try {
               await logout();
             } catch (error) {
               Alert.alert('Error', 'Failed to sign out. Please try again.');
+            } finally {
+              setIsSigningOut(false);
             }
           },
         },
@@ -158,25 +178,53 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.navRowChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Oasis Memory */}
+        {/* Oasis Memory - subscribers only */}
+        {isSubscribed && (
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('OasisMemory')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Oasis Memory</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Notifications */}
         <TouchableOpacity
           style={styles.navRow}
-          onPress={() => navigation.navigate('OasisMemory')}
+          onPress={() => navigation.navigate('NotificationSettings')}
           activeOpacity={0.7}
         >
-          <Text style={styles.navRowLabel}>Oasis Memory</Text>
+          <Text style={styles.navRowLabel}>Notifications</Text>
           <Text style={styles.navRowChevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Summary History */}
-        <TouchableOpacity
-          style={styles.navRow}
-          onPress={() => navigation.navigate('SummaryHistory')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navRowLabel}>Summary History</Text>
-          <Text style={styles.navRowChevron}>›</Text>
-        </TouchableOpacity>
+        {/* Summary History - subscribers only */}
+        {isSubscribed && (
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('SummaryHistory')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Summary History</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* AI Data Consent */}
+        <View style={styles.navRow}>
+          <View style={styles.consentLabelContainer}>
+            <Text style={styles.navRowLabel}>AI Data Consent</Text>
+            <Text style={styles.consentSubtitle}>Allow Oasis to process your data with Groq AI</Text>
+          </View>
+          <Switch
+            value={aiConsent}
+            onValueChange={handleConsentToggle}
+            trackColor={{ false: '#333333', true: '#E8622A' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
 
         {/* App Version */}
         <View style={styles.navRow}>
@@ -186,9 +234,9 @@ const ProfileScreen: React.FC = () => {
 
         {/* Sign Out */}
         <TouchableOpacity
-          style={[styles.signOutButton, isLoading && styles.buttonDisabled]}
+          style={[styles.signOutButton, isSigningOut && styles.buttonDisabled]}
           onPress={handleSignOut}
-          disabled={isLoading}
+          disabled={isSigningOut}
         >
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -357,6 +405,15 @@ const styles = StyleSheet.create({
   versionValue: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  consentLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  consentSubtitle: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: 2,
   },
   signOutButton: {
     backgroundColor: colors.cardBg,

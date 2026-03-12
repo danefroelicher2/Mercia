@@ -15,7 +15,18 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oasisai.app"
+      "bundleIdentifier": "com.oasisai.app",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.569611512008-qp85oac30v529f05337kodb6ugtevfsl"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,8 +41,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-apple-authentication",
       "@react-native-google-signin/google-signin",
-      "expo-apple-authentication"
-    ]
+      "expo-notifications"
+    ],
+    "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
+    "extra": {
+      "eas": {
+        "projectId": "fbd25170-76e4-4a51-a5a7-c0e69a11a1e2"
+      }
+    }
   }
 }

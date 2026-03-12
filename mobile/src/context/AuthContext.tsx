@@ -13,15 +13,14 @@ interface AuthProviderProps {
 // AuthProvider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Check for existing auth on mount
   useEffect(() => {
+
     const initializeAuth = async () => {
       try {
         const storedTokens = await authService.getStoredTokens();
         const storedUser = await authService.getStoredUser();
-
         if (storedTokens && storedUser) {
           // Verify token is still valid by making a test request
           try {
@@ -37,55 +36,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Error initializing auth:', error);
         await authService.logout();
-      } finally {
-        setIsLoading(false);
       }
     };
 
     initializeAuth();
   }, []);
 
-  // Login function
   const login = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
     try {
       const { user: loggedInUser } = await authService.login(email, password);
       setUser(loggedInUser);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   }, []);
 
   // Register function
   const register = useCallback(async (email: string, password: string, username?: string) => {
-    setIsLoading(true);
     try {
       const { user: registeredUser } = await authService.register(email, password, username);
       setUser(registeredUser);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   }, []);
 
   // Social login function
   const socialLogin = useCallback(async (provider: 'google' | 'apple', idToken: string, nonce?: string) => {
-    setIsLoading(true);
     try {
       const { user: socialUser } = await authService.socialLogin(provider, idToken, nonce);
       setUser(socialUser);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   }, []);
 
   // Logout function
   const logout = useCallback(async () => {
-    setIsLoading(true);
     try {
       await authService.logout();
       setUser(null);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   }, []);
 
@@ -94,7 +86,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
-    isLoading,
     isAuthenticated,
     login,
     register,

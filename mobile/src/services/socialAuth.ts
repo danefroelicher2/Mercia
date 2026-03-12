@@ -1,14 +1,24 @@
-// import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// const GOOGLE_WEB_CLIENT_ID = '569611512008-qp85oac30v529f05337kodb6ugtevfsl.apps.googleusercontent.com';
+const isExpoGo = Constants.appOwnership === 'expo';
 
-// GoogleSignin.configure({
-//   webClientId: GOOGLE_WEB_CLIENT_ID,
-//   offlineAccess: false,
-// });
+let GoogleSignin: any = null;
+
+if (!isExpoGo) {
+  try {
+    GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+    GoogleSignin.configure({
+      webClientId: '569611512008-mq71v2a6ut8ognkrugk53o5b8cqcis4d.apps.googleusercontent.com',
+      iosClientId: '569611512008-qp85oac30v529f05337kodb6ugtevfsl.apps.googleusercontent.com',
+      offlineAccess: false,
+    });
+  } catch {
+    GoogleSignin = null;
+  }
+}
 
 export interface SocialAuthResult {
   idToken: string;
@@ -16,7 +26,15 @@ export interface SocialAuthResult {
 }
 
 export const signInWithGoogle = async (): Promise<SocialAuthResult> => {
-  throw new Error('Google Sign-In requires development build. Please use email/password for now.');
+  if (isExpoGo || !GoogleSignin) {
+    throw new Error('Google Sign-In is not available in Expo Go. Please use a development build.');
+  }
+  await GoogleSignin.hasPlayServices();
+  const { data } = await GoogleSignin.signIn();
+  if (!data?.idToken) {
+    throw new Error('No ID token received from Google');
+  }
+  return { idToken: data.idToken };
 };
 
 export const signInWithApple = async (): Promise<SocialAuthResult> => {
