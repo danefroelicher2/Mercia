@@ -243,7 +243,7 @@ router.post('/apple', async (req: Request, res: Response): Promise<void> => {
     // Generate our own JWT tokens for consistent auth
     const user: User = {
       id: data.user.id,
-      email: data.user.email!,
+      email: data.user.email ?? '',
     };
     const tokens = generateTokens(user);
 
