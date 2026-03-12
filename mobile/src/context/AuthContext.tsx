@@ -13,6 +13,7 @@ interface AuthProviderProps {
 // AuthProvider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Check for existing auth on mount
   useEffect(() => {
@@ -36,6 +37,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Error initializing auth:', error);
         await authService.logout();
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -87,6 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isAuthenticated,
+    isLoading,
     login,
     register,
     socialLogin,

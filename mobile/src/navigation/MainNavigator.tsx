@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -190,7 +190,14 @@ const MainTabs: React.FC = () => {
               }
             } else if (!hasConsent) {
               e.preventDefault();
-              tabNav.navigate('Profile');
+              Alert.alert(
+                'Consent Required',
+                'Please enable AI Data Consent in your Profile settings to access Oasis.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Go to Profile', onPress: () => tabNav.navigate('Profile') },
+                ]
+              );
             }
           },
         })}

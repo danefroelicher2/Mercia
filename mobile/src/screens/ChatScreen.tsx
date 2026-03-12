@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import api from '../services/api';
+import { getConsent } from '../services/consentService';
 import { formatMessageTime } from '../utils/dateUtils';
 import { ChatMessage, ChatMessagesApiResponse, SendMessageApiResponse } from '../types/chat';
 import { ChatScreenRouteProp, ChatScreenNavigationProp } from '../types/navigation';
@@ -319,6 +320,19 @@ const ChatScreen: React.FC = () => {
   // ============================================
   // EFFECTS
   // ============================================
+
+  // Guard: block access if AI Data Consent has not been granted
+  useEffect(() => {
+    getConsent().then(hasConsent => {
+      if (!hasConsent) {
+        Alert.alert(
+          'Consent Required',
+          'Please enable AI Data Consent in your Profile settings to use Oasis AI chat.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
+    });
+  }, []);
 
   // Fetch messages on mount
   useEffect(() => {

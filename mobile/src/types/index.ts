@@ -43,6 +43,7 @@ export interface ApiError {
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username?: string) => Promise<void>;
   socialLogin: (provider: 'google' | 'apple', idToken: string, nonce?: string) => Promise<void>;

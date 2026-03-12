@@ -8,22 +8,21 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { setConsent } from '../services/consentService';
-import { RootStackParamList } from '../navigation/RootNavigator';
 
-const ConsentScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+interface ConsentScreenProps {
+  onConsentAnswered: () => void;
+}
 
+const ConsentScreen: React.FC<ConsentScreenProps> = ({ onConsentAnswered }) => {
   const handleAgree = async () => {
     await setConsent(true);
-    navigation.goBack();
+    onConsentAnswered();
   };
 
   const handleDecline = async () => {
     await setConsent(false);
-    navigation.goBack();
+    onConsentAnswered();
   };
 
   return (
@@ -35,13 +34,19 @@ const ConsentScreen: React.FC = () => {
         <Text style={styles.headline}>Before You Continue</Text>
 
         <Text style={styles.body}>
-          Oasis AI uses Groq, a third-party AI service, to power your conversations and generate personalized insights. Your conversation messages and question responses may be processed by Groq to generate responses. By continuing, you consent to this data processing. You can change this at any time in your profile settings.
+          Oasis AI sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. This data is transmitted to Groq's servers for processing. Groq does not use your data to train AI models. You must agree to continue using Oasis AI features. You can revoke this consent at any time in your Profile settings.
         </Text>
 
         <TouchableOpacity
           onPress={() => Linking.openURL('https://tranquil-marigold-3d7831.netlify.app')}
         >
-          <Text style={styles.privacyLink}>Privacy Policy</Text>
+          <Text style={styles.privacyLink}>Oasis Privacy Policy</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://groq.com/privacy-policy')}
+        >
+          <Text style={[styles.privacyLink, styles.groqPrivacyLink]}>Groq Privacy Policy</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.agreeButton} onPress={handleAgree} activeOpacity={0.85}>
@@ -87,6 +92,9 @@ const styles = StyleSheet.create({
     color: '#E8622A',
     textAlign: 'center',
     textDecorationLine: 'underline',
+    marginBottom: 12,
+  },
+  groqPrivacyLink: {
     marginBottom: 44,
   },
   agreeButton: {

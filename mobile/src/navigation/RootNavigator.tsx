@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
@@ -9,49 +8,64 @@ import MainNavigator from './MainNavigator';
 import ConsentScreen from '../screens/ConsentScreen';
 import { hasConsentBeenAnswered } from '../services/consentService';
 
-export type RootStackParamList = {
-  Main: undefined;
-  Consent: undefined;
-};
-
-const RootStack = createNativeStackNavigator<RootStackParamList>();
-
-// Renders MainNavigator and immediately navigates to Consent if not yet answered
-const MainWithConsentCheck: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+const RootNavigator: React.FC = () => {
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  // null = not yet checked, true = answered (yes or no), false = not yet answered
+  const [consentAnswered, setConsentAnswered] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const check = async () => {
-      const answered = await hasConsentBeenAnswered();
-      if (!answered) {
-        navigation.navigate('Consent');
-      }
-    };
-    check();
-  }, []);
+    if (isAuthLoading) return;
 
-  return <MainNavigator />;
-};
+    if (!isAuthenticated) {
+      // Reset consent check state so it re-runs after next login
+      setConsentAnswered(null);
+      return;
+    }
 
-const AuthenticatedRoot: React.FC = () => (
-  <RootStack.Navigator screenOptions={{ headerShown: false }}>
-    <RootStack.Screen name="Main" component={MainWithConsentCheck} />
-    <RootStack.Screen
-      name="Consent"
-      component={ConsentScreen}
-      options={{ presentation: 'fullScreenModal' }}
-    />
-  </RootStack.Navigator>
-);
+    hasConsentBeenAnswered().then(setConsentAnswered);
+  }, [isAuthenticated, isAuthLoading]);
 
-const RootNavigator: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  // Show spinner while auth is resolving or while we check AsyncStorage for consent
+  if (isAuthLoading || (isAuthenticated && consentAnswered === null)) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
+    );
+  }
 
+  // Not authenticated — show auth flow
+  if (!isAuthenticated) {
+    return (
+      <NavigationContainer>
+        <AuthNavigator />
+      </NavigationContainer>
+    );
+  }
+
+  // Authenticated but consent not yet answered — show ConsentScreen ONLY.
+  // No NavigationContainer, no stack, no gesture dismissal possible.
+  if (!consentAnswered) {
+    return (
+      <ConsentScreen onConsentAnswered={() => setConsentAnswered(true)} />
+    );
+  }
+
+  // Authenticated and consent answered — show main app
   return (
     <NavigationContainer>
-      {isAuthenticated ? <AuthenticatedRoot /> : <AuthNavigator />}
+      <MainNavigator />
     </NavigationContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
 
 export default RootNavigator;

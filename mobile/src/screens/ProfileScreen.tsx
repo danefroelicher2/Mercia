@@ -43,8 +43,28 @@ const ProfileScreen: React.FC = () => {
   }, []);
 
   const handleConsentToggle = async (value: boolean) => {
-    setAiConsent(value);
-    await setConsent(value);
+    if (!value) {
+      // Toggling OFF — apply immediately, no disclosure needed
+      setAiConsent(false);
+      await setConsent(false);
+      return;
+    }
+
+    // Toggling ON — require full disclosure acknowledgement first
+    Alert.alert(
+      'AI Data Consent',
+      'Oasis AI sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. Groq does not use your data to train AI models. Do you consent to this data processing?',
+      [
+        { text: 'Decline', style: 'cancel' },
+        {
+          text: 'I Agree',
+          onPress: async () => {
+            setAiConsent(true);
+            await setConsent(true);
+          },
+        },
+      ]
+    );
   };
 
   const handleChangePassword = async () => {
