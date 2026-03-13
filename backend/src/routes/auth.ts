@@ -121,11 +121,14 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
 
     const supabase = getSupabase();
 
-    // Sign in with Google using Supabase
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      provider: 'google',
-      token: idToken,
-    });
+    // Sign in with Google using Supabase — 25s timeout guards against Supabase hangs
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Authentication timed out')), 25000)
+    );
+    const { data, error } = await Promise.race([
+      supabase.auth.signInWithIdToken({ provider: 'google', token: idToken }),
+      timeoutPromise,
+    ]) as any;
 
     if (error) {
       res.status(401).json({
@@ -200,12 +203,14 @@ router.post('/apple', async (req: Request, res: Response): Promise<void> => {
 
     const supabase = getSupabase();
 
-    // Sign in with Apple using Supabase
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      provider: 'apple',
-      token: idToken,
-      nonce,
-    });
+    // Sign in with Apple using Supabase — 25s timeout guards against Supabase hangs
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Authentication timed out')), 25000)
+    );
+    const { data, error } = await Promise.race([
+      supabase.auth.signInWithIdToken({ provider: 'apple', token: idToken, nonce }),
+      timeoutPromise,
+    ]) as any;
 
     if (error) {
       res.status(401).json({

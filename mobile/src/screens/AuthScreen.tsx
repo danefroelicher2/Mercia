@@ -31,6 +31,7 @@ const AuthScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
   useEffect(() => {
     const checkAppleAuth = async () => {
@@ -38,6 +39,11 @@ const AuthScreen: React.FC = () => {
       setAppleAuthAvailable(available);
     };
     checkAppleAuth();
+  }, []);
+
+  useEffect(() => {
+    fetch('https://oasis-backend-k739.onrender.com/health')
+      .catch(() => {}); // fire and forget — wakes Render before user taps sign in
   }, []);
 
   const handleSubmit = async () => {
@@ -91,7 +97,7 @@ const AuthScreen: React.FC = () => {
 
   const handleAppleSignIn = async () => {
     setError(null);
-    setIsLoading(true);
+    setIsAppleLoading(true);
     try {
       const { idToken, nonce } = await signInWithApple();
       await socialLogin('apple', idToken, nonce);
@@ -99,7 +105,7 @@ const AuthScreen: React.FC = () => {
       if (err.message === 'Apple sign-in was canceled') return;
       setError(err.message || 'Apple sign-in failed');
     } finally {
-      setIsLoading(false);
+      setIsAppleLoading(false);
     }
   };
 
@@ -135,18 +141,27 @@ const AuthScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.socialButton}
                   onPress={handleAppleSignIn}
-                  disabled={isLoading}
+                  disabled={isLoading || isAppleLoading}
                 >
                   <Ionicons name="logo-apple" size={24} color="#FFFFFF" />
                   <Text style={styles.socialButtonText}>Continue with Apple</Text>
                 </TouchableOpacity>
               )}
 
+              {isAppleLoading && (
+                <View style={{ alignItems: 'center', marginTop: 12 }}>
+                  <ActivityIndicator color="#E8622A" />
+                  <Text style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
+                    Signing in with Apple...
+                  </Text>
+                </View>
+              )}
+
               {true && (
                 <TouchableOpacity
                   style={[styles.socialButton, styles.googleButton]}
                   onPress={handleGoogleSignIn}
-                  disabled={isLoading}
+                  disabled={isLoading || isAppleLoading}
                 >
                   <Ionicons name="logo-google" size={24} color="#FFFFFF" />
                   <Text style={styles.socialButtonText}>Continue with Google</Text>
@@ -221,9 +236,9 @@ const AuthScreen: React.FC = () => {
             )}
 
             <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
+              style={[styles.button, (isLoading || isAppleLoading) && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || isAppleLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
