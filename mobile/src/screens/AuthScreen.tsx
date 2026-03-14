@@ -149,10 +149,13 @@ const AuthScreen: React.FC = () => {
               )}
 
               {isAppleLoading && (
-                <View style={{ alignItems: 'center', marginTop: 12 }}>
+                <View style={{ alignItems: 'center', marginTop: 12, paddingHorizontal: 20 }}>
                   <ActivityIndicator color="#E8622A" />
-                  <Text style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
+                  <Text style={{ color: '#888', fontSize: 13, marginTop: 8, textAlign: 'center' }}>
                     Signing in with Apple...
+                  </Text>
+                  <Text style={{ color: '#666', fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                    Apple sign in may take up to 60 seconds. Thank you for your patience.
                   </Text>
                 </View>
               )}
