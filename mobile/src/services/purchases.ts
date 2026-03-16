@@ -13,14 +13,19 @@ export const initializePurchases = (): void => {
 };
 
 const extractSubscriptionStatus = (customerInfo: CustomerInfo): SubscriptionStatus => {
+  const activeKeys = Object.keys(customerInfo.entitlements.active);
+  console.log('[purchases] extractSubscriptionStatus — active entitlement keys:', activeKeys);
+  console.log('[purchases] looking for entitlement ID:', JSON.stringify(ENTITLEMENT_ID));
   const entitlement = customerInfo.entitlements.active[ENTITLEMENT_ID];
   if (entitlement) {
+    console.log('[purchases] entitlement found → isSubscribed: true, expiry:', entitlement.expirationDate);
     return {
       isSubscribed: true,
       expirationDate: entitlement.expirationDate,
       productIdentifier: entitlement.productIdentifier,
     };
   }
+  console.log('[purchases] entitlement NOT found → isSubscribed: false');
   return {
     isSubscribed: false,
     expirationDate: null,

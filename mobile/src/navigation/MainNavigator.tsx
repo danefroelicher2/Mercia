@@ -140,12 +140,20 @@ const MainTabs: React.FC = () => {
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const rootNavigation = useNavigation<NativeStackNavigationProp<MainRootStackParamList>>();
   const [hasConsent, setHasConsent] = useState(false);
+  const [isLoadingConsent, setIsLoadingConsent] = useState(true);
 
   useEffect(() => {
-    getConsent().then(setHasConsent);
+    getConsent().then((value) => {
+      setHasConsent(value);
+      setIsLoadingConsent(false);
+    });
   }, []);
 
-  const isLocked = !isLoadingSubscription && (!isSubscribed || !hasConsent);
+  const isLoading = isLoadingSubscription || isLoadingConsent;
+  const isLocked = !isLoading && (!isSubscribed || !hasConsent);
+
+  // Debug render log
+  console.log('[MainNavigator] render — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent, '| isLocked:', isLocked);
 
   return (
     <Tab.Navigator
@@ -183,12 +191,18 @@ const MainTabs: React.FC = () => {
         }}
         listeners={({ navigation: tabNav }) => ({
           tabPress: (e) => {
-            if (!isSubscribed) {
+            console.log('[MainNavigator] tabPress — isSubscribed:', isSubscribed, '| isLoading:', isLoading, '| hasConsent:', hasConsent);
+            if (isLoading) {
+              // Still loading — block the tap silently, state isn't settled yet
               e.preventDefault();
-              if (!isLoadingSubscription) {
-                rootNavigation.navigate('Paywall');
-              }
+              return;
+            }
+            if (!isSubscribed) {
+              console.log('[MainNavigator] tabPress — blocking: not subscribed → showing Paywall');
+              e.preventDefault();
+              rootNavigation.navigate('Paywall');
             } else if (!hasConsent) {
+              console.log('[MainNavigator] tabPress — blocking: no consent → showing Alert');
               e.preventDefault();
               Alert.alert(
                 'Consent Required',
@@ -198,6 +212,8 @@ const MainTabs: React.FC = () => {
                   { text: 'Go to Profile', onPress: () => tabNav.navigate('Profile') },
                 ]
               );
+            } else {
+              console.log('[MainNavigator] tabPress — allowing navigation to Oasis');
             }
           },
         })}

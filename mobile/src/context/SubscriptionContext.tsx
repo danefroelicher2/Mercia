@@ -24,9 +24,14 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const refreshSubscriptionStatus = useCallback(async () => {
     try {
       const status = await getSubscriptionStatus();
+      console.log('[SubscriptionContext] refreshSubscriptionStatus →', {
+        isSubscribed: status.isSubscribed,
+        expirationDate: status.expirationDate,
+        productIdentifier: status.productIdentifier,
+      });
       setIsSubscribed(status.isSubscribed);
     } catch (error) {
-      console.error('Error fetching subscription status:', error);
+      console.error('[SubscriptionContext] Error fetching subscription status:', error);
       setIsSubscribed(false);
     }
   }, []);
@@ -36,19 +41,25 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     const initialize = async () => {
       try {
         initializePurchases();
+        console.log('[SubscriptionContext] RevenueCat configured. user?.id =', user?.id);
         if (user?.id) {
+          console.log('[SubscriptionContext] Logging in to RevenueCat with userId:', user.id);
           await Purchases.logIn(user.id);
+          console.log('[SubscriptionContext] RevenueCat logIn complete');
+        } else {
+          console.log('[SubscriptionContext] No user.id at init — checking anonymous customerInfo');
         }
       } catch (error) {
-        console.error('Error initializing RevenueCat:', error);
+        console.error('[SubscriptionContext] Error initializing RevenueCat:', error);
       }
       try {
         await refreshSubscriptionStatus();
       } catch (error) {
-        console.error('Error fetching initial subscription status:', error);
+        console.error('[SubscriptionContext] Error fetching initial subscription status:', error);
         setIsSubscribed(false);
       } finally {
         setIsLoadingSubscription(false);
+        console.log('[SubscriptionContext] Initialization complete, isLoadingSubscription = false');
       }
     };
     initialize();
@@ -62,17 +73,24 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       return;
     }
     if (user?.id) {
+      console.log('[SubscriptionContext] Auth changed: logging in to RevenueCat with userId:', user.id);
       Purchases.logIn(user.id)
-        .then(() => refreshSubscriptionStatus())
-        .catch((e) => console.error('RevenueCat logIn error:', e));
+        .then(() => {
+          console.log('[SubscriptionContext] Auth-change logIn complete, refreshing subscription');
+          return refreshSubscriptionStatus();
+        })
+        .catch((e) => console.error('[SubscriptionContext] RevenueCat logIn error:', e));
     } else {
-      Purchases.logOut().catch((e) => console.error('RevenueCat logOut error:', e));
+      console.log('[SubscriptionContext] Auth changed: logging out of RevenueCat');
+      Purchases.logOut().catch((e) => console.error('[SubscriptionContext] RevenueCat logOut error:', e));
     }
   }, [user?.id]);
 
   // Register customerInfo listener on mount, remove on unmount
   useEffect(() => {
-    const removeListener = Purchases.addCustomerInfoUpdateListener(() => {
+    const removeListener = Purchases.addCustomerInfoUpdateListener((info) => {
+      console.log('[SubscriptionContext] customerInfoUpdateListener fired. active entitlements:',
+        Object.keys(info.entitlements.active));
       refreshSubscriptionStatus();
     });
     return removeListener;

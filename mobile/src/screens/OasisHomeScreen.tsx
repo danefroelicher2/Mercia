@@ -507,15 +507,9 @@ const OasisHomeScreen: React.FC = () => {
     });
   }, []);
 
-  // Redirect non-subscribers to Paywall, or non-consenting subscribers to Profile
+  // Log subscription state for debugging (navigation guards are handled in MainNavigator tabPress)
   useEffect(() => {
-    if (!isLoadingSubscription && !isLoadingConsent) {
-      if (!isSubscribed) {
-        (rootNavigation as any).navigate('Paywall');
-      } else if (!hasConsent) {
-        rootNavigation.navigate('Profile');
-      }
-    }
+    console.log('[OasisHomeScreen] subscription state — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent);
   }, [isSubscribed, isLoadingSubscription, hasConsent, isLoadingConsent]);
 
   // ============================================
