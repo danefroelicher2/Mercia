@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Purchases from 'react-native-purchases';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { extractSubscriptionStatus } from '../services/purchases';
 import api from '../services/api';
 import { colors, spacing } from '../constants/theme';
 import { getConsent, setConsent } from '../services/consentService';
@@ -37,6 +39,24 @@ const ProfileScreen: React.FC = () => {
 
   // AI Data Consent state
   const [aiConsent, setAiConsent] = useState(false);
+
+  const handleDebugSubscription = async () => {
+    try {
+      const customerInfo = await Purchases.getCustomerInfo();
+      const activeKeys = Object.keys(customerInfo.entitlements.active);
+      const allKeys = Object.keys(customerInfo.entitlements.all);
+      const status = extractSubscriptionStatus(customerInfo);
+      Alert.alert(
+        'RevenueCat Debug',
+        `App User ID:\n${customerInfo.originalAppUserId}\n\n` +
+        `Active Entitlements:\n${activeKeys.length ? activeKeys.join('\n') : '(none)'}\n\n` +
+        `All Entitlements (incl. expired):\n${allKeys.length ? allKeys.join('\n') : '(none)'}\n\n` +
+        `extractSubscriptionStatus result:\nisSubscribed: ${status.isSubscribed}\nproduct: ${status.productIdentifier ?? 'null'}\nexpiry: ${status.expirationDate ?? 'null'}`
+      );
+    } catch (e: any) {
+      Alert.alert('RevenueCat Error', e.message ?? String(e));
+    }
+  };
 
   useEffect(() => {
     getConsent().then(setAiConsent);
@@ -251,6 +271,16 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.navRowLabel}>Version</Text>
           <Text style={styles.versionValue}>1.0.0</Text>
         </View>
+
+        {/* DEBUG: Subscription status */}
+        <TouchableOpacity
+          style={styles.navRow}
+          onPress={handleDebugSubscription}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.navRowLabel, { color: '#888888' }]}>Debug: Subscription Status</Text>
+          <Text style={styles.navRowChevron}>›</Text>
+        </TouchableOpacity>
 
         {/* Sign Out */}
         <TouchableOpacity

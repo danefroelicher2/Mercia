@@ -12,7 +12,7 @@ export const initializePurchases = (): void => {
   Purchases.configure({ apiKey: 'appl_dOKvJLyzkasdLQSMzVbifZDcJQX' });
 };
 
-const extractSubscriptionStatus = (customerInfo: CustomerInfo): SubscriptionStatus => {
+export const extractSubscriptionStatus = (customerInfo: CustomerInfo): SubscriptionStatus => {
   const activeKeys = Object.keys(customerInfo.entitlements.active);
   console.log('[purchases] extractSubscriptionStatus — active entitlement keys:', activeKeys);
   console.log('[purchases] looking for entitlement ID:', JSON.stringify(ENTITLEMENT_ID));
@@ -35,6 +35,13 @@ const extractSubscriptionStatus = (customerInfo: CustomerInfo): SubscriptionStat
 
 export const getSubscriptionStatus = async (): Promise<SubscriptionStatus> => {
   const customerInfo = await Purchases.getCustomerInfo();
+  return extractSubscriptionStatus(customerInfo);
+};
+
+// Logs in to RevenueCat and returns subscription status from the fresh logIn response,
+// avoiding a separate getCustomerInfo() call that could return stale cached data.
+export const loginAndGetStatus = async (userId: string): Promise<SubscriptionStatus> => {
+  const { customerInfo } = await Purchases.logIn(userId);
   return extractSubscriptionStatus(customerInfo);
 };
 

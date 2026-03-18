@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -152,6 +152,17 @@ const MainTabs: React.FC = () => {
   const isLoading = isLoadingSubscription || isLoadingConsent;
   const isLocked = !isLoading && (!isSubscribed || !hasConsent);
 
+  // Refs updated synchronously each render so the tabPress handler always reads
+  // the latest values — React Navigation registers listeners via internal useEffect
+  // (async, after paint), so a plain closure can capture stale state if the user
+  // taps in the window between a re-render and the listener being re-registered.
+  const isSubscribedRef = useRef(isSubscribed);
+  const isLoadingRef = useRef(isLoading);
+  const hasConsentRef = useRef(hasConsent);
+  isSubscribedRef.current = isSubscribed;
+  isLoadingRef.current = isLoading;
+  hasConsentRef.current = hasConsent;
+
   // Debug render log
   console.log('[MainNavigator] render — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent, '| isLocked:', isLocked);
 
@@ -191,17 +202,22 @@ const MainTabs: React.FC = () => {
         }}
         listeners={({ navigation: tabNav }) => ({
           tabPress: (e) => {
-            console.log('[MainNavigator] tabPress — isSubscribed:', isSubscribed, '| isLoading:', isLoading, '| hasConsent:', hasConsent);
-            if (isLoading) {
+            // Read from refs so we always get the latest values regardless of
+            // when React Navigation last re-registered this handler.
+            const subscribed = isSubscribedRef.current;
+            const loading = isLoadingRef.current;
+            const consent = hasConsentRef.current;
+            console.log('[MainNavigator] tabPress — isSubscribed:', subscribed, '| isLoading:', loading, '| hasConsent:', consent);
+            if (loading) {
               // Still loading — block the tap silently, state isn't settled yet
               e.preventDefault();
               return;
             }
-            if (!isSubscribed) {
+            if (!subscribed) {
               console.log('[MainNavigator] tabPress — blocking: not subscribed → showing Paywall');
               e.preventDefault();
               rootNavigation.navigate('Paywall');
-            } else if (!hasConsent) {
+            } else if (!consent) {
               console.log('[MainNavigator] tabPress — blocking: no consent → showing Alert');
               e.preventDefault();
               Alert.alert(
