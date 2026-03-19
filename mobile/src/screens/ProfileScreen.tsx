@@ -46,10 +46,14 @@ const ProfileScreen: React.FC = () => {
       const activeKeys = Object.keys(customerInfo.entitlements.active);
       const allKeys = Object.keys(customerInfo.entitlements.all);
       const status = extractSubscriptionStatus(customerInfo);
+      const keyHex = activeKeys.map(k =>
+        `"${k}" → [${[...k].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')).join(' ')}]`
+      ).join('\n') || '(none)';
       Alert.alert(
         'RevenueCat Debug',
         `App User ID:\n${customerInfo.originalAppUserId}\n\n` +
         `Active Entitlements:\n${activeKeys.length ? activeKeys.join('\n') : '(none)'}\n\n` +
+        `Key hex codes:\n${keyHex}\n\n` +
         `All Entitlements (incl. expired):\n${allKeys.length ? allKeys.join('\n') : '(none)'}\n\n` +
         `extractSubscriptionStatus result:\nisSubscribed: ${status.isSubscribed}\nproduct: ${status.productIdentifier ?? 'null'}\nexpiry: ${status.expirationDate ?? 'null'}`
       );
