@@ -6,7 +6,7 @@ export interface SubscriptionStatus {
   productIdentifier: string | null;
 }
 
-const ENTITLEMENT_ID = 'Oasis Pro';
+const ENTITLEMENT_ID = 'Oasis  Pro'; // two spaces — matches RevenueCat dashboard exactly
 
 export const initializePurchases = (): void => {
   Purchases.configure({ apiKey: 'appl_dOKvJLyzkasdLQSMzVbifZDcJQX' });
