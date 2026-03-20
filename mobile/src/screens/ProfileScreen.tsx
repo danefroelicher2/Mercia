@@ -188,68 +188,87 @@ const ProfileScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Change Password */}
-        <TouchableOpacity
-          style={styles.navRow}
-          onPress={() => setChangePasswordVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navRowLabel}>Change Password</Text>
-          <Text style={styles.navRowChevron}>›</Text>
-        </TouchableOpacity>
-
-        {/* Oasis Memory - subscribers only */}
-        {isSubscribed && (
-          <TouchableOpacity
-            style={styles.navRow}
-            onPress={() => navigation.navigate('OasisMemory')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navRowLabel}>Oasis Memory</Text>
-            <Text style={styles.navRowChevron}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Notifications */}
-        <TouchableOpacity
-          style={styles.navRow}
-          onPress={() => navigation.navigate('NotificationSettings')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navRowLabel}>Notifications</Text>
-          <Text style={styles.navRowChevron}>›</Text>
-        </TouchableOpacity>
-
-        {/* Summary History - subscribers only */}
-        {isSubscribed && (
-          <TouchableOpacity
-            style={styles.navRow}
-            onPress={() => navigation.navigate('SummaryHistory')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navRowLabel}>Summary History</Text>
-            <Text style={styles.navRowChevron}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* AI Data Consent */}
-        <View style={styles.navRow}>
-          <View style={styles.consentLabelContainer}>
-            <Text style={styles.navRowLabel}>AI Data Consent</Text>
-            <Text style={styles.consentSubtitle}>Allow Oasis to process your data with Groq AI</Text>
-          </View>
-          <Switch
-            value={aiConsent}
-            onValueChange={handleConsentToggle}
-            trackColor={{ false: '#333333', true: '#E8622A' }}
-            thumbColor="#FFFFFF"
-          />
+        {/* ACCOUNT SECTION */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>Account</Text>
         </View>
 
-        {/* App Version */}
-        <View style={styles.navRow}>
-          <Text style={styles.navRowLabel}>Version</Text>
-          <Text style={styles.versionValue}>1.0.0</Text>
+        <View style={styles.navGroup}>
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => setChangePasswordVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Change Password</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+
+          {isSubscribed && (
+            <TouchableOpacity
+              style={styles.navRow}
+              onPress={() => navigation.navigate('OasisMemory')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.navRowLabel}>Oasis Memory</Text>
+              <Text style={styles.navRowChevron}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {isSubscribed ? (
+            <TouchableOpacity
+              style={[styles.navRow, styles.navRowLast]}
+              onPress={() => navigation.navigate('SummaryHistory')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.navRowLabel}>Summary History</Text>
+              <Text style={styles.navRowChevron}>›</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.navRow, styles.navRowLast]}
+              onPress={() => setChangePasswordVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.navRowLabel}>Change Password</Text>
+              <Text style={styles.navRowChevron}>›</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* SETTINGS SECTION */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>Settings</Text>
+        </View>
+
+        <View style={styles.navGroup}>
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('NotificationSettings')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Notifications</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+
+          <View style={styles.navRow}>
+            <View style={styles.consentLabelContainer}>
+              <Text style={styles.navRowLabel}>AI Data Consent</Text>
+              <Text style={styles.consentSubtitle}>Allow Oasis to process your data with Groq AI</Text>
+            </View>
+            <Switch
+              value={aiConsent}
+              onValueChange={handleConsentToggle}
+              trackColor={{ false: '#333333', true: '#1D9E75' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={[styles.navRow, styles.navRowLast]}>
+            <Text style={styles.navRowLabel}>Version</Text>
+            <Text style={styles.versionValue}>1.0.0</Text>
+          </View>
         </View>
 
         {/* Sign Out */}
@@ -350,13 +369,13 @@ const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.screenBg,
+    backgroundColor: '#0D0D0D',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: spacing.screenPadding,
+    padding: 16,
     paddingBottom: 40,
   },
   header: {
@@ -365,13 +384,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: '#E8E8E8',
   },
+
+  // Profile Card
   profileCard: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 12,
+    backgroundColor: '#161616',
+    borderRadius: 14,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#232323',
   },
   avatarContainer: {
     alignItems: 'center',
@@ -381,50 +404,86 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary,
+    backgroundColor: '#1D9E75',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: '#FFFFFF',
   },
   infoContainer: {
     marginBottom: 16,
   },
   label: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontWeight: '500',
+    color: '#888',
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: 4,
   },
   value: {
-    fontSize: 16,
-    color: colors.textPrimary,
+    fontSize: 15,
+    color: '#E8E8E8',
+  },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 14,
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    color: '#777',
+    fontWeight: '500',
+  },
+
+  // Grouped nav cards
+  navGroup: {
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#232323',
+    overflow: 'hidden',
   },
   navRow: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 12,
+    backgroundColor: '#161616',
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#232323',
+  },
+  navRowLast: {
+    borderBottomWidth: 0,
   },
   navRowLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: colors.textPrimary,
+    color: '#E8E8E8',
   },
   navRowChevron: {
-    fontSize: 18,
-    color: colors.textTertiary,
+    fontSize: 20,
+    color: '#666',
   },
   versionValue: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    fontSize: 15,
+    color: '#888',
   },
   consentLabelContainer: {
     flex: 1,
@@ -432,11 +491,13 @@ const styles = StyleSheet.create({
   },
   consentSubtitle: {
     fontSize: 12,
-    color: colors.textTertiary,
+    color: '#666',
     marginTop: 2,
   },
+
+  // Sign out / delete
   signOutButton: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: '#161616',
     borderWidth: 1,
     borderColor: '#ff3b30',
     borderRadius: 8,
@@ -451,7 +512,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deleteButton: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: '#161616',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
@@ -464,35 +525,39 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  // Modal styles
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   modalContent: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: '#161616',
     borderRadius: 16,
     padding: 24,
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#232323',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '500',
     marginBottom: 20,
-    color: colors.textPrimary,
+    color: '#E8E8E8',
   },
   input: {
-    backgroundColor: colors.inputBg,
+    backgroundColor: '#1F1F1F',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 12,
-    color: colors.textPrimary,
+    color: '#E8E8E8',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#2A2A2A',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -503,18 +568,20 @@ const styles = StyleSheet.create({
   cancelButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: colors.inputBg,
+    backgroundColor: '#1F1F1F',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#888',
   },
   saveButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: '#1D9E75',
     borderRadius: 8,
     minWidth: 80,
     alignItems: 'center',
@@ -523,9 +590,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });
 

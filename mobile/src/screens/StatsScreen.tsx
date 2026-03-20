@@ -14,16 +14,18 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
 
 const colors = {
-  screenBg: '#1A1A1A',
-  cardBg: '#2A2A2A',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0A0A0',
-  primary: '#FF6B35',
-  border: '#3A3A3A',
-  heatmapEmpty: '#2A2A2A',
-  heatmapLight: '#3D5A3D',
-  heatmapMedium: '#4A7A4A',
-  heatmapDark: '#00D9A0',
+  screenBg: '#0D0D0D',
+  cardBg: '#161616',
+  textPrimary: '#E8E8E8',
+  textSecondary: '#888',
+  textTertiary: '#666',
+  primary: '#1D9E75',
+  border: '#232323',
+  heatmapEmpty: '#1F1F1F',
+  heatmapLight: 'rgba(29, 158, 117, 0.3)',
+  heatmapMedium: 'rgba(29, 158, 117, 0.6)',
+  heatmapDark: 'rgba(29, 158, 117, 0.8)',
+  heatmapMax: '#1D9E75',
 };
 
 interface StreakData {
@@ -195,7 +197,8 @@ const StatsScreen: React.FC = () => {
     if (count === 0) return colors.heatmapEmpty;
     if (count === 1) return colors.heatmapLight;
     if (count <= 3) return colors.heatmapMedium;
-    return colors.heatmapDark;
+    if (count <= 5) return colors.heatmapDark;
+    return colors.heatmapMax;
   };
 
   const formatDate = (dateString: string | null): string => {
@@ -256,34 +259,26 @@ const StatsScreen: React.FC = () => {
         {/* Streak Cards */}
         <View style={styles.streakContainer}>
           <View style={styles.streakCard}>
-            <Text style={styles.streakLabel}>Current Streak</Text>
+            <Text style={styles.streakLabel}>Current streak</Text>
             {loadingStreak ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <>
-                <Text style={styles.streakNumber}>
-                  {'\uD83D\uDD25'} {streakData?.currentStreak ?? 0}
-                </Text>
-                <Text style={styles.streakUnit}> </Text>
-              </>
+              <View style={styles.streakNumberRow}>
+                <Text style={styles.streakNumber}>{streakData?.currentStreak ?? 0}</Text>
+                <Text style={styles.streakUnit}>days</Text>
+              </View>
             )}
           </View>
 
           <View style={styles.streakCard}>
-            <Text style={styles.streakLabel}>Longest Streak</Text>
+            <Text style={styles.streakLabel}>Best streak</Text>
             {loadingStreak ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <>
-                <Text style={styles.streakNumber}>
-                  {'\uD83C\uDFC6'} {streakData?.longestStreak.length ?? 0}
-                </Text>
-                <Text style={styles.streakUnit}>
-                  {streakData?.longestStreak.isCurrent
-                    ? 'Current'
-                    : formatDate(streakData?.longestStreak.endedAt ?? null)}
-                </Text>
-              </>
+              <View style={styles.streakNumberRow}>
+                <Text style={styles.streakNumber}>{streakData?.longestStreak.length ?? 0}</Text>
+                <Text style={styles.streakUnit}>days</Text>
+              </View>
             )}
           </View>
         </View>
@@ -335,55 +330,67 @@ const StatsScreen: React.FC = () => {
 
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
-          <Text style={styles.sectionTitle}>
-            Achievements  {achievements.filter((a) => a.unlocked).length}/{achievements.length}
-          </Text>
+          <View style={styles.achievementsHeader}>
+            <View style={styles.achievementsAccent} />
+            <Text style={styles.sectionTitle}>Milestones</Text>
+            <Text style={styles.achievementCount}>
+              {achievements.filter((a) => a.unlocked).length}/{achievements.length}
+            </Text>
+          </View>
 
           {loadingAchievements ? (
             <ActivityIndicator color={colors.primary} />
           ) : achievements.length === 0 ? (
-            <Text style={styles.emptyText}>No achievements yet</Text>
+            <Text style={styles.emptyText}>No milestones yet</Text>
           ) : (
             achievements.map((achievement) => (
-                <View key={achievement.id} style={styles.achievementCard}>
-                  <Text style={styles.achievementIcon}>
-                    {achievement.unlocked ? '\u2713' : '\uD83D\uDD12'}
+              <View
+                key={achievement.id}
+                style={[
+                  styles.achievementCard,
+                  !achievement.unlocked && styles.achievementCardLocked,
+                ]}
+              >
+                <View style={[
+                  styles.achievementIconBadge,
+                  achievement.unlocked ? styles.achievementIconUnlocked : styles.achievementIconLocked,
+                ]}>
+                  <Text style={{ fontSize: 18 }}>
+                    {achievement.unlocked ? '🔥' : '🎯'}
                   </Text>
-                  <View style={styles.achievementContent}>
-                    <View style={styles.achievementTitleRow}>
-                      <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                      {achievement.unlocked && achievement.unlockedAt && (
-                        <Text style={styles.achievementDate}>
-                          {formatCompletionDate(achievement.unlockedAt)}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={styles.achievementDescription}>
-                      {achievement.description}
-                    </Text>
-                    {!achievement.unlocked && (
-                      <>
-                        <Text style={styles.achievementProgress}>
-                          Progress: {achievement.progress}/{achievement.requirement}
-                        </Text>
-                        <View style={styles.progressBarBg}>
-                          <View
-                            style={[
-                              styles.progressBarFill,
-                              {
-                                width: `${Math.min(
-                                  (achievement.progress / achievement.requirement) * 100,
-                                  100
-                                )}%`,
-                              },
-                            ]}
-                          />
-                        </View>
-                      </>
-                    )}
-                  </View>
                 </View>
-              ))
+
+                <View style={styles.achievementContent}>
+                  <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                  <Text style={styles.achievementDescription}>{achievement.description}</Text>
+
+                  {achievement.unlocked ? (
+                    <Text style={styles.achievementDate}>
+                      Unlocked {formatCompletionDate(achievement.unlockedAt)}
+                    </Text>
+                  ) : (
+                    <>
+                      <View style={styles.progressBarBg}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            {
+                              width: `${Math.min(
+                                (achievement.progress / achievement.requirement) * 100,
+                                100
+                              )}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.achievementProgress}>
+                        {achievement.progress}/{achievement.requirement} completed
+                      </Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
@@ -391,17 +398,18 @@ const StatsScreen: React.FC = () => {
   );
 };
 
-const CELL_SIZE = 100 / 7; // percentage width per cell
+const CELL_SIZE = 100 / 7;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.screenBg,
+    backgroundColor: '#0D0D0D',
   },
   contentContainer: {
     padding: 16,
     paddingBottom: 32,
   },
+
   // Streak Cards
   streakContainer: {
     flexDirection: 'row',
@@ -410,34 +418,46 @@ const styles = StyleSheet.create({
   },
   streakCard: {
     flex: 1,
-    backgroundColor: colors.cardBg,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'rgba(29, 158, 117, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(29, 158, 117, 0.3)',
+    borderRadius: 14,
+    padding: 18,
     alignItems: 'center',
   },
   streakLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 8,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    color: '#777',
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  streakNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
   },
   streakNumber: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginVertical: 4,
+    fontSize: 32,
+    fontWeight: '500',
+    color: '#5DCAA5',
   },
   streakUnit: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 14,
+    color: '#888',
+    fontWeight: '400',
   },
 
   // Heatmap
   heatmapContainer: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 12,
+    backgroundColor: '#161616',
+    borderRadius: 14,
     padding: 16,
+    paddingBottom: 8,
     marginBottom: 24,
+    borderTopWidth: 3,
+    borderTopColor: '#1D9E75',
   },
   monthHeader: {
     flexDirection: 'row',
@@ -452,13 +472,13 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   monthArrowText: {
-    fontSize: 24,
-    color: colors.textPrimary,
+    fontSize: 18,
+    color: '#E8E8E8',
   },
   monthTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#E8E8E8',
   },
   dayLabelsRow: {
     flexDirection: 'row',
@@ -467,9 +487,9 @@ const styles = StyleSheet.create({
   dayLabel: {
     width: `${CELL_SIZE}%`,
     textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#666',
   },
   calendarGrid: {
     flexDirection: 'row',
@@ -480,85 +500,111 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 4,
     marginBottom: 2,
   },
   calendarDayText: {
-    fontSize: 12,
-    color: colors.textPrimary,
+    fontSize: 11,
+    color: '#E8E8E8',
   },
   loadingIndicator: {
-    marginVertical: 24,
+    marginVertical: 12,
   },
 
   // Achievements
   achievementsContainer: {
     marginBottom: 24,
   },
+  achievementsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  achievementsAccent: {
+    width: 3,
+    height: 14,
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 16,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    color: '#777',
+    fontWeight: '500',
+  },
+  achievementCount: {
+    fontSize: 12,
+    color: '#888',
   },
   emptyText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#888',
     textAlign: 'center',
     marginTop: 12,
   },
   achievementCard: {
     flexDirection: 'row',
-    backgroundColor: colors.cardBg,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: '#161616',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
     alignItems: 'center',
+    gap: 10,
   },
-  achievementIcon: {
-    fontSize: 32,
-    marginRight: 12,
+  achievementCardLocked: {
+    opacity: 0.5,
+  },
+  achievementIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  achievementIconUnlocked: {
+    backgroundColor: 'rgba(29, 158, 117, 0.2)',
+  },
+  achievementIconLocked: {
+    backgroundColor: '#1F1F1F',
   },
   achievementContent: {
     flex: 1,
   },
-  achievementTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  achievementTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#E8E8E8',
     marginBottom: 2,
   },
-  achievementTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    flex: 1,
-  },
   achievementDate: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginLeft: 8,
+    fontSize: 10,
+    color: '#1D9E75',
   },
   achievementDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 4,
+    fontSize: 11,
+    color: '#888',
+    marginBottom: 3,
   },
   achievementProgress: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 6,
+    fontSize: 10,
+    color: '#666',
+    marginTop: 3,
   },
   progressBarBg: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
+    height: 3,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 2,
     overflow: 'hidden',
+    marginTop: 6,
+    marginBottom: 3,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 3,
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
   },
 });
 
