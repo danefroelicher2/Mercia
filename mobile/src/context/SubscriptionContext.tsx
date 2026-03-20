@@ -77,6 +77,10 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
 
   // logIn / logOut when auth state changes after initial mount
   useEffect(() => {
+    if (isExpoGo) {
+      console.log('[SubscriptionContext] Expo Go: skipping auth-change RevenueCat login');
+      return;
+    }
     if (isFirstAuthChange.current) {
       isFirstAuthChange.current = false;
       return;
