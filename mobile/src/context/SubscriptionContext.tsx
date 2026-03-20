@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import Purchases from 'react-native-purchases';
+import Constants from 'expo-constants';
 import { initializePurchases, getSubscriptionStatus, loginAndGetStatus, extractSubscriptionStatus } from '../services/purchases';
 import { useAuth } from './AuthContext';
 
@@ -16,7 +17,8 @@ interface SubscriptionProviderProps {
 }
 
 export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ children }) => {
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const isExpoGo = Constants.appOwnership === 'expo';
+  const [isSubscribed, setIsSubscribed] = useState(isExpoGo ? true : false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const { user } = useAuth();
   const isFirstAuthChange = useRef(true);
@@ -64,6 +66,11 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         console.log('[SubscriptionContext] Initialization complete, isLoadingSubscription = false');
       }
     };
+    if (isExpoGo) {
+      console.log('[SubscriptionContext] Expo Go detected, skipping RevenueCat initialization');
+      setIsLoadingSubscription(false);
+      return;
+    }
     initialize();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
