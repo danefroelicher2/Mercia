@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,15 +24,15 @@ import { QUOTES } from '../data/quotes';
 import { WeeklySummary } from '../types/summary';
 
 const colors = {
-  screenBg: '#1A1A1A',
-  cardBg: '#2A2A2A',
-  inputBg: '#333333',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0A0A0',
-  textTertiary: '#707070',
-  primary: '#FF6B35',
-  border: '#3A3A3A',
-  success: '#00D9A0',
+  screenBg: '#0D0D0D',
+  cardBg: '#161616',
+  inputBg: '#1F1F1F',
+  textPrimary: '#E8E8E8',
+  textSecondary: '#888',
+  textTertiary: '#666',
+  primary: '#1D9E75',
+  border: '#232323',
+  success: '#1D9E75',
 };
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -440,117 +442,86 @@ const RoutineScreen: React.FC = () => {
   const niceToHave = tasks.filter(t => t.type === 'nice-to-have');
 
   // Render helpers
-  const renderDaySwitcher = () => (
-    <View style={styles.daySwitcherContainer}>
-      {DAYS.map((day, index) => (
-        <TouchableOpacity
-          key={day}
-          onPress={() => setSelectedDay(day)}
-          style={[
-            styles.dayButton,
-            selectedDay === day && styles.activeDayButton,
-          ]}
-        >
-          <Text style={[
-            styles.dayText,
-            selectedDay === day && styles.activeDayText,
-          ]}>
-            {DAY_LABELS[index]}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const renderWeekNavigator = () => {
+    const today = new Date();
+    const mondayOffset = today.getDay() === 0 ? -6 : 1 - today.getDay();
+    const weekDates = DAYS.map((_, index) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + mondayOffset + index);
+      return d.getDate();
+    });
+
+    return (
+      <View style={styles.weekNavigator}>
+        {DAYS.map((day, index) => {
+          const isSelected = selectedDay === day;
+          return (
+            <TouchableOpacity
+              key={day}
+              onPress={() => setSelectedDay(day)}
+              style={[styles.weekDay, isSelected && styles.weekDaySelected]}
+            >
+              <Text style={[styles.weekDayLabel, isSelected && styles.weekDayLabelSelected]}>
+                {DAY_LABELS[index].toUpperCase()}
+              </Text>
+              <Text style={[styles.weekDayDate, isSelected && styles.weekDayDateSelected]}>
+                {weekDates[index]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
 
   const renderTaskItem = (task: RoutineTask) => (
-    <View key={task.id} style={styles.taskItem}>
-      <TouchableOpacity
-        onPress={() => handleToggleTask(task.id, task.completed)}
-        style={styles.checkbox}
-      >
-        {task.completed && (
-          <View style={styles.checkboxChecked}>
-            <Text style={styles.checkmark}>✓</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+    <TouchableOpacity
+      key={task.id}
+      onPress={() => handleToggleTask(task.id, task.completed)}
+      style={styles.taskItem}
+      activeOpacity={0.7}
+    >
+      <View style={styles.checkbox}>
+        {task.completed && <View style={styles.checkboxChecked} />}
+      </View>
 
-      <Text style={[
-        styles.taskText,
-        task.completed && styles.taskTextCompleted,
-      ]}>
+      <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
         {task.text}
       </Text>
 
       <TouchableOpacity
         onPress={() => handleDeleteTask(task.id)}
         style={styles.deleteButton}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={styles.deleteButtonText}>×</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderGoalItem = (goal: RoutineGoal) => (
-    <View key={goal.id} style={styles.taskItem}>
-      <TouchableOpacity
-        onPress={() => handleToggleGoal(goal.id, goal.completed, goal.type)}
-        style={styles.checkbox}
-      >
-        {goal.completed && (
-          <View style={styles.checkboxChecked}>
-            <Text style={styles.checkmark}>✓</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+    <TouchableOpacity
+      key={goal.id}
+      onPress={() => handleToggleGoal(goal.id, goal.completed, goal.type)}
+      style={styles.taskItem}
+      activeOpacity={0.7}
+    >
+      <View style={styles.checkbox}>
+        {goal.completed && <View style={styles.checkboxChecked} />}
+      </View>
 
-      <Text style={[
-        styles.taskText,
-        goal.completed && styles.taskTextCompleted,
-      ]}>
+      <Text style={[styles.taskText, goal.completed && styles.taskTextCompleted]}>
         {goal.text}
       </Text>
 
       <TouchableOpacity
         onPress={() => handleDeleteGoal(goal.id, goal.type)}
         style={styles.deleteButton}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={styles.deleteButtonText}>×</Text>
       </TouchableOpacity>
-    </View>
-  );
-
-  const renderSection = (
-    title: string,
-    items: any[],
-    onAddPress: () => void,
-    renderItem: (item: any) => React.ReactNode,
-    countdown?: { text: string; urgent: boolean }
-  ) => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionHeaderLeft}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {countdown?.text ? (
-            <Text
-              style={[styles.countdownText, countdown.urgent && styles.countdownUrgent]}
-              numberOfLines={1}
-            >
-              {countdown.text}
-            </Text>
-          ) : null}
-        </View>
-        <TouchableOpacity onPress={onAddPress} style={styles.addButton}>
-          <Text style={styles.addButtonText}>+ Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      {items.length === 0 ? (
-        <Text style={styles.emptyText}>Nothing here yet</Text>
-      ) : (
-        items.map(renderItem)
-      )}
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -561,13 +532,14 @@ const RoutineScreen: React.FC = () => {
         onPress={() => setSummaryModalVisible(true)}
       />
 
-      {/* Quote Card - positioned above day switcher */}
+      {/* Quote Card */}
       <QuoteCard quote={currentQuote} />
 
-      {renderDaySwitcher()}
+      {/* Week Navigator */}
+      {renderWeekNavigator()}
 
       <ScrollView
-        style={styles.scrollContent}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -576,47 +548,95 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
-        {renderSection(
-          'Non-Negotiables',
-          nonNegotiables,
-          () => {
-            setTaskType('non-negotiable');
-            setTaskModalVisible(true);
-          },
-          renderTaskItem
-        )}
+        {/* Today's Tasks Section */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>Today's tasks</Text>
+        </View>
 
-        {renderSection(
-          'Nice to Have',
-          niceToHave,
-          () => {
-            setTaskType('nice-to-have');
-            setTaskModalVisible(true);
-          },
-          renderTaskItem
-        )}
+        {/* Required (Non-Negotiables) Card */}
+        <View style={styles.taskCard}>
+          <View style={styles.taskCardHeader}>
+            <Text style={styles.taskCardTitle}>Required</Text>
+            <TouchableOpacity
+              style={styles.taskCardAddButton}
+              onPress={() => { setTaskType('non-negotiable'); setTaskModalVisible(true); }}
+            >
+              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {nonNegotiables.length === 0
+            ? <Text style={styles.emptyText}>Nothing here yet</Text>
+            : nonNegotiables.map(renderTaskItem)}
+        </View>
 
-        {renderSection(
-          'Weekly Goals',
-          weeklyGoals,
-          () => {
-            setGoalType('weekly');
-            setGoalModalVisible(true);
-          },
-          renderGoalItem,
-          weeklyCountdown
-        )}
+        {/* Optional (Nice to Have) Card */}
+        <View style={styles.taskCard}>
+          <View style={styles.taskCardHeader}>
+            <Text style={styles.taskCardTitle}>Optional</Text>
+            <TouchableOpacity
+              style={styles.taskCardAddButton}
+              onPress={() => { setTaskType('nice-to-have'); setTaskModalVisible(true); }}
+            >
+              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {niceToHave.length === 0
+            ? <Text style={styles.emptyText}>Nothing here yet</Text>
+            : niceToHave.map(renderTaskItem)}
+        </View>
 
-        {renderSection(
-          'Monthly Goals',
-          monthlyGoals,
-          () => {
-            setGoalType('monthly');
-            setGoalModalVisible(true);
-          },
-          renderGoalItem,
-          monthlyCountdown
-        )}
+        {/* Goals Section */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>Goals</Text>
+        </View>
+
+        {/* Weekly Goals Card */}
+        <View style={styles.goalCard}>
+          <View style={styles.goalCardHeader}>
+            <View style={styles.goalCardTitleRow}>
+              <Text style={styles.goalCardTitle}>This week</Text>
+              {weeklyCountdown.text ? (
+                <Text style={[styles.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
+                  {weeklyCountdown.text}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={styles.taskCardAddButton}
+              onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}
+            >
+              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {weeklyGoals.length === 0
+            ? <Text style={styles.emptyText}>Nothing here yet</Text>
+            : weeklyGoals.map(renderGoalItem)}
+        </View>
+
+        {/* Monthly Goals Card */}
+        <View style={[styles.goalCard, styles.goalCardMonthly]}>
+          <View style={styles.goalCardHeader}>
+            <View style={styles.goalCardTitleRow}>
+              <Text style={styles.goalCardTitle}>This month</Text>
+              {monthlyCountdown.text ? (
+                <Text style={[styles.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
+                  {monthlyCountdown.text}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={styles.taskCardAddButton}
+              onPress={() => { setGoalType('monthly'); setGoalModalVisible(true); }}
+            >
+              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          {monthlyGoals.length === 0
+            ? <Text style={styles.emptyText}>Nothing here yet</Text>
+            : monthlyGoals.map(renderGoalItem)}
+        </View>
       </ScrollView>
 
       {/* Add Task Modal */}
@@ -626,8 +646,16 @@ const RoutineScreen: React.FC = () => {
         animationType="slide"
         onRequestClose={() => setTaskModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => { setTaskModalVisible(false); setNewTaskText(''); }}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Task</Text>
 
             <View style={styles.typeSelector}>
@@ -642,7 +670,7 @@ const RoutineScreen: React.FC = () => {
                   styles.typeButtonText,
                   taskType === 'non-negotiable' && styles.typeButtonTextActive,
                 ]}>
-                  Non-Negotiable
+                  Required
                 </Text>
               </TouchableOpacity>
 
@@ -657,7 +685,7 @@ const RoutineScreen: React.FC = () => {
                   styles.typeButtonText,
                   taskType === 'nice-to-have' && styles.typeButtonTextActive,
                 ]}>
-                  Nice to Have
+                  Optional
                 </Text>
               </TouchableOpacity>
             </View>
@@ -690,8 +718,9 @@ const RoutineScreen: React.FC = () => {
                 <Text style={styles.saveButtonText}>Add</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Goal Modal */}
@@ -701,8 +730,16 @@ const RoutineScreen: React.FC = () => {
         animationType="slide"
         onRequestClose={() => setGoalModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => { setGoalModalVisible(false); setNewGoalText(''); }}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Goal</Text>
 
             <View style={styles.typeSelector}>
@@ -717,7 +754,7 @@ const RoutineScreen: React.FC = () => {
                   styles.typeButtonText,
                   goalType === 'weekly' && styles.typeButtonTextActive,
                 ]}>
-                  Weekly
+                  This week
                 </Text>
               </TouchableOpacity>
 
@@ -732,7 +769,7 @@ const RoutineScreen: React.FC = () => {
                   styles.typeButtonText,
                   goalType === 'monthly' && styles.typeButtonTextActive,
                 ]}>
-                  Monthly
+                  This month
                 </Text>
               </TouchableOpacity>
             </View>
@@ -765,8 +802,9 @@ const RoutineScreen: React.FC = () => {
                 <Text style={styles.saveButtonText}>Add</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Tuesday Last Chance Modal */}
@@ -823,236 +861,317 @@ const RoutineScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.screenBg,
+    backgroundColor: '#0D0D0D',
   },
 
-  // Day Switcher
-  daySwitcherContainer: {
+  // Week Navigator
+  weekNavigator: {
     flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: colors.cardBg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    justifyContent: 'space-between',
+    gap: 4,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    padding: 4,
   },
-  dayButton: {
+  weekDay: {
     flex: 1,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
     paddingVertical: 10,
-    marginHorizontal: 3,
-    borderRadius: 20,
-    backgroundColor: colors.inputBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activeDayButton: {
-    backgroundColor: colors.primary,
+  weekDaySelected: {
+    backgroundColor: '#1D9E75',
+    shadowColor: '#1D9E75',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  dayText: {
+  weekDayLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  weekDayLabelSelected: {
+    color: '#B3E5D6',
+  },
+  weekDayDate: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#888',
+    fontWeight: '500',
+  },
+  weekDayDateSelected: {
+    color: '#FFFFFF',
     fontWeight: '600',
   },
-  activeDayText: {
-    color: colors.textPrimary,
+
+  // Scroll content
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
 
-  // Content
-  scrollContent: {
-    flex: 1,
-  },
-  section: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
+  // Section headers
   sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 14,
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    color: '#777',
+    fontWeight: '500',
   },
-  sectionHeaderLeft: {
-    flexDirection: 'column',
+
+  // Task cards (Required / Optional)
+  taskCard: {
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#232323',
   },
-  countdownText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#B0B0B0',
-    marginTop: 4,
+  taskCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  taskCardTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#E8E8E8',
+  },
+  taskCardAddButton: {
+    backgroundColor: 'rgba(29, 158, 117, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(29, 158, 117, 0.3)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  taskCardAddButtonText: {
+    fontSize: 11,
+    color: '#5DCAA5',
+    fontWeight: '500',
+  },
+
+  // Goal cards (This week / This month)
+  goalCard: {
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#232323',
+    borderLeftWidth: 3,
+    borderLeftColor: 'rgba(29, 158, 117, 0.4)',
+  },
+  goalCardMonthly: {
+    borderLeftColor: 'rgba(15, 110, 86, 0.5)',
+  },
+  goalCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  goalCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  goalCardTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#E8E8E8',
+  },
+  goalCardCountdown: {
+    fontSize: 10,
+    color: '#1D9E75',
+    fontWeight: '500',
   },
   countdownUrgent: {
     color: '#FF6B6B',
   },
-  addButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-  },
-  addButtonText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
   emptyText: {
-    fontSize: 14,
-    color: colors.textTertiary,
+    fontSize: 13,
+    color: '#666',
     fontStyle: 'italic',
+    paddingVertical: 4,
   },
 
   // Task/Goal Items
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 10,
+    paddingVertical: 7,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
-    borderColor: colors.primary,
-    marginRight: 12,
-    justifyContent: 'center',
+    borderColor: '#1D9E75',
+    flexShrink: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   checkboxChecked: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkmark: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: 'bold',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#1D9E75',
   },
   taskText: {
     flex: 1,
-    fontSize: 16,
-    color: colors.textPrimary,
+    fontSize: 14,
+    color: '#E8E8E8',
+    fontWeight: '400',
   },
   taskTextCompleted: {
     textDecorationLine: 'line-through',
-    color: colors.textSecondary,
+    color: '#888',
   },
   deleteButton: {
     padding: 4,
   },
   deleteButtonText: {
-    fontSize: 24,
-    color: colors.textTertiary,
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '400',
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 220,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   modalContent: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: '#161616',
     borderRadius: 16,
     padding: 24,
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#232323',
+    minHeight: 280,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '500',
+    marginBottom: 20,
+    color: '#E8E8E8',
   },
   typeSelector: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 20,
     gap: 8,
   },
   typeButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: colors.inputBg,
+    backgroundColor: '#1F1F1F',
     borderRadius: 8,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
   },
   typeButtonActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(29, 158, 117, 0.2)',
+    borderColor: 'rgba(29, 158, 117, 0.4)',
   },
   typeButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontWeight: '500',
+    color: '#888',
   },
   typeButtonTextActive: {
-    color: colors.textPrimary,
+    color: '#5DCAA5',
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#2A2A2A',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
-    minHeight: 80,
+    fontSize: 15,
+    minHeight: 120,
+    maxHeight: 180,
     textAlignVertical: 'top',
-    marginBottom: 16,
-    color: colors.textPrimary,
-    backgroundColor: colors.inputBg,
+    marginBottom: 20,
+    color: '#E8E8E8',
+    backgroundColor: '#1F1F1F',
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
+    marginTop: 4,
   },
   cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: colors.inputBg,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#1F1F1F',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#888',
   },
   saveButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#1D9E75',
     borderRadius: 8,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 
   // Tuesday Last Chance Modal
   tuesdayOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
   tuesdayCard: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: '#161616',
     borderRadius: 16,
     padding: 28,
     width: '100%',
     maxWidth: 360,
+    borderWidth: 1,
+    borderColor: '#232323',
   },
   tuesdayCloseButton: {
     position: 'absolute',
@@ -1062,32 +1181,32 @@ const styles = StyleSheet.create({
   },
   tuesdayCloseText: {
     fontSize: 18,
-    color: colors.textSecondary,
-    fontWeight: '600',
+    color: '#888',
+    fontWeight: '400',
   },
   tuesdayTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#E8E8E8',
     marginBottom: 12,
     marginRight: 24,
   },
   tuesdaySubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: 14,
+    color: '#888',
     lineHeight: 22,
-    marginBottom: 28,
+    marginBottom: 24,
   },
   tuesdayViewButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#1D9E75',
     borderRadius: 10,
-    paddingVertical: 14,
+    paddingVertical: 13,
     alignItems: 'center',
   },
   tuesdayViewButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });
 
