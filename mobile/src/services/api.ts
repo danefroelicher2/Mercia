@@ -118,12 +118,18 @@ api.interceptors.response.use(
     } catch (refreshError) {
       processQueue(refreshError as Error, null);
 
-      // Clear all auth data on refresh failure
-      await AsyncStorage.multiRemove([
-        STORAGE_KEYS.ACCESS_TOKEN,
-        STORAGE_KEYS.REFRESH_TOKEN,
-        STORAGE_KEYS.USER,
-      ]);
+      // Only clear tokens when the refresh endpoint itself returns 401 — meaning
+      // the refresh token is genuinely invalid or expired. Network errors (no
+      // response) and 5xx responses (e.g. Render cold-start) leave the refresh
+      // token intact; we just reject the original request so the user can retry.
+      const refreshStatus = (refreshError as AxiosError)?.response?.status;
+      if (refreshStatus === 401) {
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.ACCESS_TOKEN,
+          STORAGE_KEYS.REFRESH_TOKEN,
+          STORAGE_KEYS.USER,
+        ]);
+      }
 
       return Promise.reject(refreshError);
     } finally {

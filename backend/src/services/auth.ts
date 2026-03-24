@@ -175,7 +175,7 @@ export function generateTokens(user: User): AuthTokens {
   };
 
   const refreshTokenOptions: SignOptions = {
-    expiresIn: '30d',
+    expiresIn: '90d',
   };
 
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET!, accessTokenOptions);
