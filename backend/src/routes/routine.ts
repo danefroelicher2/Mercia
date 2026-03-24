@@ -42,6 +42,10 @@ const toggleCompletionSchema = z.object({
   timezone: z.string().optional(),
 });
 
+const reorderSchema = z.object({
+  ids: z.array(z.string().uuid()),
+});
+
 const quoteInteractionSchema = z.object({
   interaction_type: z.enum(['like', 'dislike', 'none']),
 });
@@ -110,6 +114,28 @@ router.get('/tasks/:day', async (req: Request, res: Response): Promise<void> => 
     });
   }
 });
+
+/**
+ * PATCH /api/routine/tasks/reorder
+ * Reorder tasks by providing an ordered array of IDs
+ */
+router.patch(
+  '/tasks/reorder',
+  validate(reorderSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { ids } = req.body;
+
+      const storage = getStorage();
+      await storage.reorderRoutineTasks(userId, ids);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
 
 /**
  * PATCH /api/routine/tasks/:id
@@ -275,6 +301,28 @@ router.get('/goals/monthly', async (req: Request, res: Response): Promise<void> 
     });
   }
 });
+
+/**
+ * PATCH /api/routine/goals/reorder
+ * Reorder goals by providing an ordered array of IDs
+ */
+router.patch(
+  '/goals/reorder',
+  validate(reorderSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { ids } = req.body;
+
+      const storage = getStorage();
+      await storage.reorderRoutineGoals(userId, ids);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
 
 /**
  * PATCH /api/routine/goals/:id

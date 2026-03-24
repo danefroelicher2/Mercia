@@ -186,6 +186,16 @@ export interface StorageAdapter {
   deleteRoutineGoal(goalId: string, userId: string): Promise<void>;
 
   /**
+   * Bulk update sort_order for tasks (ordered list of IDs)
+   */
+  reorderRoutineTasks(userId: string, orderedIds: string[]): Promise<void>;
+
+  /**
+   * Bulk update sort_order for goals (ordered list of IDs)
+   */
+  reorderRoutineGoals(userId: string, orderedIds: string[]): Promise<void>;
+
+  /**
    * Reset all daily task completions to false (Monday reset)
    */
   resetAllTaskCompletions(): Promise<void>;

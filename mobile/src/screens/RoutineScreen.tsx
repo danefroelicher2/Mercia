@@ -22,6 +22,7 @@ import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
 import { WeeklySummary } from '../types/summary';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -441,6 +442,31 @@ const RoutineScreen: React.FC = () => {
   const nonNegotiables = tasks.filter(t => t.type === 'non-negotiable');
   const niceToHave = tasks.filter(t => t.type === 'nice-to-have');
 
+  // Reorder handlers
+  const handleReorder = async (newData: RoutineTask[], listType: 'non-negotiable' | 'nice-to-have') => {
+    const otherType = listType === 'non-negotiable' ? 'nice-to-have' : 'non-negotiable';
+    const otherTasks = tasks.filter(t => t.type === otherType);
+    setTasks([...newData, ...otherTasks]);
+    try {
+      await api.patch('/api/routine/tasks/reorder', { ids: newData.map(t => t.id) });
+    } catch (error) {
+      console.error('[RoutineScreen] Reorder failed:', error);
+      loadTasks();
+    }
+  };
+
+  const handleReorderGoal = async (newData: RoutineGoal[], type: 'weekly' | 'monthly') => {
+    if (type === 'weekly') setWeeklyGoals(newData);
+    else setMonthlyGoals(newData);
+    try {
+      await api.patch('/api/routine/goals/reorder', { ids: newData.map(g => g.id) });
+    } catch (error) {
+      console.error('[RoutineScreen] Goal reorder failed:', error);
+      loadWeeklyGoals();
+      loadMonthlyGoals();
+    }
+  };
+
   // Render helpers
   const renderWeekNavigator = () => {
     const today = new Date();
@@ -474,54 +500,54 @@ const RoutineScreen: React.FC = () => {
     );
   };
 
-  const renderTaskItem = (task: RoutineTask) => (
-    <TouchableOpacity
-      key={task.id}
-      onPress={() => handleToggleTask(task.id, task.completed)}
-      style={styles.taskItem}
-      activeOpacity={0.7}
-    >
-      <View style={styles.checkbox}>
-        {task.completed && <View style={styles.checkboxChecked} />}
-      </View>
-
-      <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
-        {task.text}
-      </Text>
-
+  const renderDraggableTaskItem = ({ item, drag }: RenderItemParams<RoutineTask>) => (
+    <ScaleDecorator>
       <TouchableOpacity
-        onPress={() => handleDeleteTask(task.id)}
-        style={styles.deleteButton}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        onPress={() => handleToggleTask(item.id, item.completed)}
+        onLongPress={drag}
+        style={styles.taskItem}
+        activeOpacity={0.7}
       >
-        <Text style={styles.deleteButtonText}>×</Text>
+        <View style={styles.checkbox}>
+          {item.completed && <View style={styles.checkboxChecked} />}
+        </View>
+        <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
+          {item.text}
+        </Text>
+        <TouchableOpacity
+          onPress={() => handleDeleteTask(item.id)}
+          style={styles.deleteButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.deleteButtonText}>×</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
+    </ScaleDecorator>
   );
 
-  const renderGoalItem = (goal: RoutineGoal) => (
-    <TouchableOpacity
-      key={goal.id}
-      onPress={() => handleToggleGoal(goal.id, goal.completed, goal.type)}
-      style={styles.taskItem}
-      activeOpacity={0.7}
-    >
-      <View style={styles.checkbox}>
-        {goal.completed && <View style={styles.checkboxChecked} />}
-      </View>
-
-      <Text style={[styles.taskText, goal.completed && styles.taskTextCompleted]}>
-        {goal.text}
-      </Text>
-
+  const renderDraggableGoalItem = ({ item, drag }: RenderItemParams<RoutineGoal>) => (
+    <ScaleDecorator>
       <TouchableOpacity
-        onPress={() => handleDeleteGoal(goal.id, goal.type)}
-        style={styles.deleteButton}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        onPress={() => handleToggleGoal(item.id, item.completed, item.type)}
+        onLongPress={drag}
+        style={styles.taskItem}
+        activeOpacity={0.7}
       >
-        <Text style={styles.deleteButtonText}>×</Text>
+        <View style={styles.checkbox}>
+          {item.completed && <View style={styles.checkboxChecked} />}
+        </View>
+        <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
+          {item.text}
+        </Text>
+        <TouchableOpacity
+          onPress={() => handleDeleteGoal(item.id, item.type)}
+          style={styles.deleteButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.deleteButtonText}>×</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
+    </ScaleDecorator>
   );
 
   return (
@@ -567,7 +593,15 @@ const RoutineScreen: React.FC = () => {
           </View>
           {nonNegotiables.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : nonNegotiables.map(renderTaskItem)}
+            : <DraggableFlatList
+                data={nonNegotiables}
+                keyExtractor={item => item.id}
+                onDragEnd={({ data }) => handleReorder(data, 'non-negotiable')}
+                renderItem={renderDraggableTaskItem}
+                activationDistance={10}
+                dragItemOverflow={true}
+                scrollEnabled={false}
+              />}
         </View>
 
         {/* Optional (Nice to Have) Card */}
@@ -583,7 +617,15 @@ const RoutineScreen: React.FC = () => {
           </View>
           {niceToHave.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : niceToHave.map(renderTaskItem)}
+            : <DraggableFlatList
+                data={niceToHave}
+                keyExtractor={item => item.id}
+                onDragEnd={({ data }) => handleReorder(data, 'nice-to-have')}
+                renderItem={renderDraggableTaskItem}
+                activationDistance={10}
+                dragItemOverflow={true}
+                scrollEnabled={false}
+              />}
         </View>
 
         {/* Goals Section */}
@@ -612,7 +654,15 @@ const RoutineScreen: React.FC = () => {
           </View>
           {weeklyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : weeklyGoals.map(renderGoalItem)}
+            : <DraggableFlatList
+                data={weeklyGoals}
+                keyExtractor={item => item.id}
+                onDragEnd={({ data }) => handleReorderGoal(data, 'weekly')}
+                renderItem={renderDraggableGoalItem}
+                activationDistance={10}
+                dragItemOverflow={true}
+                scrollEnabled={false}
+              />}
         </View>
 
         {/* Monthly Goals Card */}
@@ -635,7 +685,15 @@ const RoutineScreen: React.FC = () => {
           </View>
           {monthlyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : monthlyGoals.map(renderGoalItem)}
+            : <DraggableFlatList
+                data={monthlyGoals}
+                keyExtractor={item => item.id}
+                onDragEnd={({ data }) => handleReorderGoal(data, 'monthly')}
+                renderItem={renderDraggableGoalItem}
+                activationDistance={10}
+                dragItemOverflow={true}
+                scrollEnabled={false}
+              />}
         </View>
       </ScrollView>
 

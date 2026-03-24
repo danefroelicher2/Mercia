@@ -465,6 +465,18 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     type: 'non-negotiable' | 'nice-to-have',
     dayOfWeek: string
   ): Promise<RoutineTask> {
+    const { data: maxData } = await this.client
+      .from('routine_tasks')
+      .select('sort_order')
+      .eq('user_id', userId)
+      .eq('day_of_week', dayOfWeek)
+      .eq('type', type)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextSortOrder = (maxData?.sort_order ?? -1) + 1;
+
     const { data, error } = await this.client
       .from('routine_tasks')
       .insert({
@@ -473,6 +485,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         type,
         day_of_week: dayOfWeek,
         completed: false,
+        sort_order: nextSortOrder,
       })
       .select()
       .single();
@@ -490,7 +503,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .select('*')
       .eq('user_id', userId)
       .eq('day_of_week', dayOfWeek)
-      .order('created_at', { ascending: true });
+      .order('sort_order', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to get routine tasks: ${error.message}`);
@@ -548,6 +561,17 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       month = now.getMonth() + 1; // 1-12
     }
 
+    const { data: maxData } = await this.client
+      .from('routine_goals')
+      .select('sort_order')
+      .eq('user_id', userId)
+      .eq('type', type)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextSortOrder = (maxData?.sort_order ?? -1) + 1;
+
     const { data, error } = await this.client
       .from('routine_goals')
       .insert({
@@ -558,6 +582,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         month,
         year,
         completed: false,
+        sort_order: nextSortOrder,
       })
       .select()
       .single();
@@ -581,7 +606,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .eq('type', 'weekly')
       .eq('week_number', currentWeek)
       .eq('year', currentYear)
-      .order('created_at', { ascending: true });
+      .order('sort_order', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to get weekly goals: ${error.message}`);
@@ -602,7 +627,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .eq('type', 'monthly')
       .eq('month', currentMonth)
       .eq('year', currentYear)
-      .order('created_at', { ascending: true });
+      .order('sort_order', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to get monthly goals: ${error.message}`);
@@ -641,6 +666,30 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     if (error) {
       throw new Error(`Failed to delete routine goal: ${error.message}`);
     }
+  }
+
+  async reorderRoutineTasks(userId: string, orderedIds: string[]): Promise<void> {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        this.client
+          .from('routine_tasks')
+          .update({ sort_order: index })
+          .eq('id', id)
+          .eq('user_id', userId)
+      )
+    );
+  }
+
+  async reorderRoutineGoals(userId: string, orderedIds: string[]): Promise<void> {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        this.client
+          .from('routine_goals')
+          .update({ sort_order: index })
+          .eq('id', id)
+          .eq('user_id', userId)
+      )
+    );
   }
 
   async resetAllTaskCompletions(): Promise<void> {
