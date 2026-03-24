@@ -501,11 +501,11 @@ const RoutineScreen: React.FC = () => {
   };
 
   const renderDraggableTaskItem = ({ item, drag }: RenderItemParams<RoutineTask>) => (
-    <ScaleDecorator>
+    <ScaleDecorator style={{ width: '100%' }}>
       <TouchableOpacity
         onPress={() => handleToggleTask(item.id, item.completed)}
         onLongPress={drag}
-        style={styles.taskItem}
+        style={[styles.taskItem, { width: '100%' }]}
         activeOpacity={0.7}
       >
         <View style={styles.checkbox}>
@@ -526,11 +526,11 @@ const RoutineScreen: React.FC = () => {
   );
 
   const renderDraggableGoalItem = ({ item, drag }: RenderItemParams<RoutineGoal>) => (
-    <ScaleDecorator>
+    <ScaleDecorator style={{ width: '100%' }}>
       <TouchableOpacity
         onPress={() => handleToggleGoal(item.id, item.completed, item.type)}
         onLongPress={drag}
-        style={styles.taskItem}
+        style={[styles.taskItem, { width: '100%' }]}
         activeOpacity={0.7}
       >
         <View style={styles.checkbox}>
