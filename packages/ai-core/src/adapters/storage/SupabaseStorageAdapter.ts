@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { StorageAdapter } from './StorageAdapter';
+import { StorageAdapter, GymWorkoutLog, GymMemoryEntry, GymMemoryGroup } from './StorageAdapter';
 import {
   DailyQuestion,
   DailyQuestionForUser,
@@ -865,5 +865,154 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
   async close(): Promise<void> {
     // Supabase client doesn't require explicit closing
+  }
+
+  // ============================================
+  // GYM WORKOUT LOG OPERATIONS
+  // ============================================
+
+  async getGymWorkoutLog(userId: string, dayOfWeek: string, weekNumber: number, year: number): Promise<GymWorkoutLog | null> {
+    const { data, error } = await this.client
+      .from('gym_workout_log')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('day_of_week', dayOfWeek)
+      .eq('week_number', weekNumber)
+      .eq('year', year)
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to get gym workout log: ${error.message}`);
+    return data || null;
+  }
+
+  async upsertGymWorkoutLog(userId: string, dayOfWeek: string, workoutGroup: string, notes: string, weekNumber: number, year: number): Promise<GymWorkoutLog> {
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await this.client
+      .from('gym_workout_log')
+      .upsert(
+        {
+          user_id: userId,
+          day_of_week: dayOfWeek,
+          workout_group: workoutGroup,
+          notes,
+          logged_date: today,
+          week_number: weekNumber,
+          year,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,day_of_week,week_number,year' }
+      )
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to upsert gym workout log: ${error.message}`);
+
+    if (notes.trim()) {
+      await this.saveGymMemoryEntry(userId, workoutGroup, notes, today);
+    }
+
+    return data;
+  }
+
+  async getGymWorkoutLogForWeek(userId: string, weekNumber: number, year: number): Promise<GymWorkoutLog[]> {
+    const { data, error } = await this.client
+      .from('gym_workout_log')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('week_number', weekNumber)
+      .eq('year', year);
+
+    if (error) throw new Error(`Failed to get gym workout log for week: ${error.message}`);
+    return data || [];
+  }
+
+  async resetGymWorkoutLogs(): Promise<void> {
+    const { error } = await this.client
+      .from('gym_workout_log')
+      .delete()
+      .neq('user_id', '00000000-0000-0000-0000-000000000000');
+
+    if (error) throw new Error(`Failed to reset gym workout logs: ${error.message}`);
+    console.log('[Reset] All gym workout logs deleted');
+  }
+
+  // ============================================
+  // GYM MEMORY OPERATIONS
+  // ============================================
+
+  async getGymMemory(userId: string): Promise<GymMemoryGroup[]> {
+    const { data, error } = await this.client
+      .from('gym_memory')
+      .select('*')
+      .eq('user_id', userId)
+      .order('workout_group', { ascending: true })
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get gym memory: ${error.message}`);
+
+    const groups: Record<string, GymMemoryEntry[]> = {};
+    for (const row of data || []) {
+      if (!groups[row.workout_group]) groups[row.workout_group] = [];
+      groups[row.workout_group].push(row);
+    }
+
+    return Object.entries(groups).map(([workout_group, entries]) => ({ workout_group, entries }));
+  }
+
+  async getGymMemoryByGroup(userId: string, workoutGroup: string): Promise<GymMemoryEntry[]> {
+    const normalized = workoutGroup.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
+    const { data, error } = await this.client
+      .from('gym_memory')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('workout_group', normalized)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (error) throw new Error(`Failed to get gym memory by group: ${error.message}`);
+    return data || [];
+  }
+
+  async saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void> {
+    const normalized = workoutGroup.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
+
+    const { error: insertError } = await this.client
+      .from('gym_memory')
+      .insert({ user_id: userId, workout_group: normalized, notes, session_date: sessionDate });
+
+    if (insertError) throw new Error(`Failed to save gym memory entry: ${insertError.message}`);
+
+    // Keep only the 3 most recent entries per user+group
+    const { data: recent, error: selectError } = await this.client
+      .from('gym_memory')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('workout_group', normalized)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (selectError) throw new Error(`Failed to fetch gym memory for trimming: ${selectError.message}`);
+
+    const keepIds = (recent || []).map((r: any) => r.id);
+    if (keepIds.length === 3) {
+      await this.client
+        .from('gym_memory')
+        .delete()
+        .eq('user_id', userId)
+        .eq('workout_group', normalized)
+        .not('id', 'in', `(${keepIds.join(',')})`);
+    }
+  }
+
+  async deleteGymMemoryGroup(userId: string, workoutGroup: string): Promise<void> {
+    const normalized = workoutGroup.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
+    const { error } = await this.client
+      .from('gym_memory')
+      .delete()
+      .eq('user_id', userId)
+      .eq('workout_group', normalized);
+
+    if (error) throw new Error(`Failed to delete gym memory group: ${error.message}`);
   }
 }

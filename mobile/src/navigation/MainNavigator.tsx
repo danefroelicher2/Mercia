@@ -13,6 +13,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import OasisMemoryScreen from '../screens/OasisMemoryScreen';
+import GymMemoryScreen from '../screens/GymMemoryScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -38,6 +39,7 @@ export type ProfileStackParamList = {
   Settings: undefined;
   SummaryHistory: undefined;
   OasisMemory: undefined;
+  GymMemory: undefined;
   NotificationSettings: undefined;
 };
 
@@ -113,6 +115,18 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Oasis Memory',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="GymMemory"
+        component={GymMemoryScreen}
+        options={{
+          headerShown: true,
+          title: 'Gym Memory',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',

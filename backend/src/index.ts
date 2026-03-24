@@ -13,6 +13,7 @@ import extractionRoutes from './routes/extraction';
 import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
 import summaryRoutes from './routes/summaries';
+import gymRoutes from './routes/gym';
 
 // Import jobs (extraction scheduling is handled by pg_cron on Supabase)
 import { startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
@@ -63,6 +64,7 @@ app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/summaries', summaryRoutes);
+app.use('/api/gym', gymRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -117,7 +119,13 @@ async function startServer() {
       console.log(`   GET  /api/stats/streaks`);
       console.log(`   GET  /api/stats/heatmap`);
       console.log(`   GET  /api/stats/achievements`);
-      console.log(`   POST /api/stats/log-activity\n`);
+      console.log(`   POST /api/stats/log-activity`);
+      console.log(`   GET  /api/gym/log/:dayOfWeek`);
+      console.log(`   POST /api/gym/log`);
+      console.log(`   GET  /api/gym/week`);
+      console.log(`   GET  /api/gym/memory`);
+      console.log(`   GET  /api/gym/memory/:group`);
+      console.log(`   DELETE /api/gym/memory/:group\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

@@ -10,6 +10,33 @@ import {
   RoutineGoal,
 } from '../../types';
 
+export interface GymWorkoutLog {
+  id: string;
+  user_id: string;
+  day_of_week: string;
+  workout_group: string;
+  notes: string;
+  logged_date: string;
+  week_number: number;
+  year: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GymMemoryEntry {
+  id: string;
+  user_id: string;
+  workout_group: string;
+  notes: string;
+  session_date: string;
+  created_at: string;
+}
+
+export interface GymMemoryGroup {
+  workout_group: string;
+  entries: GymMemoryEntry[];
+}
+
 /**
  * Storage Adapter Interface
  * Implement this for any database (Postgres, SQLite, MongoDB, etc.)
@@ -256,6 +283,24 @@ export interface StorageAdapter {
    * Get all quote IDs that a user has disliked
    */
   getUserDislikedQuotes(userId: string): Promise<number[]>;
+
+  // ============================================
+  // GYM WORKOUT LOG OPERATIONS
+  // ============================================
+
+  getGymWorkoutLog(userId: string, dayOfWeek: string, weekNumber: number, year: number): Promise<GymWorkoutLog | null>;
+  upsertGymWorkoutLog(userId: string, dayOfWeek: string, workoutGroup: string, notes: string, weekNumber: number, year: number): Promise<GymWorkoutLog>;
+  getGymWorkoutLogForWeek(userId: string, weekNumber: number, year: number): Promise<GymWorkoutLog[]>;
+  resetGymWorkoutLogs(): Promise<void>;
+
+  // ============================================
+  // GYM MEMORY OPERATIONS
+  // ============================================
+
+  getGymMemory(userId: string): Promise<GymMemoryGroup[]>;
+  getGymMemoryByGroup(userId: string, workoutGroup: string): Promise<GymMemoryEntry[]>;
+  saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void>;
+  deleteGymMemoryGroup(userId: string, workoutGroup: string): Promise<void>;
 
   // ============================================
   // UTILITY

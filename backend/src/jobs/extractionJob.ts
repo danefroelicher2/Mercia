@@ -160,6 +160,9 @@ async function runWeeklyReset(): Promise<void> {
   console.log('[Reset] Resetting all weekly goal completion statuses...');
   await storage.resetAllWeeklyGoalCompletions();
 
+  console.log('[Reset] Resetting gym workout logs...');
+  await storage.resetGymWorkoutLogs();
+
   console.log('[Reset] Weekly reset complete');
 }
 
