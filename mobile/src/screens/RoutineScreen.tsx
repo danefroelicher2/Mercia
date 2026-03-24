@@ -23,6 +23,7 @@ import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
 import { WeeklySummary } from '../types/summary';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { IS_EXPO_GO } from '../constants/config';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -593,15 +594,17 @@ const RoutineScreen: React.FC = () => {
           </View>
           {nonNegotiables.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : <DraggableFlatList
-                data={nonNegotiables}
-                keyExtractor={item => item.id}
-                onDragEnd={({ data }) => handleReorder(data, 'non-negotiable')}
-                renderItem={renderDraggableTaskItem}
-                activationDistance={10}
-                dragItemOverflow={true}
-                scrollEnabled={false}
-              />}
+            : IS_EXPO_GO
+              ? nonNegotiables.map((item) => renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              : <DraggableFlatList
+                  data={nonNegotiables}
+                  keyExtractor={item => item.id}
+                  onDragEnd={({ data }) => handleReorder(data, 'non-negotiable')}
+                  renderItem={renderDraggableTaskItem}
+                  activationDistance={10}
+                  dragItemOverflow={true}
+                  scrollEnabled={false}
+                />}
         </View>
 
         {/* Optional (Nice to Have) Card */}
@@ -617,15 +620,17 @@ const RoutineScreen: React.FC = () => {
           </View>
           {niceToHave.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : <DraggableFlatList
-                data={niceToHave}
-                keyExtractor={item => item.id}
-                onDragEnd={({ data }) => handleReorder(data, 'nice-to-have')}
-                renderItem={renderDraggableTaskItem}
-                activationDistance={10}
-                dragItemOverflow={true}
-                scrollEnabled={false}
-              />}
+            : IS_EXPO_GO
+              ? niceToHave.map((item) => renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              : <DraggableFlatList
+                  data={niceToHave}
+                  keyExtractor={item => item.id}
+                  onDragEnd={({ data }) => handleReorder(data, 'nice-to-have')}
+                  renderItem={renderDraggableTaskItem}
+                  activationDistance={10}
+                  dragItemOverflow={true}
+                  scrollEnabled={false}
+                />}
         </View>
 
         {/* Goals Section */}
@@ -654,15 +659,17 @@ const RoutineScreen: React.FC = () => {
           </View>
           {weeklyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : <DraggableFlatList
-                data={weeklyGoals}
-                keyExtractor={item => item.id}
-                onDragEnd={({ data }) => handleReorderGoal(data, 'weekly')}
-                renderItem={renderDraggableGoalItem}
-                activationDistance={10}
-                dragItemOverflow={true}
-                scrollEnabled={false}
-              />}
+            : IS_EXPO_GO
+              ? weeklyGoals.map((item) => renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              : <DraggableFlatList
+                  data={weeklyGoals}
+                  keyExtractor={item => item.id}
+                  onDragEnd={({ data }) => handleReorderGoal(data, 'weekly')}
+                  renderItem={renderDraggableGoalItem}
+                  activationDistance={10}
+                  dragItemOverflow={true}
+                  scrollEnabled={false}
+                />}
         </View>
 
         {/* Monthly Goals Card */}
@@ -685,15 +692,17 @@ const RoutineScreen: React.FC = () => {
           </View>
           {monthlyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : <DraggableFlatList
-                data={monthlyGoals}
-                keyExtractor={item => item.id}
-                onDragEnd={({ data }) => handleReorderGoal(data, 'monthly')}
-                renderItem={renderDraggableGoalItem}
-                activationDistance={10}
-                dragItemOverflow={true}
-                scrollEnabled={false}
-              />}
+            : IS_EXPO_GO
+              ? monthlyGoals.map((item) => renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              : <DraggableFlatList
+                  data={monthlyGoals}
+                  keyExtractor={item => item.id}
+                  onDragEnd={({ data }) => handleReorderGoal(data, 'monthly')}
+                  renderItem={renderDraggableGoalItem}
+                  activationDistance={10}
+                  dragItemOverflow={true}
+                  scrollEnabled={false}
+                />}
         </View>
       </ScrollView>
 

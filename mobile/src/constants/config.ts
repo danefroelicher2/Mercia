@@ -1,3 +1,7 @@
+import Constants from 'expo-constants';
+
+export const IS_EXPO_GO = Constants.appOwnership === 'expo';
+
 // API Configuration
 // TODO: Update to local IP for physical device testing (e.g., 'http://192.168.1.100:3000')
 // localhost won't work on physical devices - use your computer's local network IP
