@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
+  Animated,
   StyleSheet,
+  Dimensions,
 } from 'react-native';
+
+const DRAWER_WIDTH = 200;
 
 interface DrawerMenuProps {
   visible: boolean;
@@ -20,57 +23,67 @@ const ITEMS: { key: 'routine' | 'gym'; label: string }[] = [
 ];
 
 const DrawerMenu: React.FC<DrawerMenuProps> = ({ visible, activeSection, onSelect, onClose }) => {
+  const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+
+  useEffect(() => {
+    Animated.timing(translateX, {
+      toValue: visible ? 0 : -DRAWER_WIDTH,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  if (!visible) return null;
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.root}>
-        {/* Left panel */}
-        <View style={styles.panel}>
-          {/* Hamburger / close icon */}
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
-          </TouchableOpacity>
+    <View style={styles.overlay}>
+      <Animated.View style={[styles.drawer, { transform: [{ translateX }] }]}>
+        {/* Hamburger / close icon */}
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+        </TouchableOpacity>
 
-          {/* Menu items */}
-          {ITEMS.map(({ key, label }) => {
-            const isActive = activeSection === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={styles.menuItem}
-                onPress={() => onSelect(key)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.accentBar, isActive && styles.accentBarActive]} />
-                <Text style={[styles.menuItemText, isActive && styles.menuItemTextActive]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* Menu items */}
+        {ITEMS.map(({ key, label }) => {
+          const isActive = activeSection === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={styles.menuItem}
+              onPress={() => onSelect(key)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.accentBar, isActive && styles.accentBarActive]} />
+              <Text style={[styles.menuItemText, isActive && styles.menuItemTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </Animated.View>
 
-        {/* Right overlay — tap to close */}
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
-      </View>
-    </Modal>
+      {/* Dim area — tap to close */}
+      <TouchableOpacity style={styles.dimArea} onPress={onClose} activeOpacity={1} />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
+    zIndex: 999,
   },
-  panel: {
-    width: 200,
+  drawer: {
+    width: DRAWER_WIDTH,
     backgroundColor: '#FFFFFF',
+    height: '100%',
     paddingTop: 60,
   },
   closeButton: {
@@ -109,7 +122,7 @@ const styles = StyleSheet.create({
   menuItemTextActive: {
     color: '#1D9E75',
   },
-  overlay: {
+  dimArea: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
