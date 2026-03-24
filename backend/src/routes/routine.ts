@@ -43,7 +43,7 @@ const toggleCompletionSchema = z.object({
 });
 
 const reorderSchema = z.object({
-  ids: z.array(z.string().uuid()),
+  ids: z.array(z.string().min(1)),
 });
 
 const quoteInteractionSchema = z.object({
@@ -124,6 +124,7 @@ router.patch(
   validate(reorderSchema),
   async (req: Request, res: Response): Promise<void> => {
     try {
+      console.log('[Routine] Reorder request body:', JSON.stringify(req.body));
       const userId = req.user!.id;
       const { ids } = req.body;
 
