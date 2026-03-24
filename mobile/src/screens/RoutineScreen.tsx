@@ -22,8 +22,13 @@ import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
 import { WeeklySummary } from '../types/summary';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { IS_EXPO_GO } from '../constants/config';
+import type { RenderItemParams } from 'react-native-draggable-flatlist';
+import GymScreen from './GymScreen';
+import DrawerMenu from '../components/DrawerMenu';
+
+const DraggableFlatList = IS_EXPO_GO ? null : require('react-native-draggable-flatlist').default;
+const ScaleDecorator = IS_EXPO_GO ? ({ children }: any) => children : require('react-native-draggable-flatlist').ScaleDecorator;
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -92,6 +97,10 @@ const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS
 
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
+
+  // Drawer state
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [activeSection, setActiveSection] = useState<'routine' | 'gym'>('routine');
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
@@ -553,19 +562,34 @@ const RoutineScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Weekly Summary Banner - Monday only */}
-      <WeeklySummaryBanner
-        summary={currentSummary}
-        onPress={() => setSummaryModalVisible(true)}
-      />
+      {/* Hamburger header */}
+      <View style={styles.screenHeader}>
+        <TouchableOpacity
+          onPress={() => setDrawerVisible(true)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.hamburgerButton}
+        >
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+        </TouchableOpacity>
+      </View>
 
-      {/* Quote Card */}
-      <QuoteCard quote={currentQuote} />
+      {activeSection === 'routine' ? (
+        <>
+          {/* Weekly Summary Banner - Monday only */}
+          <WeeklySummaryBanner
+            summary={currentSummary}
+            onPress={() => setSummaryModalVisible(true)}
+          />
 
-      {/* Week Navigator */}
-      {renderWeekNavigator()}
+          {/* Quote Card */}
+          <QuoteCard quote={currentQuote} />
 
-      <ScrollView
+          {/* Week Navigator */}
+          {renderWeekNavigator()}
+
+          <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -595,7 +619,11 @@ const RoutineScreen: React.FC = () => {
           {nonNegotiables.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
             : IS_EXPO_GO
-              ? nonNegotiables.map((item) => renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              ? nonNegotiables.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
+                  </React.Fragment>
+                ))
               : <DraggableFlatList
                   data={nonNegotiables}
                   keyExtractor={item => item.id}
@@ -621,7 +649,11 @@ const RoutineScreen: React.FC = () => {
           {niceToHave.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
             : IS_EXPO_GO
-              ? niceToHave.map((item) => renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              ? niceToHave.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
+                  </React.Fragment>
+                ))
               : <DraggableFlatList
                   data={niceToHave}
                   keyExtractor={item => item.id}
@@ -660,7 +692,11 @@ const RoutineScreen: React.FC = () => {
           {weeklyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
             : IS_EXPO_GO
-              ? weeklyGoals.map((item) => renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              ? weeklyGoals.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
+                  </React.Fragment>
+                ))
               : <DraggableFlatList
                   data={weeklyGoals}
                   keyExtractor={item => item.id}
@@ -693,7 +729,11 @@ const RoutineScreen: React.FC = () => {
           {monthlyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
             : IS_EXPO_GO
-              ? monthlyGoals.map((item) => renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 }))
+              ? monthlyGoals.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
+                  </React.Fragment>
+                ))
               : <DraggableFlatList
                   data={monthlyGoals}
                   keyExtractor={item => item.id}
@@ -914,12 +954,26 @@ const RoutineScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* Weekly Summary Modal */}
-      <WeeklySummaryModal
-        visible={summaryModalVisible}
-        summary={currentSummary}
-        onDismiss={() => setSummaryModalVisible(false)}
-        onSave={handleSaveSummary}
+          {/* Weekly Summary Modal */}
+          <WeeklySummaryModal
+            visible={summaryModalVisible}
+            summary={currentSummary}
+            onDismiss={() => setSummaryModalVisible(false)}
+            onSave={handleSaveSummary}
+          />
+        </>
+      ) : (
+        <GymScreen />
+      )}
+
+      <DrawerMenu
+        visible={drawerVisible}
+        activeSection={activeSection}
+        onSelect={(section) => {
+          setActiveSection(section);
+          setDrawerVisible(false);
+        }}
+        onClose={() => setDrawerVisible(false)}
       />
     </SafeAreaView>
   );
@@ -929,6 +983,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0D0D0D',
+  },
+
+  // Hamburger header
+  screenHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hamburgerButton: {
+    gap: 5,
+    justifyContent: 'center',
+  },
+  hamburgerLine: {
+    width: 22,
+    height: 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 1,
   },
 
   // Week Navigator
