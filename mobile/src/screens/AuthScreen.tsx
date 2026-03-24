@@ -128,7 +128,7 @@ const AuthScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>Oasis AI</Text>
+            <Text style={styles.title}>Mercia</Text>
             <Text style={styles.subtitle}>
               {mode === 'signin' ? 'Welcome back' : 'Create your account'}
             </Text>

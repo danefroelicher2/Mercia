@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Oasis AI",
-    "slug": "oasis-ai",
+    "name": "Mercia",
+    "slug": "mercia",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "oasisai",
+    "scheme": "mercia",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oasisai.app",
+      "bundleIdentifier": "com.merciaapp.app",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.oasisai.app",
+      "package": "com.merciaapp.app",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },

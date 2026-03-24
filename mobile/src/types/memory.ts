@@ -1,4 +1,4 @@
-// Memory Profile Types for Oasis AI mobile app
+// Memory Profile Types for Mercia mobile app
 
 export interface CommunicationStyle {
   tone?: 'formal' | 'casual' | 'mixed';

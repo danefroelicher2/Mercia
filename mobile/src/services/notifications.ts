@@ -2,8 +2,8 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const PUSH_TOKEN_KEY = 'oasis_push_token';
-const NOTIFICATION_PREFS_KEY = 'oasis_notification_prefs';
+const PUSH_TOKEN_KEY = 'mercia_push_token';
+const NOTIFICATION_PREFS_KEY = 'mercia_notification_prefs';
 
 export interface NotificationPrefs {
   dailyQuestionReminder: boolean;
@@ -102,7 +102,7 @@ export async function applyNotificationPreferences(prefs: NotificationPrefs): Pr
     await scheduleLocalNotification(
       'weekly-summary',
       'Weekly Summary Ready',
-      "Your weekly Oasis summary is ready to review.",
+      "Your weekly Mercia summary is ready to review.",
       {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
         weekday: 2, // Monday

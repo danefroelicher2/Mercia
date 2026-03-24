@@ -86,7 +86,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       return;
     }
     if (user?.id) {
-      // Set loading=true so the Oasis tab is silently blocked (no paywall flash)
+      // Set loading=true so the Mercia tab is silently blocked (no paywall flash)
       // while we wait for RevenueCat to return the fresh subscription status.
       setIsLoadingSubscription(true);
       console.log('[SubscriptionContext] Auth changed: logging in to RevenueCat with userId:', user.id);

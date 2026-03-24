@@ -9,7 +9,7 @@ export const API_BASE_URL = 'https://oasis-backend-k739.onrender.com';
 
 // AsyncStorage keys
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'oasis_access_token',
-  REFRESH_TOKEN: 'oasis_refresh_token',
-  USER: 'oasis_user',
+  ACCESS_TOKEN: 'mercia_access_token',
+  REFRESH_TOKEN: 'mercia_refresh_token',
+  USER: 'mercia_user',
 } as const;

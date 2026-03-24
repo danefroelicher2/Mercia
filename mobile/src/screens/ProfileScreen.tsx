@@ -53,7 +53,7 @@ const ProfileScreen: React.FC = () => {
     // Toggling ON — require full disclosure acknowledgement first
     Alert.alert(
       'AI Data Consent',
-      'Oasis AI sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. Groq does not use your data to train AI models. Do you consent to this data processing?',
+      'Mercia sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. Groq does not use your data to train AI models. Do you consent to this data processing?',
       [
         { text: 'Decline', style: 'cancel' },
         {
@@ -207,10 +207,10 @@ const ProfileScreen: React.FC = () => {
           {isSubscribed && (
             <TouchableOpacity
               style={styles.navRow}
-              onPress={() => navigation.navigate('OasisMemory')}
+              onPress={() => navigation.navigate('MerciaMemory')}
               activeOpacity={0.7}
             >
-              <Text style={styles.navRowLabel}>Oasis Memory</Text>
+              <Text style={styles.navRowLabel}>Mercia Memory</Text>
               <Text style={styles.navRowChevron}>›</Text>
             </TouchableOpacity>
           )}
@@ -266,7 +266,7 @@ const ProfileScreen: React.FC = () => {
           <View style={styles.navRow}>
             <View style={styles.consentLabelContainer}>
               <Text style={styles.navRowLabel}>AI Data Consent</Text>
-              <Text style={styles.consentSubtitle}>Allow Oasis to process your data with Groq AI</Text>
+              <Text style={styles.consentSubtitle}>Allow Mercia to process your data with Groq AI</Text>
             </View>
             <Switch
               value={aiConsent}

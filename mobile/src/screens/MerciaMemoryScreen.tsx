@@ -14,7 +14,7 @@ import { InsightEntry, GroupedInsightsApiResponse } from '../types/memory';
 const QUESTION_FACTS_MAX = 40;
 const CONVERSATION_FACTS_MAX = 60;
 
-const OasisMemoryScreen: React.FC = () => {
+const MerciaMemoryScreen: React.FC = () => {
   const [data, setData] = useState<GroupedInsightsApiResponse['data'] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -26,7 +26,7 @@ const OasisMemoryScreen: React.FC = () => {
         setData(response.data.data);
       }
     } catch (error) {
-      console.error('[OasisMemoryScreen] Error fetching insights:', error);
+      console.error('[MerciaMemoryScreen] Error fetching insights:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -112,7 +112,7 @@ const OasisMemoryScreen: React.FC = () => {
       {renderProgressBar(data?.question_facts_count ?? 0, QUESTION_FACTS_MAX)}
       {renderFactsList(
         data?.from_questions ?? [],
-        "Answer today's question and Oasis will start learning about you."
+        "Answer today's question and Mercia will start learning about you."
       )}
 
       <View style={styles.divider} />
@@ -122,7 +122,7 @@ const OasisMemoryScreen: React.FC = () => {
       {renderProgressBar(data?.conversation_facts_count ?? 0, CONVERSATION_FACTS_MAX)}
       {renderFactsList(
         data?.from_conversations ?? [],
-        'Have a conversation with Oasis and it will begin learning from what you share.'
+        'Have a conversation with Mercia and it will begin learning from what you share.'
       )}
     </ScrollView>
   );
@@ -194,4 +194,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OasisMemoryScreen;
+export default MerciaMemoryScreen;

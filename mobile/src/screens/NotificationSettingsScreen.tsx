@@ -18,7 +18,7 @@ import {
   registerForPushNotifications,
 } from '../services/notifications';
 
-const NOTIFICATION_PREFS_KEY = 'oasis_notification_prefs';
+const NOTIFICATION_PREFS_KEY = 'mercia_notification_prefs';
 
 const NotificationSettingsScreen: React.FC = () => {
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);

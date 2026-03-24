@@ -1,4 +1,4 @@
-// TypeScript types for Oasis AI mobile app
+// TypeScript types for Mercia mobile app
 
 // Re-export question types
 export * from './question';

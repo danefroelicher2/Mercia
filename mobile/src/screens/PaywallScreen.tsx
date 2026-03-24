@@ -18,7 +18,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 const BENEFITS = [
   'Daily questions that learn who you are',
   'AI memory that grows with every conversation',
-  'Full access to your Oasis',
+  'Full access to your Mercia',
 ];
 
 const PaywallScreen: React.FC = () => {
@@ -82,7 +82,7 @@ const PaywallScreen: React.FC = () => {
       <View style={styles.inner}>
         {/* Top section */}
         <View style={styles.topSection}>
-          <Text style={styles.headline}>Oasis Premium</Text>
+          <Text style={styles.headline}>Mercia Premium</Text>
           <Text style={styles.subheadline}>Unlock your AI growth companion</Text>
 
           <View style={styles.divider} />
@@ -121,7 +121,7 @@ const PaywallScreen: React.FC = () => {
             {isPurchasing ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.ctaText}>Get Oasis Premium</Text>
+              <Text style={styles.ctaText}>Get Mercia Premium</Text>
             )}
           </TouchableOpacity>
 

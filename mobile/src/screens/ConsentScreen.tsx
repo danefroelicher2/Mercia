@@ -34,13 +34,13 @@ const ConsentScreen: React.FC<ConsentScreenProps> = ({ onConsentAnswered }) => {
         <Text style={styles.headline}>Before You Continue</Text>
 
         <Text style={styles.body}>
-          Oasis AI sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. This data is transmitted to Groq's servers for processing. Groq does not use your data to train AI models. You must agree to continue using Oasis AI features. You can revoke this consent at any time in your Profile settings.
+          Mercia sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. This data is transmitted to Groq's servers for processing. Groq does not use your data to train AI models. You must agree to continue using Mercia features. You can revoke this consent at any time in your Profile settings.
         </Text>
 
         <TouchableOpacity
           onPress={() => Linking.openURL('https://tranquil-marigold-3d7831.netlify.app')}
         >
-          <Text style={styles.privacyLink}>Oasis Privacy Policy</Text>
+          <Text style={styles.privacyLink}>Mercia Privacy Policy</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

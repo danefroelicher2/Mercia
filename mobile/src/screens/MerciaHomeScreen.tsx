@@ -28,7 +28,7 @@ import {
   MemoryProfileApiResponse,
   GroupedInsightsApiResponse,
 } from '../types/memory';
-import { OasisScreenNavigationProp } from '../types/navigation';
+import { MerciaScreenNavigationProp } from '../types/navigation';
 import { MainTabParamList } from '../navigation/MainNavigator';
 import { colors, spacing, typography, cardStyle, buttonStyles, inputStyles } from '../constants/theme';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -40,7 +40,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 // Storage key for memory section collapse state
-const MEMORY_COLLAPSED_KEY = 'oasis_memory_collapsed';
+const MEMORY_COLLAPSED_KEY = 'mercia_memory_collapsed';
 
 // Constants
 const MAX_CHARS = 2100;
@@ -48,11 +48,11 @@ const MIN_CHARS = 10;
 const CHATS_PER_PAGE = 10;
 const CHATS_LOAD_MORE = 20;
 
-const OasisHomeScreen: React.FC = () => {
+const MerciaHomeScreen: React.FC = () => {
   // ============================================
   // NAVIGATION & AUTH
   // ============================================
-  const navigation = useNavigation<OasisScreenNavigationProp>();
+  const navigation = useNavigation<MerciaScreenNavigationProp>();
   const rootNavigation = useNavigation<NavigationProp<MainTabParamList>>();
   const { user } = useAuth();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
@@ -107,11 +107,11 @@ const OasisHomeScreen: React.FC = () => {
       setQuestionError('');
 
       if (user?.id) {
-        console.log('[OasisHomeScreen] Checking cache for user:', user.id);
+        console.log('[MerciaHomeScreen] Checking cache for user:', user.id);
         const cachedState = await getCachedQuestionState(user.id);
 
         if (cachedState) {
-          console.log(`[OasisHomeScreen] Loaded from cache: ${cachedState.state}`);
+          console.log(`[MerciaHomeScreen] Loaded from cache: ${cachedState.state}`);
           setQuestion({
             question_id: cachedState.questionId,
             question_text: cachedState.questionText,
@@ -128,28 +128,28 @@ const OasisHomeScreen: React.FC = () => {
           }
           return;
         }
-        console.log('[OasisHomeScreen] No valid cache found, fetching from API...');
+        console.log('[MerciaHomeScreen] No valid cache found, fetching from API...');
       }
 
-      console.log('[OasisHomeScreen] Fetching daily question from API...');
+      console.log('[MerciaHomeScreen] Fetching daily question from API...');
       const response = await api.get<DailyQuestionApiResponse>('/api/questions/daily');
-      console.log('[OasisHomeScreen] Daily question response:', response.data);
+      console.log('[MerciaHomeScreen] Daily question response:', response.data);
 
       if (response.data.success) {
         if (response.data.data === null) {
           setQuestion(null);
           setQuestionState('all_done');
-          console.log('[OasisHomeScreen] All questions answered');
+          console.log('[MerciaHomeScreen] All questions answered');
         } else {
           setQuestion(response.data.data);
           setQuestionState('unanswered');
-          console.log('[OasisHomeScreen] Question loaded:', response.data.data.question_id);
+          console.log('[MerciaHomeScreen] Question loaded:', response.data.data.question_id);
         }
       } else {
         throw new Error('Failed to fetch question');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error fetching question:', error);
+      console.error('[MerciaHomeScreen] Error fetching question:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Unable to load question. Please check your connection.';
@@ -167,13 +167,13 @@ const OasisHomeScreen: React.FC = () => {
       setIsSubmitting(true);
       setQuestionError('');
 
-      console.log('[OasisHomeScreen] Submitting answer for question:', question.question_id);
+      console.log('[MerciaHomeScreen] Submitting answer for question:', question.question_id);
       const response = await api.post<AnswerApiResponse>('/api/questions/answer', {
         questionId: question.question_id,
         responseText: answerText,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-      console.log('[OasisHomeScreen] Answer submitted:', response.data);
+      console.log('[MerciaHomeScreen] Answer submitted:', response.data);
 
       if (response.data.success) {
         if (user?.id) {
@@ -185,23 +185,23 @@ const OasisHomeScreen: React.FC = () => {
             'answered',
             answerText
           );
-          console.log('[OasisHomeScreen] Answer cached successfully');
+          console.log('[MerciaHomeScreen] Answer cached successfully');
         }
 
         setSubmittedAnswer(answerText);
         setAnswerText('');
         setQuestionState('answered');
-        console.log('[OasisHomeScreen] Answer saved successfully');
+        console.log('[MerciaHomeScreen] Answer saved successfully');
 
         // Refresh memory profile and grouped insights to show updated data
-        console.log('[OasisHomeScreen] Refreshing memory profile after answer...');
+        console.log('[MerciaHomeScreen] Refreshing memory profile after answer...');
         fetchMemoryProfile();
         fetchGroupedInsights();
       } else {
         throw new Error('Failed to submit answer');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error submitting answer:', error);
+      console.error('[MerciaHomeScreen] Error submitting answer:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Failed to submit answer. Please try again.';
@@ -219,11 +219,11 @@ const OasisHomeScreen: React.FC = () => {
       setIsSkipping(true);
       setQuestionError('');
 
-      console.log('[OasisHomeScreen] Skipping question:', question.question_id);
+      console.log('[MerciaHomeScreen] Skipping question:', question.question_id);
       const response = await api.post('/api/questions/skip', {
         questionId: question.question_id,
       });
-      console.log('[OasisHomeScreen] Skip response:', response.data);
+      console.log('[MerciaHomeScreen] Skip response:', response.data);
 
       if (response.data.success) {
         if (user?.id) {
@@ -234,16 +234,16 @@ const OasisHomeScreen: React.FC = () => {
             question.category,
             'skipped'
           );
-          console.log('[OasisHomeScreen] Skip cached successfully');
+          console.log('[MerciaHomeScreen] Skip cached successfully');
         }
 
         setQuestionState('skipped');
-        console.log('[OasisHomeScreen] Question skipped successfully');
+        console.log('[MerciaHomeScreen] Question skipped successfully');
       } else {
         throw new Error('Failed to skip question');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error skipping question:', error);
+      console.error('[MerciaHomeScreen] Error skipping question:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Failed to skip question. Please try again.';
@@ -263,9 +263,9 @@ const OasisHomeScreen: React.FC = () => {
       setIsLoadingChats(true);
       setChatsError(null);
 
-      console.log('[OasisHomeScreen] Fetching chats...');
+      console.log('[MerciaHomeScreen] Fetching chats...');
       const response = await api.get<ChatsListApiResponse>('/api/chat/list');
-      console.log('[OasisHomeScreen] Loaded', response.data.data?.length || 0, 'chats');
+      console.log('[MerciaHomeScreen] Loaded', response.data.data?.length || 0, 'chats');
 
       if (response.data.success) {
         const allChats = response.data.data || [];
@@ -273,12 +273,12 @@ const OasisHomeScreen: React.FC = () => {
         // Reset pagination and show first page
         setCurrentPage(1);
         setDisplayedChats(allChats.slice(0, CHATS_PER_PAGE));
-        console.log(`[OasisHomeScreen] Showing ${Math.min(CHATS_PER_PAGE, allChats.length)} of ${allChats.length} chats`);
+        console.log(`[MerciaHomeScreen] Showing ${Math.min(CHATS_PER_PAGE, allChats.length)} of ${allChats.length} chats`);
       } else {
         throw new Error('Failed to fetch chats');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error fetching chats:', error);
+      console.error('[MerciaHomeScreen] Error fetching chats:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Unable to load conversations. Please try again.';
@@ -294,23 +294,23 @@ const OasisHomeScreen: React.FC = () => {
     const newDisplayedChats = chats.slice(0, endIndex);
     setDisplayedChats(newDisplayedChats);
     setCurrentPage(nextPage);
-    console.log(`[OasisHomeScreen] Showing ${newDisplayedChats.length} of ${chats.length} chats`);
+    console.log(`[MerciaHomeScreen] Showing ${newDisplayedChats.length} of ${chats.length} chats`);
   };
 
   const createNewChat = async () => {
     try {
       setIsCreatingChat(true);
 
-      console.log('[OasisHomeScreen] Creating new general chat...');
+      console.log('[MerciaHomeScreen] Creating new general chat...');
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: 'New Chat',
         chatType: 'general',
       });
-      console.log('[OasisHomeScreen] New chat created:', response.data);
+      console.log('[MerciaHomeScreen] New chat created:', response.data);
 
       if (response.data.success && response.data.data) {
         const newChat = response.data.data;
-        console.log(`[OasisHomeScreen] Navigating to chat: ${newChat.id}`);
+        console.log(`[MerciaHomeScreen] Navigating to chat: ${newChat.id}`);
         navigation.navigate('ChatScreen', {
           chatId: newChat.id,
           chat: newChat,
@@ -319,7 +319,7 @@ const OasisHomeScreen: React.FC = () => {
         throw new Error('Failed to create chat');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error creating chat:', error);
+      console.error('[MerciaHomeScreen] Error creating chat:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Failed to create chat. Please try again.';
@@ -330,7 +330,7 @@ const OasisHomeScreen: React.FC = () => {
   };
 
   const handleChatPress = (chat: Chat) => {
-    console.log(`[OasisHomeScreen] Navigating to chat: ${chat.id}`);
+    console.log(`[MerciaHomeScreen] Navigating to chat: ${chat.id}`);
     navigation.navigate('ChatScreen', {
       chatId: chat.id,
       chat: chat,
@@ -346,7 +346,7 @@ const OasisHomeScreen: React.FC = () => {
       setIsLoadingMemory(true);
       setMemoryError(null);
 
-      console.log('[OasisHomeScreen] Fetching memory profile...');
+      console.log('[MerciaHomeScreen] Fetching memory profile...');
       const response = await api.get<MemoryProfileApiResponse>('/api/memory/profile');
 
       if (response.data.success && response.data.data) {
@@ -358,16 +358,16 @@ const OasisHomeScreen: React.FC = () => {
         const interestsCount = Object.keys(profile.interests || {}).length;
 
         if (valuesCount === 0 && beliefsCount === 0 && interestsCount === 0) {
-          console.log('[OasisHomeScreen] Memory profile is empty');
+          console.log('[MerciaHomeScreen] Memory profile is empty');
         } else {
-          console.log(`[OasisHomeScreen] Memory profile loaded: ${valuesCount} values, ${beliefsCount} beliefs, ${interestsCount} interests`);
+          console.log(`[MerciaHomeScreen] Memory profile loaded: ${valuesCount} values, ${beliefsCount} beliefs, ${interestsCount} interests`);
         }
       } else {
-        console.log('[OasisHomeScreen] Memory profile is empty');
+        console.log('[MerciaHomeScreen] Memory profile is empty');
         setMemoryProfile(null);
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Memory fetch error:', error);
+      console.error('[MerciaHomeScreen] Memory fetch error:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Unable to load insights.';
@@ -384,7 +384,7 @@ const OasisHomeScreen: React.FC = () => {
         setGroupedInsights(response.data.data);
       }
     } catch (error) {
-      console.error('[OasisHomeScreen] Error fetching grouped insights:', error);
+      console.error('[MerciaHomeScreen] Error fetching grouped insights:', error);
     }
   }, []);
 
@@ -397,7 +397,7 @@ const OasisHomeScreen: React.FC = () => {
         memoryHeightAnim.setValue(collapsed ? 0 : 1);
       }
     } catch (error) {
-      console.error('[OasisHomeScreen] Error loading memory collapse state:', error);
+      console.error('[MerciaHomeScreen] Error loading memory collapse state:', error);
     }
   }, [memoryHeightAnim]);
 
@@ -416,7 +416,7 @@ const OasisHomeScreen: React.FC = () => {
     try {
       await AsyncStorage.setItem(MEMORY_COLLAPSED_KEY, newCollapsed.toString());
     } catch (error) {
-      console.error('[OasisHomeScreen] Error saving memory collapse state:', error);
+      console.error('[MerciaHomeScreen] Error saving memory collapse state:', error);
     }
   };
 
@@ -424,7 +424,7 @@ const OasisHomeScreen: React.FC = () => {
     fetchMemoryProfile();
   };
 
-  const handleDiscussWithOasis = async () => {
+  const handleDiscussWithMercia = async () => {
     if (!question || !submittedAnswer) {
       Alert.alert('Error', 'No question or answer to discuss');
       return;
@@ -437,7 +437,7 @@ const OasisHomeScreen: React.FC = () => {
         ? `Q: ${question.question_text.substring(0, 44)}...`
         : `Q: ${question.question_text}`;
 
-      console.log('[OasisHomeScreen] Creating question chat for:', question.question_id);
+      console.log('[MerciaHomeScreen] Creating question chat for:', question.question_id);
       const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
         title: chatTitle,
         chatType: 'question',
@@ -446,7 +446,7 @@ const OasisHomeScreen: React.FC = () => {
 
       if (response.data.success && response.data.data) {
         const newChat = response.data.data;
-        console.log(`[OasisHomeScreen] Question chat created: ${newChat.id} (type: ${newChat.chat_type}, linked: ${newChat.linked_question_id})`);
+        console.log(`[MerciaHomeScreen] Question chat created: ${newChat.id} (type: ${newChat.chat_type}, linked: ${newChat.linked_question_id})`);
 
         navigation.navigate('ChatScreen', {
           chatId: newChat.id,
@@ -462,7 +462,7 @@ const OasisHomeScreen: React.FC = () => {
         throw new Error('Failed to create chat');
       }
     } catch (error: any) {
-      console.error('[OasisHomeScreen] Error creating question chat:', error);
+      console.error('[MerciaHomeScreen] Error creating question chat:', error);
       const message = error.response?.data?.error?.message
         || error.message
         || 'Failed to create chat. Please try again.';
@@ -472,9 +472,9 @@ const OasisHomeScreen: React.FC = () => {
     }
   };
 
-  const handleViewOasisMemory = () => {
+  const handleViewMerciaMemory = () => {
     rootNavigation.navigate('Profile', {
-      screen: 'OasisMemory',
+      screen: 'MerciaMemory',
     } as any);
   };
 
@@ -492,7 +492,7 @@ const OasisHomeScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      console.log('[OasisHomeScreen] Screen focused, refreshing chats and memory...');
+      console.log('[MerciaHomeScreen] Screen focused, refreshing chats and memory...');
       fetchChats();
       fetchMemoryProfile();
       fetchGroupedInsights();
@@ -509,7 +509,7 @@ const OasisHomeScreen: React.FC = () => {
 
   // Log subscription state for debugging (navigation guards are handled in MainNavigator tabPress)
   useEffect(() => {
-    console.log('[OasisHomeScreen] subscription state — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent);
+    console.log('[MerciaHomeScreen] subscription state — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent);
   }, [isSubscribed, isLoadingSubscription, hasConsent, isLoadingConsent]);
 
   // ============================================
@@ -662,13 +662,13 @@ const OasisHomeScreen: React.FC = () => {
 
       <TouchableOpacity
         style={[styles.primaryButton, styles.fullWidthButton, isCreatingChat && styles.buttonDisabled]}
-        onPress={handleDiscussWithOasis}
+        onPress={handleDiscussWithMercia}
         disabled={isCreatingChat}
       >
         {isCreatingChat ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text style={styles.primaryButtonText}>Discuss with Oasis</Text>
+          <Text style={styles.primaryButtonText}>Discuss with Mercia</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -839,7 +839,7 @@ const OasisHomeScreen: React.FC = () => {
         {/* Memory Profile Card */}
         <TouchableOpacity
           style={styles.memoryCard}
-          onPress={handleViewOasisMemory}
+          onPress={handleViewMerciaMemory}
           activeOpacity={0.7}
         >
           <View style={styles.memoryIconContainer}>
@@ -1306,4 +1306,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OasisHomeScreen;
+export default MerciaHomeScreen;

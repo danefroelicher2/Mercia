@@ -5,19 +5,19 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import OasisHomeScreen from '../screens/OasisHomeScreen';
+import MerciaHomeScreen from '../screens/MerciaHomeScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
-import OasisMemoryScreen from '../screens/OasisMemoryScreen';
+import MerciaMemoryScreen from '../screens/MerciaMemoryScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
-import { OasisStackParamList } from '../types/navigation';
+import { MerciaStackParamList } from '../types/navigation';
 import { getConsent } from '../services/consentService';
 
 // Root stack param list (tabs + paywall modal)
@@ -28,7 +28,7 @@ export type MainRootStackParamList = {
 
 // Main tab param list
 export type MainTabParamList = {
-  OasisTab: undefined;
+  MerciaTab: undefined;
   Routine: undefined;
   Stats: undefined;
   Profile: undefined;
@@ -38,30 +38,30 @@ export type ProfileStackParamList = {
   Profile: undefined;
   Settings: undefined;
   SummaryHistory: undefined;
-  OasisMemory: undefined;
+  MerciaMemory: undefined;
   GymMemory: undefined;
   NotificationSettings: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const OasisStack = createNativeStackNavigator<OasisStackParamList>();
+const MerciaStack = createNativeStackNavigator<MerciaStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const MainRootStack = createNativeStackNavigator<MainRootStackParamList>();
 
-// Oasis Stack Navigator (contains OasisHome and ChatScreen)
-const OasisStackNavigator: React.FC = () => {
+// Mercia Stack Navigator (contains MerciaHome and ChatScreen)
+const MerciaStackNavigator: React.FC = () => {
   return (
-    <OasisStack.Navigator
+    <MerciaStack.Navigator
       screenOptions={{
         headerShown: false,
       }}
     >
-      <OasisStack.Screen
-        name="OasisHome"
-        component={OasisHomeScreen}
+      <MerciaStack.Screen
+        name="MerciaHome"
+        component={MerciaHomeScreen}
         options={{ headerShown: false }}
       />
-      <OasisStack.Screen
+      <MerciaStack.Screen
         name="ChatScreen"
         component={ChatScreen}
         options={({ route }) => ({
@@ -78,7 +78,7 @@ const OasisStackNavigator: React.FC = () => {
           },
         })}
       />
-    </OasisStack.Navigator>
+    </MerciaStack.Navigator>
   );
 };
 
@@ -110,11 +110,11 @@ const ProfileStackNavigator: React.FC = () => {
         }}
       />
       <ProfileStack.Screen
-        name="OasisMemory"
-        component={OasisMemoryScreen}
+        name="MerciaMemory"
+        component={MerciaMemoryScreen}
         options={{
           headerShown: true,
-          title: 'Oasis Memory',
+          title: 'Mercia Memory',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
@@ -196,8 +196,8 @@ const MainTabs: React.FC = () => {
       }}
     >
       <Tab.Screen
-        name="OasisTab"
-        component={OasisStackNavigator}
+        name="MerciaTab"
+        component={MerciaStackNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
             <View style={styles.iconWrapper}>
@@ -236,14 +236,14 @@ const MainTabs: React.FC = () => {
               e.preventDefault();
               Alert.alert(
                 'Consent Required',
-                'Please enable AI Data Consent in your Profile settings to access Oasis.',
+                'Please enable AI Data Consent in your Profile settings to access Mercia.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Go to Profile', onPress: () => tabNav.navigate('Profile') },
                 ]
               );
             } else {
-              console.log('[MainNavigator] tabPress — allowing navigation to Oasis');
+              console.log('[MainNavigator] tabPress — allowing navigation to Mercia');
             }
           },
         })}

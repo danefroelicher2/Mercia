@@ -1,4 +1,4 @@
-// Navigation types for the Oasis app
+// Navigation types for the Mercia app
 
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { Chat } from './chat';
@@ -10,9 +10,9 @@ export interface QuestionContext {
   userAnswer: string;
 }
 
-// Oasis tab stack navigation
-export type OasisStackParamList = {
-  OasisHome: undefined;
+// Mercia tab stack navigation
+export type MerciaStackParamList = {
+  MerciaHome: undefined;
   ChatScreen: {
     chatId: string;
     chat: Chat;
@@ -21,11 +21,11 @@ export type OasisStackParamList = {
   };
 };
 
-// Navigation prop for screens in the Oasis stack
-export type OasisScreenNavigationProp = NavigationProp<OasisStackParamList>;
+// Navigation prop for screens in the Mercia stack
+export type MerciaScreenNavigationProp = NavigationProp<MerciaStackParamList>;
 
 // Navigation prop specifically for ChatScreen
-export type ChatScreenNavigationProp = NavigationProp<OasisStackParamList, 'ChatScreen'>;
+export type ChatScreenNavigationProp = NavigationProp<MerciaStackParamList, 'ChatScreen'>;
 
 // Route props for specific screens
-export type ChatScreenRouteProp = RouteProp<OasisStackParamList, 'ChatScreen'>;
+export type ChatScreenRouteProp = RouteProp<MerciaStackParamList, 'ChatScreen'>;

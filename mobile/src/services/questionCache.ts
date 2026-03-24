@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CACHE_KEY_PREFIX = 'oasis_question_';
+const CACHE_KEY_PREFIX = 'mercia_question_';
 
 export interface CachedQuestionState {
   date: string; // YYYY-MM-DD

@@ -1,4 +1,4 @@
-// Oasis Design System
+// Mercia Design System
 // Professional dark theme with orange accents
 
 export const colors = {

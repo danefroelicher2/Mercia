@@ -327,7 +327,7 @@ const ChatScreen: React.FC = () => {
       if (!hasConsent) {
         Alert.alert(
           'Consent Required',
-          'Please enable AI Data Consent in your Profile settings to use Oasis AI chat.',
+          'Please enable AI Data Consent in your Profile settings to use Mercia chat.',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       }
@@ -441,7 +441,7 @@ const ChatScreen: React.FC = () => {
       <Text style={styles.emptyIcon}>💬</Text>
       <Text style={styles.emptyTitle}>Start a conversation</Text>
       <Text style={styles.emptyText}>
-        Type a message below to begin{'\n'}talking with Oasis
+        Type a message below to begin{'\n'}talking with Mercia
       </Text>
     </View>
   );
@@ -521,7 +521,7 @@ const ChatScreen: React.FC = () => {
             <TextInput
               ref={inputRef}
               style={[styles.textInput, isOverLimit && styles.textInputError]}
-              placeholder="Message Oasis..."
+              placeholder="Message Mercia..."
               placeholderTextColor="#999"
               value={inputText}
               onChangeText={setInputText}
