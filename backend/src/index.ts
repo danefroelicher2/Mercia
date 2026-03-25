@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initializeOasisCore } from './services/oasisCore';
+import { initializeMerciaCore } from './services/merciaCore';
 import { errorHandler } from './middleware/errorHandler';
 
 // Import routes
@@ -33,7 +33,7 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'Oasis AI',
+    service: 'Mercia',
     version: '0.1.0',
   });
 });
@@ -41,7 +41,7 @@ app.get('/health', (req: Request, res: Response) => {
 // API info
 app.get('/api', (req: Request, res: Response) => {
   res.json({
-    message: 'Oasis AI API',
+    message: 'Mercia API',
     version: '0.1.0',
     endpoints: {
       auth: '/api/auth/*',
@@ -72,8 +72,8 @@ app.use(errorHandler);
 // Start server
 async function startServer() {
   try {
-    // Initialize Oasis AI Core
-    initializeOasisCore();
+    // Initialize Mercia Core
+    initializeMerciaCore();
 
     // Start cron jobs
     startWeeklyResetCronJob();
@@ -83,7 +83,7 @@ async function startServer() {
     console.log('  Chat extraction: scheduled via pg_cron on Supabase (5:00 AM UTC daily)');
 
     app.listen(PORT, () => {
-      console.log(`\n  Oasis AI Backend running on port ${PORT}`);
+      console.log(`\n  Mercia Backend running on port ${PORT}`);
       console.log(`  Health check: http://localhost:${PORT}/health`);
       console.log(`  API info: http://localhost:${PORT}/api`);
       console.log(`\n  Available endpoints:`);

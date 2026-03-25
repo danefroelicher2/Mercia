@@ -1,4 +1,4 @@
-# Oasis Project Context
+# Mercia Project Context
 
 ## Machine Info
 - Mac Mini: /Users/danefroelicher/obsidian-vault
@@ -7,7 +7,7 @@
 ## Obsidian Vault
 Dane's personal knowledge base lives at /Users/danefroelicher/obsidian-vault
 on this machine. It contains notes on goals, architecture decisions, and
-project context across: Daily, Hub, Mercia, JS Learn, Oasis directories.
+project context across: Daily, Hub, Mercia, JS Learn directories.
 
 ## On Every Session Start
 Run: git -C /Users/danefroelicher/obsidian-vault pull

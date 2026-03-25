@@ -1,5 +1,5 @@
 {
-  "name": "@oasis/ai-core",
+  "name": "@mercia/ai-core",
   "version": "0.1.0",
   "description": "Portable AI memory system - cost-efficient deep user understanding",
   "main": "dist/index.js",

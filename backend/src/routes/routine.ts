@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { getStorage } from '../services/oasisCore';
+import { getStorage } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
 
 const router = Router();

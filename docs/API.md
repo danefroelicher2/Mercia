@@ -1,4 +1,4 @@
-# Oasis AI REST API
+# Mercia REST API
 
 Base URL: `http://localhost:3000/api`
 

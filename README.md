@@ -1,4 +1,4 @@
-# Oasis AI
+# Mercia
 
 
 ## Core Philosophy

@@ -1,9 +1,9 @@
 -- ============================================
--- OASIS AI - DATABASE SCHEMA v1.0
+-- MERCIA - DATABASE SCHEMA v1.0
 -- ============================================
 -- Run this in your Supabase SQL editor
 
--- Create schema for Oasis AI
+-- Create schema for Mercia
 CREATE SCHEMA IF NOT EXISTS oasis;
 
 -- ============================================
@@ -269,4 +269,4 @@ INSERT INTO oasis.daily_questions (question_text, category, difficulty, tags) VA
 -- DONE!
 -- ============================================
 
-SELECT 'Oasis AI database schema created successfully!' as status;
+SELECT 'Mercia database schema created successfully!' as status;

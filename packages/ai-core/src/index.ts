@@ -1,4 +1,4 @@
-// @oasis/ai-core - Portable AI memory engine
+// @mercia/ai-core - Portable AI memory engine
 // Entry point for the package
 
 // Core Engines

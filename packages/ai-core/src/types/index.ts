@@ -13,7 +13,7 @@ export interface UserProgress {
 }
 
 // API response wrapper
-export interface OasisResult<T> {
+export interface MerciaResult<T> {
   success: boolean;
   data?: T;
   error?: string;

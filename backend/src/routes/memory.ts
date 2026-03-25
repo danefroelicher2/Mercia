@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { getMemoryManager } from '../services/oasisCore';
-import { MEMORY_CAPS } from '@oasis/ai-core';
+import { getMemoryManager } from '../services/merciaCore';
+import { MEMORY_CAPS } from '@mercia/ai-core';
 
 const router = Router();
 

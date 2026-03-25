@@ -1,4 +1,4 @@
-# @oasis/ai-core
+# @mercia/ai-core
 
 Portable AI memory engine. Platform-agnostic, cost-optimized.
 
@@ -19,7 +19,7 @@ This package contains ZERO platform-specific code. It can run:
 
 ## Usage
 ```typescript
-import { QuestionEngine, SupabaseAdapter } from '@oasis/ai-core';
+import { QuestionEngine, SupabaseAdapter } from '@mercia/ai-core';
 
 const storage = new SupabaseAdapter(supabaseUrl, supabaseKey);
 const engine = new QuestionEngine(storage);

@@ -1,6 +1,6 @@
 import { CronJob } from 'cron';
-import { getStorage, getLLM } from '../services/oasisCore';
-import { ChatExtractor } from '@oasis/ai-core';
+import { getStorage, getLLM } from '../services/merciaCore';
+import { ChatExtractor } from '@mercia/ai-core';
 
 /**
  * Main extraction logic — callable manually or by pg_cron via Supabase.

@@ -6,7 +6,7 @@ import {
   getStorage,
   getLLM,
   getContextBuilder,
-} from '../services/oasisCore';
+} from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
 
 const router = Router();

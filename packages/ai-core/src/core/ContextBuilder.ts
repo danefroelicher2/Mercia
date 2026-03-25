@@ -30,7 +30,7 @@ export class ContextBuilder {
     const messages = await this.storage.getChatMessages(chatId, maxHistoryMessages);
 
     // Build system prompt with memory context
-    const systemPrompt = `You are Oasis AI, a deeply personalized AI assistant that truly knows the user.
+    const systemPrompt = `You are Mercia, a deeply personalized AI assistant that truly knows the user.
 
 USER PROFILE:
 ${profileSummary}

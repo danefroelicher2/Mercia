@@ -1,5 +1,5 @@
 {
-  "name": "oasis-ai",
+  "name": "mercia-ai",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=backend",
-    "build:core": "npm run build --workspace=@oasis/ai-core",
+    "build:core": "npm run build --workspace=@mercia/ai-core",
     "build:backend": "npm run build --workspace=backend",
     "build": "npm run build:core && npm run build:backend"
   },
