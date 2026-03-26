@@ -64,6 +64,13 @@ function getISOWeek(date: Date): number {
 
 const GymScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+
+  const handleViewGymMemory = () => {
+    // Two synchronous navigate calls so React batches them into a single render,
+    // producing [Profile, GymMemory] in one frame with no intermediate flash.
+    navigation.navigate('Profile');
+    navigation.navigate('Profile', { screen: 'GymMemory' });
+  };
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
   const [workoutGroup, setWorkoutGroup] = useState('');
   const [notes, setNotes] = useState('');
@@ -299,7 +306,7 @@ const GymScreen: React.FC = () => {
             ) : null}
             <TouchableOpacity
               style={styles.memoryLink}
-              onPress={() => navigation.navigate('Profile', { screen: 'GymMemory' })}
+              onPress={handleViewGymMemory}
             >
               <Text style={styles.memoryLinkText}>Go to Gym Memory →</Text>
             </TouchableOpacity>

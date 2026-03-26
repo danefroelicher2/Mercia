@@ -10,7 +10,6 @@ import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../screens/SettingsScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import MerciaMemoryScreen from '../screens/MerciaMemoryScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
@@ -36,7 +35,6 @@ export type MainTabParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
-  Settings: undefined;
   SummaryHistory: undefined;
   MerciaMemory: undefined;
   GymMemory: undefined;
@@ -69,9 +67,9 @@ const MerciaStackNavigator: React.FC = () => {
           title: route.params?.chat?.title || 'Chat',
           headerBackTitle: 'Back',
           headerStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: '#1A1A1A',
           },
-          headerTintColor: '#007AFF',
+          headerTintColor: '#FFFFFF',
           headerTitleStyle: {
             fontWeight: '600',
             fontSize: 17,
@@ -91,7 +89,6 @@ const ProfileStackNavigator: React.FC = () => {
       }}
     >
       <ProfileStack.Screen name="Profile" component={ProfileScreen} />
-      <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen
         name="SummaryHistory"
         component={SummaryHistoryScreen}

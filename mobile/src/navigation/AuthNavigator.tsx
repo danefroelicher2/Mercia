@@ -22,7 +22,14 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
-        options={{ headerShown: true, title: 'Reset Password' }}
+        options={{
+          headerShown: true,
+          title: 'Reset Password',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+          headerBackTitle: 'Back',
+        }}
       />
     </Stack.Navigator>
   );

@@ -473,9 +473,10 @@ const MerciaHomeScreen: React.FC = () => {
   };
 
   const handleViewMerciaMemory = () => {
-    rootNavigation.navigate('Profile', {
-      screen: 'MerciaMemory',
-    } as any);
+    // Two synchronous navigate calls so React batches them into a single render,
+    // producing [Profile, MerciaMemory] in one frame with no intermediate flash.
+    rootNavigation.navigate('Profile' as any);
+    rootNavigation.navigate('Profile', { screen: 'MerciaMemory' } as any);
   };
 
   // ============================================
