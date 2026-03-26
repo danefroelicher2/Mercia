@@ -51,6 +51,39 @@ Current date: ${new Date().toLocaleDateString()}`;
   }
 
   /**
+   * Build specialized context for question-discussion chats
+   * Used when user taps "Discuss with Mercia" after answering a daily question
+   */
+  async buildQuestionChatContext(
+    userId: string,
+    chatId: string,
+    questionText: string,
+    userAnswer: string
+  ): Promise<{ systemPrompt: string; conversationHistory: ChatMessage[] }> {
+    const profileSummary = await this.memoryManager.getProfileSummary(userId);
+    const messages = await this.storage.getChatMessages(chatId, 10);
+
+    const systemPrompt = `You are Mercia, an AI personal growth companion. This app works by asking users one deep question per day and storing their answers to build a rich memory profile over time. The memory profile tracks the user's values, beliefs, interests, behavioral patterns, and communication style. Every conversation contributes to understanding this person more deeply.
+
+You have been brought into this conversation because the user chose to discuss their answer to today's question with you. Your role here is not general assistance — it is to be a thoughtful, curious conversation partner who helps the user explore what their answer reveals about them. Ask follow-up questions that go deeper. Reflect back what you hear. Help them articulate things they may not have fully formed yet. Do not rush to give advice.
+
+Today's question was: ${questionText}
+The user answered: ${userAnswer}
+
+Begin by acknowledging their answer genuinely, then guide the conversation deeper.
+
+USER MEMORY PROFILE:
+${profileSummary}
+
+[CONTEXT_LOADED: question_discussion_v1]`;
+
+    return {
+      systemPrompt,
+      conversationHistory: messages,
+    };
+  }
+
+  /**
    * Build minimal context for question processing
    * Just enough for insight extraction
    */

@@ -41,6 +41,7 @@ export interface SendMessageApiResponse {
   data: {
     userMessage: ChatMessage;
     assistantMessage: ChatMessage;
+    contextLoaded?: boolean;
   };
 }
 

@@ -430,6 +430,11 @@ const MerciaHomeScreen: React.FC = () => {
       return;
     }
 
+    if (!question.question_text?.trim()) {
+      Alert.alert('Error', 'Question text is missing');
+      return;
+    }
+
     try {
       setIsCreatingChat(true);
 

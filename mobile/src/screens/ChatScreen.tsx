@@ -45,6 +45,7 @@ const ChatScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const hasInitializedFromQuestion = useRef(false);
+  const hasShownContextStatus = useRef(false);
 
   // ============================================
   // STATE
@@ -57,6 +58,7 @@ const ChatScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [pendingMessageText, setPendingMessageText] = useState<string | null>(null);
   const [isPinned, setIsPinned] = useState(chat.pinned || false);
+  const [isQuestionInitInProgress, setIsQuestionInitInProgress] = useState(false);
 
   // Animation for thinking indicator
   const [thinkingDot1] = useState(new Animated.Value(0.3));
@@ -242,6 +244,7 @@ const ChatScreen: React.FC = () => {
 
     try {
       setIsSendingMessage(true);
+      if (isQuestionInit) setIsQuestionInitInProgress(true);
       setError(null);
       Keyboard.dismiss();
 
@@ -278,6 +281,7 @@ const ChatScreen: React.FC = () => {
         requestBody.questionContext = {
           questionId: questionContext.questionId,
           questionText: questionContext.questionText,
+          userAnswer: questionContext.userAnswer,
         };
       }
 
@@ -285,12 +289,30 @@ const ChatScreen: React.FC = () => {
 
       if (response.data.success && response.data.data) {
         console.log('[ChatScreen] Received AI response');
-        const { userMessage, assistantMessage } = response.data.data;
+        const { userMessage, assistantMessage, contextLoaded } = response.data.data;
 
         // Replace optimistic message with real one and add AI response
         setMessages(prev => {
           const filtered = prev.filter(m => m.id !== tempId);
-          return [...filtered, userMessage, assistantMessage];
+          const updated = [...filtered, userMessage, assistantMessage];
+
+          // Inject context status system message after first question-chat response
+          if (isQuestionInit && !hasShownContextStatus.current) {
+            hasShownContextStatus.current = true;
+            const statusMessage: DisplayMessage = {
+              id: `system-context-${Date.now()}`,
+              chat_id: chatId,
+              user_id: 'system',
+              role: 'system',
+              content: contextLoaded
+                ? '✓ Mercia read question context successfully'
+                : '✗ Mercia failed to read context',
+              created_at: new Date().toISOString(),
+            };
+            return [...updated, statusMessage];
+          }
+
+          return updated;
         });
 
         setPendingMessageText(null);
@@ -314,6 +336,7 @@ const ChatScreen: React.FC = () => {
       Alert.alert('Error', errorMessage);
     } finally {
       setIsSendingMessage(false);
+      setIsQuestionInitInProgress(false);
     }
   };
 
@@ -465,7 +488,16 @@ const ChatScreen: React.FC = () => {
 
   const renderListFooter = () => {
     if (isSendingMessage) {
-      return renderThinkingIndicator();
+      return (
+        <>
+          {isQuestionInitInProgress && (
+            <View style={styles.systemMessageContainer}>
+              <Text style={styles.systemMessageText}>Mercia reading context...</Text>
+            </View>
+          )}
+          {renderThinkingIndicator()}
+        </>
+      );
     }
     return null;
   };

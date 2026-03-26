@@ -40,6 +40,11 @@ const messageSchema = z.object({
   chatId: z.string().uuid(),
   content: z.string().min(1).max(10000),
   timezone: z.string().optional(),
+  questionContext: z.object({
+    questionId: z.string().uuid(),
+    questionText: z.string().min(1),
+    userAnswer: z.string().min(1),
+  }).optional(),
 });
 
 /**
@@ -138,7 +143,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { chatId, content, timezone } = req.body;
+      const { chatId, content, timezone, questionContext } = req.body;
 
       const storage = getStorage();
       const llm = getLLM();
@@ -152,8 +157,27 @@ router.post(
         content
       );
 
-      // Build context with memory profile
-      const context = await contextBuilder.buildChatContext(userId, chatId);
+      // Build context — use specialized question-discussion prompt when questionContext is present
+      let contextLoaded = false;
+      let context: Awaited<ReturnType<typeof contextBuilder.buildChatContext>>;
+
+      console.log('[Chat] questionContext received:', JSON.stringify(questionContext));
+
+      if (
+        questionContext?.questionText?.trim().length > 0 &&
+        questionContext?.userAnswer?.trim().length > 0
+      ) {
+        context = await contextBuilder.buildQuestionChatContext(
+          userId,
+          chatId,
+          questionContext.questionText,
+          questionContext.userAnswer
+        );
+        contextLoaded = true;
+        console.log(`[Chat] Using question-discussion context for chat: ${chatId}`);
+      } else {
+        context = await contextBuilder.buildChatContext(userId, chatId);
+      }
 
       // Get AI response
       const aiResponse = await llm.chat([
@@ -210,6 +234,7 @@ router.post(
         data: {
           userMessage,
           assistantMessage,
+          contextLoaded,
         },
       });
     } catch (error: any) {
