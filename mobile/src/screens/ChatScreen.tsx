@@ -45,7 +45,6 @@ const ChatScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const hasInitializedFromQuestion = useRef(false);
-  const hasShownContextStatus = useRef(false);
 
   // ============================================
   // STATE
@@ -252,19 +251,20 @@ const ChatScreen: React.FC = () => {
       setInputText('');
       setPendingMessageText(trimmedContent);
 
-      // Optimistic update - add user message immediately
-      const optimisticMessage: DisplayMessage = {
-        id: tempId,
-        chat_id: chatId,
-        user_id: 'current-user',
-        role: 'user',
-        content: trimmedContent,
-        created_at: new Date().toISOString(),
-        isOptimistic: true,
-      };
-
-      setMessages(prev => [...prev, optimisticMessage]);
-      setTimeout(() => scrollToBottom(), 50);
+      // Optimistic update - add user message for regular chats only
+      if (!isQuestionInit) {
+        const optimisticMessage: DisplayMessage = {
+          id: tempId,
+          chat_id: chatId,
+          user_id: 'current-user',
+          role: 'user',
+          content: trimmedContent,
+          created_at: new Date().toISOString(),
+          isOptimistic: true,
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+        setTimeout(() => scrollToBottom(), 50);
+      }
 
       console.log('[ChatScreen] Sending message:', trimmedContent.substring(0, 50));
 
@@ -289,31 +289,18 @@ const ChatScreen: React.FC = () => {
 
       if (response.data.success && response.data.data) {
         console.log('[ChatScreen] Received AI response');
-        const { userMessage, assistantMessage, contextLoaded } = response.data.data;
+        const { userMessage, assistantMessage } = response.data.data;
 
-        // Replace optimistic message with real one and add AI response
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.id !== tempId);
-          const updated = [...filtered, userMessage, assistantMessage];
-
-          // Inject context status system message after first question-chat response
-          if (isQuestionInit && !hasShownContextStatus.current) {
-            hasShownContextStatus.current = true;
-            const statusMessage: DisplayMessage = {
-              id: `system-context-${Date.now()}`,
-              chat_id: chatId,
-              user_id: 'system',
-              role: 'system',
-              content: contextLoaded
-                ? '✓ Mercia read question context successfully'
-                : '✗ Mercia failed to read context',
-              created_at: new Date().toISOString(),
-            };
-            return [...updated, statusMessage];
-          }
-
-          return updated;
-        });
+        if (isQuestionInit) {
+          // Question init: only show Mercia's opening message, no user bubble
+          setMessages([assistantMessage]);
+        } else {
+          // Regular chat: replace optimistic message with confirmed messages
+          setMessages(prev => {
+            const filtered = prev.filter(m => m.id !== tempId);
+            return [...filtered, userMessage, assistantMessage];
+          });
+        }
 
         setPendingMessageText(null);
         setTimeout(() => scrollToBottom(), 100);
@@ -326,11 +313,11 @@ const ChatScreen: React.FC = () => {
         || err.message
         || 'Failed to send message. Please try again.';
 
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-
-      // Restore text to input
-      setInputText(trimmedContent);
+      if (!isQuestionInit) {
+        // Remove optimistic message and restore input for regular chats only
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setInputText(trimmedContent);
+      }
       setPendingMessageText(null);
 
       Alert.alert('Error', errorMessage);
@@ -366,6 +353,7 @@ const ChatScreen: React.FC = () => {
   useEffect(() => {
     if (isFromQuestion && questionContext && !hasInitializedFromQuestion.current && !isLoadingMessages) {
       hasInitializedFromQuestion.current = true;
+      setIsQuestionInitInProgress(true);
       console.log('[ChatScreen] Auto-sending question answer to start conversation');
       // Small delay to ensure messages are loaded first
       setTimeout(() => {
@@ -401,7 +389,7 @@ const ChatScreen: React.FC = () => {
   const charCount = inputText.length;
   const showCharCounter = charCount > CHAR_WARNING_THRESHOLD;
   const isOverLimit = charCount > MAX_INPUT_CHARS;
-  const canSend = inputText.trim().length > 0 && !isSendingMessage && !isOverLimit;
+  const canSend = inputText.trim().length > 0 && !isSendingMessage && !isOverLimit && !isQuestionInitInProgress;
 
   // ============================================
   // RENDER HELPERS
@@ -486,18 +474,16 @@ const ChatScreen: React.FC = () => {
     </View>
   );
 
+  const renderQuestionInitLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#1D9E75" />
+      <Text style={styles.loadingText}>Mercia is gathering your context...</Text>
+    </View>
+  );
+
   const renderListFooter = () => {
-    if (isSendingMessage) {
-      return (
-        <>
-          {isQuestionInitInProgress && (
-            <View style={styles.systemMessageContainer}>
-              <Text style={styles.systemMessageText}>Mercia reading context...</Text>
-            </View>
-          )}
-          {renderThinkingIndicator()}
-        </>
-      );
+    if (isSendingMessage && !isQuestionInitInProgress) {
+      return renderThinkingIndicator();
     }
     return null;
   };
@@ -517,6 +503,8 @@ const ChatScreen: React.FC = () => {
         <View style={styles.messagesContainer}>
           {isLoadingMessages && !isRefreshing ? (
             renderLoading()
+          ) : isQuestionInitInProgress ? (
+            renderQuestionInitLoading()
           ) : error && messages.length === 0 ? (
             renderError()
           ) : messages.length === 0 && !isSendingMessage ? (
@@ -559,7 +547,7 @@ const ChatScreen: React.FC = () => {
               onChangeText={setInputText}
               multiline
               maxLength={MAX_INPUT_CHARS + 100} // Allow typing slightly over to show error
-              editable={!isSendingMessage}
+              editable={!isSendingMessage && !isQuestionInitInProgress}
               returnKeyType="default"
             />
             {showCharCounter && (

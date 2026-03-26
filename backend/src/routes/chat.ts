@@ -149,14 +149,6 @@ router.post(
       const llm = getLLM();
       const contextBuilder = getContextBuilder();
 
-      // Save user message
-      const userMessage = await storage.saveChatMessage(
-        chatId,
-        userId,
-        'user',
-        content
-      );
-
       // Build context — use specialized question-discussion prompt when questionContext is present
       let contextLoaded = false;
       let context: Awaited<ReturnType<typeof contextBuilder.buildChatContext>>;
@@ -177,6 +169,13 @@ router.post(
         console.log(`[Chat] Using question-discussion context for chat: ${chatId}`);
       } else {
         context = await contextBuilder.buildChatContext(userId, chatId);
+      }
+
+      // Save user message for regular chats only — question init uses the answer
+      // as an LLM trigger but does not persist it as a visible chat message
+      let userMessage: any = null;
+      if (!contextLoaded) {
+        userMessage = await storage.saveChatMessage(chatId, userId, 'user', content);
       }
 
       // Get AI response
@@ -232,7 +231,7 @@ router.post(
       res.json({
         success: true,
         data: {
-          userMessage,
+          ...(userMessage !== null && { userMessage }),
           assistantMessage,
           contextLoaded,
         },
