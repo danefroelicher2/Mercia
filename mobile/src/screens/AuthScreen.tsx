@@ -18,8 +18,14 @@ import { useAuth } from '../context/AuthContext';
 import { signInWithGoogle, signInWithApple, isAppleAuthAvailable } from '../services/socialAuth';
 import { AxiosError } from 'axios';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
+import { API_BASE_URL } from '../constants/config';
 
 type AuthMode = 'signin' | 'signup';
+
+const isTimeoutError = (err: unknown): boolean => {
+  const e = err as any;
+  return e?.code === 'ECONNABORTED' || (typeof e?.message === 'string' && e.message.includes('timeout'));
+};
 
 const AuthScreen: React.FC = () => {
   const { login, register, socialLogin } = useAuth();
@@ -32,6 +38,7 @@ const AuthScreen: React.FC = () => {
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(true);
 
   useEffect(() => {
     const checkAppleAuth = async () => {
@@ -42,8 +49,19 @@ const AuthScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetch('https://oasis-backend-k739.onrender.com/health')
-      .catch(() => {}); // fire and forget — wakes Render before user taps sign in
+    const wakeServer = async () => {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 90000)
+      );
+      try {
+        await Promise.race([fetch(`${API_BASE_URL}/health`), timeoutPromise]);
+      } catch {
+        // Server did not respond in time or failed — still clear the connecting state
+      } finally {
+        setIsConnecting(false);
+      }
+    };
+    wakeServer();
   }, []);
 
   const handleSubmit = async () => {
@@ -68,14 +86,18 @@ const AuthScreen: React.FC = () => {
         await register(email.trim(), password, username.trim() || undefined);
       }
     } catch (err) {
-      const axiosError = err as AxiosError<{ error: string }>;
-      const serverMessage = axiosError.response?.data?.error;
-      if (typeof serverMessage === 'string' && serverMessage) {
-        setError(serverMessage);
-      } else if (axiosError.message) {
-        setError(axiosError.message);
+      if (isTimeoutError(err)) {
+        setError('The server is taking longer than expected. Please try again.');
       } else {
-        setError('An unexpected error occurred');
+        const axiosError = err as AxiosError<{ error: string }>;
+        const serverMessage = axiosError.response?.data?.error;
+        if (typeof serverMessage === 'string' && serverMessage) {
+          setError(serverMessage);
+        } else if (axiosError.message) {
+          setError(axiosError.message);
+        } else {
+          setError('An unexpected error occurred');
+        }
       }
     } finally {
       setIsLoading(false);
@@ -89,7 +111,11 @@ const AuthScreen: React.FC = () => {
       const { idToken } = await signInWithGoogle();
       await socialLogin('google', idToken);
     } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
+      if (isTimeoutError(err)) {
+        setError('The server is taking longer than expected. Please try again.');
+      } else {
+        setError(err.message || 'Google sign-in failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +129,11 @@ const AuthScreen: React.FC = () => {
       await socialLogin('apple', idToken, nonce);
     } catch (err: any) {
       if (err.message === 'Apple sign-in was canceled') return;
-      setError(err.message || 'Apple sign-in failed');
+      if (isTimeoutError(err)) {
+        setError('The server is taking longer than expected. Please try again.');
+      } else {
+        setError(err.message || 'Apple sign-in failed');
+      }
     } finally {
       setIsAppleLoading(false);
     }
@@ -251,6 +281,15 @@ const AuthScreen: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
+
+            {isConnecting && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingHorizontal: 20, gap: 8 }}>
+                <ActivityIndicator color="#888" size="small" />
+                <Text style={{ color: '#888', fontSize: 13, textAlign: 'center' }}>
+                  Starting up, this may take a moment...
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity style={styles.toggleButton} onPress={toggleMode}>
               <Text style={styles.toggleText}>

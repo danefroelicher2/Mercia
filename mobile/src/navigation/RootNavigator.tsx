@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import ConsentScreen from '../screens/ConsentScreen';
 import { hasConsentBeenAnswered } from '../services/consentService';
 
 const RootNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, connectingMessage } = useAuth();
   // null = not yet checked, true = answered (yes or no), false = not yet answered
   const [consentAnswered, setConsentAnswered] = useState<boolean | null>(null);
 
@@ -30,6 +30,9 @@ const RootNavigator: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B35" />
+        {connectingMessage !== '' && (
+          <Text style={styles.connectingText}>{connectingMessage}</Text>
+        )}
       </View>
     );
   }
@@ -65,6 +68,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  connectingText: {
+    marginTop: 16,
+    fontSize: 13,
+    color: '#888',
   },
 });
 

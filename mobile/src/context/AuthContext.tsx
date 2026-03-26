@@ -14,6 +14,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [connectingMessage, setConnectingMessage] = useState('');
 
   // Check for existing auth on mount
   useEffect(() => {
@@ -24,6 +25,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const storedUser = await authService.getStoredUser();
         if (storedTokens && storedUser) {
           // Verify token is still valid by making a test request
+          setConnectingMessage('Connecting to server...');
           try {
             // Try to refresh the token to ensure it's still valid
             await authService.refreshAccessToken(storedTokens.refreshToken);
@@ -38,6 +40,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Error initializing auth:', error);
         await authService.logout();
       } finally {
+        setConnectingMessage('');
         setIsLoading(false);
       }
     };
@@ -91,6 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated,
     isLoading,
+    connectingMessage,
     login,
     register,
     socialLogin,

@@ -11,6 +11,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -116,6 +117,10 @@ const RoutineScreen: React.FC = () => {
 
   const [taskType, setTaskType] = useState<'non-negotiable' | 'nice-to-have'>('non-negotiable');
   const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
+
+  const [copyModeActive, setCopyModeActive] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copyNoTasksMessage, setCopyNoTasksMessage] = useState('');
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -371,6 +376,45 @@ const RoutineScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const handleCopyFromDay = async (sourceDay: DayOfWeek) => {
+    setIsCopying(true);
+    setCopyNoTasksMessage('');
+    try {
+      const response = await api.get(`/api/routine/tasks/${sourceDay}`);
+      if (response.data.success) {
+        const allSourceTasks: RoutineTask[] = response.data.data;
+        const filtered = allSourceTasks.filter(t => t.type === taskType);
+        if (filtered.length === 0) {
+          const label = taskType === 'non-negotiable' ? 'Required' : 'Optional';
+          const dayLabel = sourceDay.charAt(0).toUpperCase() + sourceDay.slice(1);
+          setCopyNoTasksMessage(`No ${label} tasks on ${dayLabel}`);
+          setCopyModeActive(false);
+          setIsCopying(false);
+          return;
+        }
+        for (const task of filtered) {
+          try {
+            await api.post('/api/routine/tasks', {
+              text: task.text,
+              type: taskType,
+              dayOfWeek: selectedDay,
+            });
+          } catch (err) {
+            console.error('[RoutineScreen] Error copying task:', err);
+          }
+        }
+        await loadTasks();
+        setTaskModalVisible(false);
+        setNewTaskText('');
+        setCopyModeActive(false);
+        setCopyNoTasksMessage('');
+      }
+    } catch (error) {
+      console.error('[RoutineScreen] Error fetching source tasks for copy:', error);
+    }
+    setIsCopying(false);
   };
 
   // Goal handlers
@@ -750,8 +794,13 @@ const RoutineScreen: React.FC = () => {
       <Modal
         visible={taskModalVisible}
         transparent
-        animationType="slide"
-        onRequestClose={() => setTaskModalVisible(false)}
+        animationType="fade"
+        onRequestClose={() => {
+          setTaskModalVisible(false);
+          setNewTaskText('');
+          setCopyModeActive(false);
+          setCopyNoTasksMessage('');
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -760,71 +809,128 @@ const RoutineScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
-            onPress={() => { setTaskModalVisible(false); setNewTaskText(''); }}
+            onPress={() => {
+              setTaskModalVisible(false);
+              setNewTaskText('');
+              setCopyModeActive(false);
+              setCopyNoTasksMessage('');
+            }}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Task</Text>
 
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  taskType === 'non-negotiable' && styles.typeButtonActive,
-                ]}
-                onPress={() => setTaskType('non-negotiable')}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  taskType === 'non-negotiable' && styles.typeButtonTextActive,
-                ]}>
-                  Required
-                </Text>
-              </TouchableOpacity>
+            {copyModeActive ? (
+              <>
+                <Text style={styles.modalTitle}>Copy from...</Text>
+                {isCopying ? (
+                  <View style={styles.copyLoadingContainer}>
+                    <ActivityIndicator color={colors.primary} size="small" />
+                    <Text style={styles.copyLoadingText}>Copying tasks...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.copyDayGrid}>
+                    {DAYS.filter(d => d !== selectedDay).map(day => (
+                      <TouchableOpacity
+                        key={day}
+                        style={styles.copyDayButton}
+                        onPress={() => handleCopyFromDay(day)}
+                      >
+                        <Text style={styles.copyDayButtonText}>
+                          {day.charAt(0).toUpperCase() + day.slice(1)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                {!isCopying && (
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => setCopyModeActive(false)}
+                    >
+                      <Text style={styles.cancelButtonText}>Back</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Add Task</Text>
 
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  taskType === 'nice-to-have' && styles.typeButtonActive,
-                ]}
-                onPress={() => setTaskType('nice-to-have')}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  taskType === 'nice-to-have' && styles.typeButtonTextActive,
-                ]}>
-                  Optional
-                </Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.typeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      taskType === 'non-negotiable' && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setTaskType('non-negotiable')}
+                  >
+                    <Text style={[
+                      styles.typeButtonText,
+                      taskType === 'non-negotiable' && styles.typeButtonTextActive,
+                    ]}>
+                      Required
+                    </Text>
+                  </TouchableOpacity>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter task..."
-              placeholderTextColor={colors.textTertiary}
-              value={newTaskText}
-              onChangeText={setNewTaskText}
-              autoFocus
-              multiline
-            />
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      taskType === 'nice-to-have' && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setTaskType('nice-to-have')}
+                  >
+                    <Text style={[
+                      styles.typeButtonText,
+                      taskType === 'nice-to-have' && styles.typeButtonTextActive,
+                    ]}>
+                      Optional
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setTaskModalVisible(false);
-                  setNewTaskText('');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
+                {copyNoTasksMessage !== '' && (
+                  <Text style={styles.copyNoTasksText}>{copyNoTasksMessage}</Text>
+                )}
 
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleAddTask}
-              >
-                <Text style={styles.saveButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter task..."
+                  placeholderTextColor={colors.textTertiary}
+                  value={newTaskText}
+                  onChangeText={setNewTaskText}
+                  autoFocus
+                  multiline
+                />
+
+                <View style={[styles.modalButtons, { justifyContent: 'space-between', alignItems: 'center' }]}>
+                  <TouchableOpacity
+                    onPress={() => { setCopyNoTasksMessage(''); setCopyModeActive(true); }}
+                  >
+                    <Text style={styles.copyFromDayButtonText}>Copy</Text>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setTaskModalVisible(false);
+                        setNewTaskText('');
+                        setCopyModeActive(false);
+                        setCopyNoTasksMessage('');
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={handleAddTask}
+                    >
+                      <Text style={styles.saveButtonText}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
@@ -1346,6 +1452,52 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#FFFFFF',
+  },
+
+  // Copy from day
+  copyFromDayButtonText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '400',
+  },
+  copyDayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 24,
+  },
+  copyDayButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    minWidth: '42%',
+    alignItems: 'center',
+  },
+  copyDayButtonText: {
+    fontSize: 14,
+    color: '#E8E8E8',
+    fontWeight: '400',
+  },
+  copyLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 40,
+  },
+  copyLoadingText: {
+    fontSize: 14,
+    color: '#888',
+  },
+  copyNoTasksText: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+    marginBottom: 12,
+    marginTop: -8,
   },
 });
 
