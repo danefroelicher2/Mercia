@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.merciaapp.app",
+      "bundleIdentifier": "com.oasisai.app",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.merciaapp.app",
+      "package": "com.oasisai.app",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
