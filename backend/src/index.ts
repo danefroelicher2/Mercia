@@ -102,6 +102,7 @@ async function startServer() {
       console.log(`   GET  /api/chat/list`);
       console.log(`   GET  /api/chat/:chatId/messages`);
       console.log(`   POST /api/chat/message`);
+      console.log(`   POST /api/chat/:chatId/summarize`);
       console.log(`   POST /api/extraction/trigger`);
       console.log(`   POST /api/routine/tasks`);
       console.log(`   GET  /api/routine/tasks/:day`);

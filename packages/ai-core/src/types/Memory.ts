@@ -1,7 +1,7 @@
 export interface InsightMetadataEntry {
   id: string;                   // UUID
   content: string;              // Human-readable fact, e.g. "Values family above career"
-  category: 'value' | 'belief' | 'interest' | 'pattern' | 'goal' | 'quote';
+  category: 'value' | 'belief' | 'interest' | 'pattern' | 'goal' | 'quote' | 'conversation_theme';
   source_type: 'question' | 'conversation';
   source_id: string;            // question_id or chat_id
   confidence: number;           // 0.0 to 1.0
@@ -9,6 +9,7 @@ export interface InsightMetadataEntry {
   source_count: number;         // How many times this insight has been observed
   first_identified: string;     // ISO timestamp
   last_reinforced: string;      // ISO timestamp
+  expires_at?: string;          // ISO timestamp — only set on pending_insights staging entries
 }
 
 export interface MemoryProfile {

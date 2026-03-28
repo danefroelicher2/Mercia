@@ -433,6 +433,28 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
   }
 
+  async getChat(chatId: string): Promise<Chat | null> {
+    const { data, error } = await this.client
+      .from('chats')
+      .select('*')
+      .eq('id', chatId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error getting chat:', error);
+      return null;
+    }
+
+    return data || null;
+  }
+
+  async markChatSummarized(chatId: string): Promise<void> {
+    await this.client
+      .from('chats')
+      .update({ summarized: true })
+      .eq('id', chatId);
+  }
+
   // ============================================
   // UTILITY
   // ============================================

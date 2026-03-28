@@ -13,6 +13,7 @@ import {
   Animated,
   RefreshControl,
   Keyboard,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -45,6 +46,8 @@ const ChatScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const hasInitializedFromQuestion = useRef(false);
+  const hasSummarized = useRef<boolean>(false);
+  const messagesRef = useRef<DisplayMessage[]>([]);
 
   // ============================================
   // STATE
@@ -123,6 +126,8 @@ const ChatScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Prevent triggerSummarize from firing when beforeRemove fires after deletion
+              hasSummarized.current = true;
               const response = await api.delete(`/api/chat/${chatId}`);
               if (response.data.success) {
                 console.log('[ChatScreen] Chat deleted');
@@ -327,6 +332,23 @@ const ChatScreen: React.FC = () => {
     }
   };
 
+  // Fire-once summarize call when the chat goes idle (navigate away, background, unmount).
+  // Uses a ref for messages so closures always read the latest value.
+  const triggerSummarize = useCallback(() => {
+    if (hasSummarized.current) return;
+    const currentMessages = messagesRef.current;
+    if (currentMessages.length < 2) return;
+    if (currentMessages[currentMessages.length - 1]?.role !== 'assistant') return;
+    hasSummarized.current = true;
+    api.post(`/api/chat/${chatId}/summarize`)
+      .then(response => {
+        console.log('[ChatScreen] Summarize result:', response.data);
+      })
+      .catch(() => {
+        // Silent — never surfaces to the user
+      });
+  }, [chatId]);
+
   // ============================================
   // EFFECTS
   // ============================================
@@ -361,6 +383,36 @@ const ChatScreen: React.FC = () => {
       }, 500);
     }
   }, [isFromQuestion, questionContext, isLoadingMessages]);
+
+  // Keep messagesRef current so triggerSummarize closures always read the latest messages
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Trigger 1: App backgrounding
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background') {
+        triggerSummarize();
+      }
+    });
+    return () => subscription.remove();
+  }, [triggerSummarize]);
+
+  // Trigger 2: User navigates back (screen removed from stack)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      triggerSummarize();
+    });
+    return unsubscribe;
+  }, [navigation, triggerSummarize]);
+
+  // Trigger 3: Component unmount — safety net for cases not covered above
+  useEffect(() => {
+    return () => {
+      triggerSummarize();
+    };
+  }, [triggerSummarize]);
 
   // ============================================
   // HANDLERS

@@ -18,6 +18,7 @@ export interface Chat {
   linked_question_id: string | null;
   pinned: boolean;
   pinned_at: string | null;
+  summarized: boolean;
   created_at: Date;
   updated_at: Date;
 }

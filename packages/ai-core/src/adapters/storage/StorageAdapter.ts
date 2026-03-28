@@ -158,6 +158,17 @@ export interface StorageAdapter {
    */
   deleteChat(chatId: string, userId: string): Promise<void>;
 
+  /**
+   * Get a single chat record by id
+   * Returns null if not found
+   */
+  getChat(chatId: string): Promise<Chat | null>;
+
+  /**
+   * Mark a chat as summarized so the summarize endpoint never re-processes it
+   */
+  markChatSummarized(chatId: string): Promise<void>;
+
   // ============================================
   // ROUTINE OPERATIONS
   // ============================================
