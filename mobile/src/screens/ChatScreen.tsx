@@ -47,7 +47,7 @@ const ChatScreen: React.FC = () => {
   const inputRef = useRef<TextInput>(null);
   const hasInitializedFromQuestion = useRef(false);
   const hasSummarized = useRef<boolean>(false);
-  const messagesRef = useRef<DisplayMessage[]>([]);
+  const totalMessageCount = useRef<number>(0);
 
   // ============================================
   // STATE
@@ -307,6 +307,8 @@ const ChatScreen: React.FC = () => {
           });
         }
 
+        totalMessageCount.current += 2;
+
         setPendingMessageText(null);
         setTimeout(() => scrollToBottom(), 100);
       } else {
@@ -333,12 +335,9 @@ const ChatScreen: React.FC = () => {
   };
 
   // Fire-once summarize call when the chat goes idle (navigate away, background, unmount).
-  // Uses a ref for messages so closures always read the latest value.
   const triggerSummarize = useCallback(() => {
     if (hasSummarized.current) return;
-    const currentMessages = messagesRef.current;
-    if (currentMessages.length < 2) return;
-    if (currentMessages[currentMessages.length - 1]?.role !== 'assistant') return;
+    if (totalMessageCount.current < 2) return;
     hasSummarized.current = true;
     api.post(`/api/chat/${chatId}/summarize`)
       .then(response => {
@@ -383,11 +382,6 @@ const ChatScreen: React.FC = () => {
       }, 500);
     }
   }, [isFromQuestion, questionContext, isLoadingMessages]);
-
-  // Keep messagesRef current so triggerSummarize closures always read the latest messages
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
 
   // Trigger 1: App backgrounding
   useEffect(() => {
