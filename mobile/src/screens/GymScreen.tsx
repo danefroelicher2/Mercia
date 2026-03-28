@@ -252,16 +252,16 @@ const GymScreen: React.FC = () => {
       <QuoteCard quote={currentQuote} />
       {renderWeekNavigator()}
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Workout Group Input */}
+        {/* Unified Workout Entry Card */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Workout</Text>
           <TextInput
             style={styles.groupInput}
             value={workoutGroup}
             onChangeText={handleGroupChange}
-            placeholder="e.g. Push, Legs, Pull, Arms..."
+            placeholder="Workout name..."
             placeholderTextColor={colors.textTertiary}
             returnKeyType="done"
+            textAlign="center"
           />
           {showSuggestions && filteredSuggestions.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsRow}>
@@ -276,11 +276,7 @@ const GymScreen: React.FC = () => {
               ))}
             </ScrollView>
           )}
-        </View>
-
-        {/* Notes Input */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Notes</Text>
+          <View style={styles.cardDivider} />
           <TextInput
             style={styles.notesInput}
             value={notes}
@@ -393,9 +389,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   groupInput: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    paddingVertical: 4,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#E8E8E8',
+    paddingVertical: 8,
+    textAlign: 'center',
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#232323',
+    marginTop: 12,
+    marginBottom: 12,
   },
   suggestionsRow: {
     marginTop: 8,
@@ -417,7 +421,7 @@ const styles = StyleSheet.create({
   notesInput: {
     fontSize: 14,
     color: colors.textPrimary,
-    minHeight: 120,
+    minHeight: 140,
     paddingVertical: 4,
     lineHeight: 22,
   },
