@@ -199,12 +199,9 @@ router.post(
         aiResponse
       );
 
-      // Log activity for stats AND check achievements
+      // Log activity for stats
       try {
         const supabase = getSupabase();
-
-        console.log('[Chat] Inserting activity log for user:', userId);
-        // Log the activity
         const { error: logError } = await supabase
           .schema('oasis')
           .from('user_activity_log')
@@ -216,19 +213,9 @@ router.post(
 
         if (logError) {
           console.error('[Chat] FAILED to insert activity log:', logError);
-        } else {
-          console.log('[Chat] Activity log inserted successfully');
-        }
-
-        // Check and unlock achievements
-        const { checkAndUnlockAchievements } = require('./stats');
-        const newAchievements = await checkAndUnlockAchievements(userId, supabase);
-
-        if (newAchievements.length > 0) {
-          console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
         }
       } catch (err) {
-        console.error('Failed to log chat activity or check achievements:', err);
+        console.error('[Chat] Failed to log chat activity:', err);
       }
 
       res.json({

@@ -67,8 +67,6 @@ const ChatScreen: React.FC = () => {
   const [thinkingDot2] = useState(new Animated.Value(0.3));
   const [thinkingDot3] = useState(new Animated.Value(0.3));
 
-  console.log('[ChatScreen] Chat ID:', chatId);
-
   // ============================================
   // PIN/DELETE HANDLERS
   // ============================================
@@ -351,6 +349,11 @@ const ChatScreen: React.FC = () => {
   // ============================================
   // EFFECTS
   // ============================================
+
+  // Log chat ID once on mount
+  useEffect(() => {
+    console.log('[ChatScreen] Chat ID:', chatId);
+  }, []);
 
   // Guard: block access if AI Data Consent has not been granted
   useEffect(() => {
