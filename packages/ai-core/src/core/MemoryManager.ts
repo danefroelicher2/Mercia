@@ -213,6 +213,12 @@ export class MemoryManager {
       sections.push(`Core Values: ${profile.core_values.slice(0, 5).join(', ')}`);
     }
 
+    const beliefEntries = Object.entries(profile.beliefs).slice(0, 4);
+    if (beliefEntries.length > 0) {
+      const beliefStr = beliefEntries.map(([domain, belief]) => `${domain}: ${belief}`).join('; ');
+      sections.push(`Beliefs: ${beliefStr}`);
+    }
+
     const topInterests = Object.entries(profile.interests)
       .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)

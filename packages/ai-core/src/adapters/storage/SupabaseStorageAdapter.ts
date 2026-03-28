@@ -137,8 +137,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .eq('user_id', userId)
       .eq('question_id', questionId);
 
-    // Update profile stats
-    await this.incrementQuestionCount(userId);
+    // questions_answered is incremented by MemoryManager.processQuestionResponse()
+    // which is always called after this. Do not call incrementQuestionCount() here.
 
     return responseData;
   }
