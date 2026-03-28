@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import api from '../services/api';
@@ -278,7 +279,7 @@ const ProfileScreen: React.FC = () => {
 
           <View style={[styles.navRow, styles.navRowLast]}>
             <Text style={styles.navRowLabel}>Version</Text>
-            <Text style={styles.versionValue}>1.0.0</Text>
+            <Text style={styles.versionValue}>{Constants.expoConfig?.version ?? '1.0.2'}</Text>
           </View>
         </View>
 
