@@ -102,4 +102,24 @@ router.post('/feedback', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// Manual trigger for memory condensation job (dev/testing use)
+router.post('/trigger-condensation', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const { runCondensationForUser } = await import('../jobs/memoryCondensationJob');
+    const result = await runCondensationForUser(userId);
+
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('[memory/trigger-condensation] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
+
