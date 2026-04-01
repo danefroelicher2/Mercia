@@ -158,16 +158,16 @@ router.patch(
       if (completed === true) {
         try {
           const supabase = getSupabase();
+          const today = getLocalDateString(timezone);
 
           console.log('[Routine] Inserting activity log for task completion, user:', userId);
-          // Log the activity
           const { error: logError } = await supabase
             .schema('oasis')
             .from('user_activity_log')
             .insert({
               user_id: userId,
               activity_type: 'task_completed',
-              activity_date: getLocalDateString(timezone),
+              activity_date: today,
             });
 
           if (logError) {
@@ -183,9 +183,43 @@ router.patch(
           if (newAchievements.length > 0) {
             console.log('🏆 New achievements unlocked:', newAchievements.map((a: any) => a.title).join(', '));
           }
+
+          // Fire-and-forget: write completion history for daily summary generation
+          supabase
+            .schema('oasis')
+            .from('task_completion_history')
+            .upsert(
+              {
+                user_id: userId,
+                task_id: task.id,
+                task_text: task.text,
+                task_type: task.type,
+                day_of_week: task.day_of_week,
+                completed: true,
+                snapshot_date: today,
+              },
+              { onConflict: 'user_id,task_id,snapshot_date' }
+            )
+            .then(({ error }) => {
+              if (error) console.error('[Routine] task_completion_history upsert failed:', error);
+            });
         } catch (err) {
           console.error('Failed to log task activity or check achievements:', err);
         }
+      } else {
+        // Fire-and-forget: remove history entry when task is unchecked
+        const supabase = getSupabase();
+        const today = getLocalDateString(timezone);
+        supabase
+          .schema('oasis')
+          .from('task_completion_history')
+          .delete()
+          .eq('user_id', userId)
+          .eq('task_id', task.id)
+          .eq('snapshot_date', today)
+          .then(({ error }) => {
+            if (error) console.error('[Routine] task_completion_history delete failed:', error);
+          });
       }
 
       res.json({

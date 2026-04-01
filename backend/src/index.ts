@@ -17,6 +17,7 @@ import gymRoutes from './routes/gym';
 
 // Import jobs (extraction scheduling is handled by pg_cron on Supabase)
 import { startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
+import { startDailySummaryJob } from './jobs/dailySummaryJob';
 
 // Load environment variables
 dotenv.config();
@@ -78,8 +79,10 @@ async function startServer() {
     // Start cron jobs
     startWeeklyResetCronJob();
     startMonthlyResetCronJob();
+    startDailySummaryJob();
     console.log('  Weekly reset cron job started (runs Mondays at 12:00 AM)');
     console.log('  Monthly reset cron job started (runs 1st of month at 12:00 AM)');
+    console.log('  Daily summary job started (runs 6:00 AM ET)');
     console.log('  Chat extraction: scheduled via pg_cron on Supabase (5:00 AM UTC daily)');
 
     app.listen(PORT, () => {

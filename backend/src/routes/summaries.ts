@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getSupabase } from '../services/supabase';
+import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
 
 const router = Router();
 
@@ -105,17 +106,15 @@ router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => 
   }
 });
 
-// POST /api/summaries/trigger-generation - Manually trigger summary generation (testing/admin)
-// Calls the Supabase pg_cron function directly
+// POST /api/summaries/trigger-generation - Manually trigger daily summary generation
 router.post('/trigger-generation', async (req: Request, res: Response): Promise<void> => {
   try {
-    const supabase = getSupabase();
+    // Run in background — respond immediately so the request doesn't time out
+    runDailySummaryGeneration()
+      .then((result) => console.log('[Summaries] Manual trigger complete:', result))
+      .catch((err) => console.error('[Summaries] Manual trigger error:', err));
 
-    const { data, error } = await supabase.rpc('generate_weekly_summaries');
-
-    if (error) throw error;
-
-    res.json({ success: true, message: 'Weekly summary generation triggered', data });
+    res.json({ success: true, message: 'Daily summary generation started' });
   } catch (error: any) {
     console.error('[Summaries] Error triggering generation:', error);
     res.status(500).json({ success: false, error: error.message });
