@@ -64,8 +64,8 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/summaries', summaryRoutes);
 app.use('/api/summaries', summaryAdminRoutes); // admin bypass — remove after testing
+app.use('/api/summaries', summaryRoutes);
 app.use('/api/gym', gymRoutes);
 
 // Error handler (must be last)
