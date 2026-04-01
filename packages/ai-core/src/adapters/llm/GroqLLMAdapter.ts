@@ -41,19 +41,26 @@ export class GroqLLMAdapter implements LLMAdapter {
   }
 
   async extractInsights(questionText: string, userResponse: string): Promise<any> {
-    const systemPrompt = `You are an AI that extracts structured insights from user responses to philosophical questions.
+    const systemPrompt = `You are an AI that extracts structured insights from user responses to philosophical questions. Your job is to build a rich, specific picture of who this person is — not generic labels.
 
 Extract the following in JSON format:
 {
-  "core_values": ["list of values demonstrated"],
-  "beliefs": {"category": "belief statement"},
-  "key_quote": "single most revealing quote (max 100 chars)",
-  "insight_summary": "one sentence insight",
-  "topics_mentioned": ["list of topics"],
+  "core_values": ["5-12 word phrase naming the value AND how it manifests for this person. Example: 'prioritizes family relationships over professional advancement'"],
+  "beliefs": {"domain": "10-20 word statement of what they believe and why it matters to them. Example: 'consistent daily effort compounds into results that intensity alone cannot match'"},
+  "patterns": ["5-15 word phrase describing a behavioral or thinking pattern clearly shown. Example: 'makes decisions slowly but commits fully once resolved'"],
+  "goals": ["5-15 word phrase describing a current goal or aspiration explicitly mentioned. Example: 'building independent income alongside current employment'"],
+  "key_quote": "single most revealing quote from their response (max 100 chars)",
+  "insight_summary": "one sentence insight about this person",
+  "topics_mentioned": ["5-10 word phrase: topic AND the specific angle that interests them. Example: 'stoic philosophy applied to modern daily decisions'"],
   "emotional_tone": "positive/negative/neutral/mixed"
 }
 
-Be concise. Extract only what's clearly present. Return ONLY valid JSON, no markdown.`;
+Rules:
+- Phrases must be specific to this person — never generic truisms anyone would say.
+- Extract ONLY what is clearly present in the response. Do not infer or project.
+- patterns and goals arrays may be empty [] if not clearly present.
+- core_values and topics_mentioned should each have 1-4 items max.
+- Return ONLY valid JSON, no markdown, no explanation.`;
 
     const userPrompt = `Question: ${questionText}\n\nUser's Response: ${userResponse}`;
 
@@ -62,7 +69,7 @@ Be concise. Extract only what's clearly present. Return ONLY valid JSON, no mark
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      { temperature: 0.3, maxTokens: 500 }
+      { temperature: 0.3, maxTokens: 600 }
     );
 
     try {
