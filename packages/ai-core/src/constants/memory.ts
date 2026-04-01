@@ -1,5 +1,5 @@
 export const MEMORY_CAPS = {
-  QUESTION_FACTS_MAX: 40,
+  QUESTION_FACTS_MAX: 80,
   CONVERSATION_FACTS_MAX: 60,
 } as const;
 

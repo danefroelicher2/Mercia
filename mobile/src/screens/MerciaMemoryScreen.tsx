@@ -11,7 +11,7 @@ import api from '../services/api';
 import { colors, spacing, typography } from '../constants/theme';
 import { InsightEntry, GroupedInsightsApiResponse } from '../types/memory';
 
-const QUESTION_FACTS_MAX = 40;
+const QUESTION_FACTS_MAX = 80;
 const CONVERSATION_FACTS_MAX = 60;
 
 const MerciaMemoryScreen: React.FC = () => {
