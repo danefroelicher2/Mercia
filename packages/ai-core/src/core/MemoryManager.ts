@@ -131,6 +131,40 @@ export class MemoryManager {
       }
     }
 
+    if (insights.patterns && insights.patterns.length > 0) {
+      for (const pattern of insights.patterns) {
+        candidates.push({
+          id: randomUUID(),
+          content: pattern,
+          category: 'pattern',
+          source_type: 'question',
+          source_id: questionResponse.question_id,
+          confidence: 0.75,
+          semantic_importance: 0.8,
+          source_count: 1,
+          first_identified: now,
+          last_reinforced: now,
+        });
+      }
+    }
+
+    if (insights.goals && insights.goals.length > 0) {
+      for (const goal of insights.goals) {
+        candidates.push({
+          id: randomUUID(),
+          content: goal,
+          category: 'goal',
+          source_type: 'question',
+          source_id: questionResponse.question_id,
+          confidence: 0.75,
+          semantic_importance: 0.85,
+          source_count: 1,
+          first_identified: now,
+          last_reinforced: now,
+        });
+      }
+    }
+
     // Separate existing metadata by pool
     const existingMetadata: InsightMetadataEntry[] = profile.insights_metadata || [];
     let questionEntries = existingMetadata.filter(e => e.source_type === 'question');
