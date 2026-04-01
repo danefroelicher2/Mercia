@@ -12,7 +12,7 @@ import chatRoutes from './routes/chat';
 import extractionRoutes from './routes/extraction';
 import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
-import summaryRoutes from './routes/summaries';
+import summaryRoutes, { adminRouter as summaryAdminRoutes } from './routes/summaries';
 import gymRoutes from './routes/gym';
 
 // Import jobs (extraction scheduling is handled by pg_cron on Supabase)
@@ -65,6 +65,7 @@ app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/summaries', summaryRoutes);
+app.use('/api/summaries', summaryAdminRoutes); // admin bypass — remove after testing
 app.use('/api/gym', gymRoutes);
 
 // Error handler (must be last)

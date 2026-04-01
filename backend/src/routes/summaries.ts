@@ -106,10 +106,22 @@ router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => 
   }
 });
 
-// POST /api/summaries/trigger-generation - Manually trigger daily summary generation
-router.post('/trigger-generation', async (req: Request, res: Response): Promise<void> => {
+export default router;
+
+// ── Admin router (no JWT required) ───────────────────────────────────────────
+// POST /api/summaries/trigger-generation
+// Accepts x-admin-key header matching ADMIN_SECRET env var.
+// TEMPORARY: remove once daily job is confirmed working end-to-end.
+export const adminRouter = Router();
+
+adminRouter.post('/trigger-generation', async (req: Request, res: Response): Promise<void> => {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret || req.headers['x-admin-key'] !== adminSecret) {
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+    return;
+  }
+
   try {
-    // Run in background — respond immediately so the request doesn't time out
     runDailySummaryGeneration()
       .then((result) => console.log('[Summaries] Manual trigger complete:', result))
       .catch((err) => console.error('[Summaries] Manual trigger error:', err));
@@ -120,5 +132,3 @@ router.post('/trigger-generation', async (req: Request, res: Response): Promise<
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-export default router;
