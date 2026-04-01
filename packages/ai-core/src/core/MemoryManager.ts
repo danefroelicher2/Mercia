@@ -241,38 +241,51 @@ export class MemoryManager {
    */
   async getProfileSummary(userId: string): Promise<string> {
     const profile = await this.getProfile(userId);
+    const metadata: InsightMetadataEntry[] = profile.insights_metadata || [];
+
+    const byScore = (a: InsightMetadataEntry, b: InsightMetadataEntry) =>
+      (b.source_count || 1) - (a.source_count || 1) || b.confidence - a.confidence;
+
+    const topN = (category: string, n: number) =>
+      metadata.filter(e => e.category === category).sort(byScore).slice(0, n);
+
     const sections: string[] = [];
 
-    if (profile.core_values.length > 0) {
-      sections.push(`Core Values: ${profile.core_values.slice(0, 5).join(', ')}`);
+    const values = topN('value', 5);
+    if (values.length > 0) {
+      sections.push(`VALUES\n${values.map(e => e.content).join('. ')}.`);
     }
 
-    const beliefEntries = Object.entries(profile.beliefs).slice(0, 4);
-    if (beliefEntries.length > 0) {
-      const beliefStr = beliefEntries.map(([domain, belief]) => `${domain}: ${belief}`).join('; ');
-      sections.push(`Beliefs: ${beliefStr}`);
+    const beliefs = topN('belief', 4);
+    if (beliefs.length > 0) {
+      sections.push(`BELIEFS\n${beliefs.map(e => e.content).join('. ')}.`);
     }
 
-    const topInterests = Object.entries(profile.interests)
-      .sort(([, a], [, b]) => (b as number) - (a as number))
-      .slice(0, 5)
-      .map(([topic]) => topic);
-
-    if (topInterests.length > 0) {
-      sections.push(`Interests: ${topInterests.join(', ')}`);
+    const patterns = topN('pattern', 3);
+    if (patterns.length > 0) {
+      sections.push(`PATTERNS\n${patterns.map(e => e.content).join('. ')}.`);
     }
 
-    const recentQuotes = profile.supporting_quotes.slice(-3);
+    const goals = topN('goal', 3);
+    if (goals.length > 0) {
+      sections.push(`GOALS\n${goals.map(e => e.content).join('. ')}.`);
+    }
+
+    const interests = topN('interest', 5);
+    if (interests.length > 0) {
+      sections.push(`INTERESTS\n${interests.map(e => e.content).join('. ')}.`);
+    }
+
+    const recentQuotes = (profile.supporting_quotes || []).slice(-3);
     if (recentQuotes.length > 0) {
-      sections.push('Key Insights:');
-      recentQuotes.forEach(q => {
-        sections.push(`- "${q.quote}" (${q.context})`);
-      });
+      sections.push(`IN THEIR OWN WORDS\n${recentQuotes.map(q => `"${q.quote}"`).join(' | ')}`);
     }
 
-    sections.push(`Profile Completeness: ${Math.round(profile.profile_completeness * 100)}%`);
+    if (sections.length === 0) {
+      return 'New user — no profile data yet.';
+    }
 
-    return sections.join('\n');
+    return sections.join('\n\n');
   }
 
   /**
