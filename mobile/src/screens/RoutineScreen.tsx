@@ -186,7 +186,7 @@ const RoutineScreen: React.FC = () => {
     setSelectedDay(DAYS[dayIndex]);
   }, []);
 
-  // Load weekly summary on mount and check for Tuesday last-chance modal
+  // Load daily summary on mount and show last-chance modal for unsaved summaries
   useEffect(() => {
     // Fire-and-forget: delete old unsaved summaries from DB on each mount
     api.delete('/api/summaries/cleanup-old').catch(() => {});
@@ -197,7 +197,7 @@ const RoutineScreen: React.FC = () => {
         if (response.data.success && response.data.data) {
           const summary: WeeklySummary = response.data.data;
           setCurrentSummary(summary);
-          await checkTuesdayModal(summary);
+          await checkUnsavedSummaryModal(summary);
         }
       } catch (error) {
         console.error('[RoutineScreen] Error loading summary:', error);
@@ -206,24 +206,20 @@ const RoutineScreen: React.FC = () => {
     loadSummary();
   }, []);
 
-  const checkTuesdayModal = async (summary: WeeklySummary) => {
-    const today = new Date();
-    if (today.getDay() !== 2 || summary.is_saved) return;
+  const checkUnsavedSummaryModal = async (summary: WeeklySummary) => {
+    if (summary.is_saved || !summary.has_complete_data) return;
 
-    // Calculate the week_start_date we expect: last week's Monday
-    // (today is Tuesday, so "last Monday" is yesterday; the summary covers
-    //  the week starting 7 days before that Monday)
-    const expectedStart = new Date(today);
-    expectedStart.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 7);
-    const expectedStartStr = expectedStart.toISOString().split('T')[0];
+    // Only prompt for yesterday's summary
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    if (summary.week_end_date !== yesterdayStr) return;
 
-    if (summary.week_start_date !== expectedStartStr) return;
-
-    const key = `dismissed_summary_${summary.week_start_date}`;
+    // Show once per summary date — don't re-prompt if already dismissed
+    const key = `dismissed_summary_${summary.week_end_date}`;
     const alreadyShown = await AsyncStorage.getItem(key);
     if (alreadyShown) return;
 
-    // Mark as shown before displaying — prevents repeat on subsequent opens
     await AsyncStorage.setItem(key, 'true');
     setTuesdayModalVisible(true);
     await cleanupOldSummaryKeys();
@@ -621,7 +617,7 @@ const RoutineScreen: React.FC = () => {
 
       {activeSection === 'routine' ? (
         <>
-          {/* Weekly Summary Banner - Monday only */}
+          {/* Daily Summary Banner */}
           <WeeklySummaryBanner
             summary={currentSummary}
             onPress={() => setSummaryModalVisible(true)}
@@ -1037,12 +1033,12 @@ const RoutineScreen: React.FC = () => {
               <Text style={styles.tuesdayCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <Text style={styles.tuesdayTitle}>Last Chance: Weekly Summary</Text>
+            <Text style={styles.tuesdayTitle}>Daily Summary Ready</Text>
 
             {currentSummary && (
               <Text style={styles.tuesdaySubtitle}>
-                Your weekly summary from{'\n'}
-                {formatDate(currentSummary.week_start_date)} – {formatDate(currentSummary.week_end_date)}
+                Your daily summary from{'\n'}
+                {formatDate(currentSummary.week_end_date)}
               </Text>
             )}
 
@@ -1060,7 +1056,7 @@ const RoutineScreen: React.FC = () => {
         </View>
       </Modal>
 
-          {/* Weekly Summary Modal */}
+          {/* Daily Summary Modal */}
           <WeeklySummaryModal
             visible={summaryModalVisible}
             summary={currentSummary}

@@ -201,7 +201,7 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
               {summary.is_improvement ? '↑' : '↓'} {Math.abs(summary.improvement_percentage)}%
             </Text>
             <Text style={styles.performanceLabel}>
-              {summary.is_improvement ? 'improvement' : 'decrease'} from last week
+              {summary.is_improvement ? 'improvement' : 'decrease'} from yesterday
             </Text>
           </View>
         </View>
@@ -220,7 +220,7 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Weekly Summary</Text>
+            <Text style={styles.headerTitle}>Daily Summary</Text>
             <Text style={styles.headerDate}>
               {formatDateRange(summary.week_start_date, summary.week_end_date)}
             </Text>

@@ -8,20 +8,17 @@ interface WeeklySummaryBannerProps {
 }
 
 const WeeklySummaryBanner: React.FC<WeeklySummaryBannerProps> = ({ summary, onPress }) => {
-  // Only show on Mondays when a summary exists
-  const isMonday = new Date().getDay() === 1;
-  if (!isMonday || !summary) return null;
+  // Show whenever a daily summary exists with real data
+  if (!summary || !summary.has_complete_data) return null;
 
   return (
     <TouchableOpacity onPress={onPress} style={styles.banner} activeOpacity={0.8}>
       <View style={styles.content}>
         <Text style={styles.icon}>📊</Text>
         <View style={styles.textContainer}>
-          <Text style={styles.title}>Weekly Summary Available</Text>
+          <Text style={styles.title}>Daily Summary Available</Text>
           <Text style={styles.subtitle}>
-            {summary.has_complete_data
-              ? `${Math.round((summary.nonnegotiables_percentage + summary.nicetohaves_percentage + summary.weekly_goals_percentage) / 3)}% overall completion`
-              : 'Tap to view'}
+            {`${Math.round((summary.nonnegotiables_percentage + summary.nicetohaves_percentage + summary.weekly_goals_percentage) / 3)}% overall completion`}
           </Text>
         </View>
         <Text style={styles.arrow}>›</Text>
