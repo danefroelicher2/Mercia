@@ -103,14 +103,13 @@ router.post('/feedback', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// Manual trigger for memory condensation job (dev/testing use)
+/**
+ * POST /api/memory/trigger-condensation
+ * Manually triggers memory condensation for the authenticated user. Dev/testing use.
+ */
 router.post('/trigger-condensation', async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
-      return;
-    }
+    const userId = req.user!.id;
 
     const result = await runCondensationForUser(userId);
 
