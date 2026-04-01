@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getMemoryManager } from '../services/merciaCore';
 import { MEMORY_CAPS } from '@mercia/ai-core';
+import { runCondensationForUser } from '../jobs/memoryCondensationJob';
 
 const router = Router();
 
@@ -111,7 +112,6 @@ router.post('/trigger-condensation', async (req: Request, res: Response): Promis
       return;
     }
 
-    const { runCondensationForUser } = await import('../jobs/memoryCondensationJob');
     const result = await runCondensationForUser(userId);
 
     res.json({ success: true, data: result });
