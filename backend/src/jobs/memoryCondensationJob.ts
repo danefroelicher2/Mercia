@@ -37,7 +37,7 @@ export interface CondensationResult {
 
 export function startMemoryCondensationJob(): CronJob {
   const job = new CronJob(
-    '0 3 */4 * *',
+    '0 3 * * 1,4',
     async () => {
       console.log('\n[CONDENSATION] ========================================');
       console.log('[CONDENSATION] Starting memory condensation job');
@@ -53,7 +53,7 @@ export function startMemoryCondensationJob(): CronJob {
     'America/New_York'
   );
 
-  console.log('[CRON] Memory condensation job scheduled (3:00 AM ET every 4 days)');
+  console.log('[CRON] Memory condensation job scheduled (3:00 AM ET, Mon & Thu)');
   return job;
 }
 
@@ -174,7 +174,6 @@ If no redundancies found, return: {"proposed_changes":[]}`;
       const primary = committed.find(e => e.id === change.primary_id);
       const redundant = committed.find(e => e.id === change.redundant_id);
       if (!primary || !redundant) return false;
-      if ((primary.source_count || 1) > MAX_SOURCE_COUNT_TO_TOUCH) return false;
       if ((redundant.source_count || 1) > MAX_SOURCE_COUNT_TO_TOUCH) return false;
       if (change.action === 'merge' && !change.merged_content?.trim()) return false;
       return true;
@@ -206,7 +205,7 @@ If no redundancies found, return: {"proposed_changes":[]}`;
         content: change.merged_content!.trim(),
         category: primary.category,
         source_type: primary.source_type,
-        source_id: primary.source_id,
+        source_id: primary.source_id, // provenance from primary only — redundant source_id not retained
         confidence: Math.max(primary.confidence || 0.7, redundant.confidence || 0.7),
         semantic_importance: Math.max(primary.semantic_importance || 0.7, redundant.semantic_importance || 0.7),
         source_count: Math.max(primary.source_count || 1, redundant.source_count || 1) + 1,
