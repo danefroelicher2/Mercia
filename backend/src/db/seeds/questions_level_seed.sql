@@ -1,30 +1,279 @@
--- Migration: Add 8-level question difficulty system columns
--- Applied: 2026-04-01
--- Project: eooenwleghhzrzgkagjp (Supabase)
--- Prerequisites: oasis.daily_questions and oasis.user_memory_profiles tables must exist
+-- ============================================
+-- QUESTION BANK SEED — 235 questions, levels 1-8
+-- Run in Supabase SQL editor AFTER migration
+-- ============================================
 
-BEGIN;
+-- ============================================
+-- LEVEL 1 — Behavioral baseline (10 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('When you are in the middle of something and get interrupted, what is your honest first reaction — and what do you actually do?', 'experiences', 'easy', 1, ARRAY['behavior', 'self-awareness'], true),
+('What is something small you do every day that you would notice immediately if it were gone?', 'experiences', 'easy', 1, ARRAY['habits', 'routine'], true),
+('When you are running late, what goes through your mind — and how does it affect how you show up?', 'experiences', 'easy', 1, ARRAY['stress', 'behavior'], true),
+('Describe the last time something genuinely surprised you. How did you handle the unexpected?', 'experiences', 'easy', 1, ARRAY['adaptability', 'reactions'], true),
+('What is your default when you are bored — and what does that tell you about yourself?', 'experiences', 'easy', 1, ARRAY['habits', 'self-awareness'], true),
+('When you finish a hard day, what is the first thing you do? What are you actually trying to recover from?', 'experiences', 'easy', 1, ARRAY['recovery', 'stress'], true),
+('Think of a task you keep putting off. What is the real reason it is still not done?', 'experiences', 'easy', 1, ARRAY['procrastination', 'honesty'], true),
+('When someone disagrees with you in conversation, what is your first instinct — to defend, to listen, or something else?', 'experiences', 'easy', 1, ARRAY['communication', 'reactions'], true),
+('What is a habit you have that you have never explained to anyone but makes complete sense to you?', 'experiences', 'easy', 1, ARRAY['habits', 'self-knowledge'], true),
+('When you are physically tired but have something left to do, what determines whether you push through or stop?', 'experiences', 'easy', 1, ARRAY['discipline', 'decision-making'], true);
 
--- Add level column to daily_questions
-ALTER TABLE oasis.daily_questions
-  ADD COLUMN IF NOT EXISTS level INTEGER;
+-- ============================================
+-- LEVEL 2 — Environment and people (14 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('Think of a place — physical or social — where you consistently show up as your best self. What is different about it?', 'experiences', 'easy', 2, ARRAY['environment', 'performance'], true),
+('Who in your life has pushed you hardest, and what made you keep listening instead of tuning them out?', 'relationships', 'easy', 2, ARRAY['influence', 'growth'], true),
+('What kind of person drains you most — not in an obvious way, but subtly, over time?', 'relationships', 'easy', 2, ARRAY['energy', 'relationships'], true),
+('When do you feel most at home? Describe the conditions, not just the location.', 'experiences', 'easy', 2, ARRAY['belonging', 'environment'], true),
+('What is a relationship in your life that changed who you were — not who you thought you were, but actually were?', 'relationships', 'easy', 2, ARRAY['growth', 'relationships'], true),
+('Is there someone you act differently around? What version of yourself shows up with them, and why?', 'relationships', 'easy', 2, ARRAY['identity', 'relationships'], true),
+('What environment brings out your worst habits? What is it about that context specifically?', 'experiences', 'easy', 2, ARRAY['environment', 'habits'], true),
+('Think of the last time you felt genuinely energized after spending time with someone. What made it different from most interactions?', 'relationships', 'easy', 2, ARRAY['energy', 'connection'], true),
+('What is something about your current environment that you tolerate but know is not good for you?', 'experiences', 'easy', 2, ARRAY['self-awareness', 'environment'], true),
+('When do you feel most understood? What is present in those moments that usually is not?', 'relationships', 'easy', 2, ARRAY['connection', 'communication'], true),
+('Who in your past shaped how you think about effort and work? What did they model, intentionally or not?', 'relationships', 'easy', 2, ARRAY['influence', 'work'], true),
+('What is a group or community where you consistently show up smaller than you actually are? What causes that?', 'relationships', 'easy', 2, ARRAY['identity', 'social'], true),
+('Describe the last time your environment made you better at something. What was the mechanism?', 'experiences', 'easy', 2, ARRAY['growth', 'environment'], true),
+('What kinds of conversations leave you feeling clear and alive — and what makes them rare?', 'relationships', 'easy', 2, ARRAY['communication', 'energy'], true);
 
--- Set all existing questions to level 1
-UPDATE oasis.daily_questions SET level = 1 WHERE level IS NULL;
+-- ============================================
+-- LEVEL 3 — Decision-making under real conditions (22 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('Walk me through the last significant decision you made. What did you weigh, what did you ignore, and what made you pull the trigger?', 'decision_making', 'medium', 3, ARRAY['decision-making', 'process'], true),
+('When you are stuck between two options and both feel equally right, what actually breaks the tie?', 'decision_making', 'medium', 3, ARRAY['decision-making', 'instinct'], true),
+('Think of a decision you made quickly that turned out well. What did you know that let you move fast?', 'decision_making', 'medium', 3, ARRAY['decision-making', 'confidence'], true),
+('What is a decision you have been putting off? What information are you actually waiting for?', 'decision_making', 'medium', 3, ARRAY['procrastination', 'avoidance'], true),
+('When have you made a decision purely on instinct — ignoring the reasoning — and been right? What was the signal?', 'decision_making', 'medium', 3, ARRAY['instinct', 'intuition'], true),
+('Describe a time you changed your mind midway through something. What shifted, and how did you handle the pivot?', 'decision_making', 'medium', 3, ARRAY['adaptability', 'flexibility'], true),
+('When you are facing a choice between what you want and what seems responsible, how do you decide — and how often do you regret it?', 'decision_making', 'medium', 3, ARRAY['values', 'trade-offs'], true),
+('What is the last decision you made that someone close to you disagreed with? How did you handle the friction?', 'decision_making', 'medium', 3, ARRAY['relationships', 'conflict'], true),
+('Think of a decision you made under real time pressure. What cut through the noise?', 'decision_making', 'medium', 3, ARRAY['pressure', 'clarity'], true),
+('When have you known the right answer but still made the wrong call? What was actually driving that?', 'decision_making', 'medium', 3, ARRAY['self-deception', 'honesty'], true),
+('What is something you would decide differently if you were not worried about what other people thought?', 'decision_making', 'medium', 3, ARRAY['approval', 'authenticity'], true),
+('Describe a time you gave someone advice you were not following yourself. What was the gap?', 'experiences', 'medium', 3, ARRAY['hypocrisy', 'self-awareness'], true),
+('When you are uncertain, do you tend to move toward more information or toward a decision? What does that cost you?', 'decision_making', 'medium', 3, ARRAY['uncertainty', 'patterns'], true),
+('What is a decision from your past that, looking back, shows you exactly who you were at that time?', 'experiences', 'medium', 3, ARRAY['identity', 'reflection'], true),
+('When does fear most reliably distort your decisions — and how do you know when it is doing that?', 'decision_making', 'medium', 3, ARRAY['fear', 'self-awareness'], true),
+('What is the hardest no you have said in the last year? What made it hard, and do you stand by it?', 'decision_making', 'medium', 3, ARRAY['boundaries', 'values'], true),
+('Think of a time you stayed in something too long — a job, a relationship, a commitment. When did you know, and why did you stay?', 'experiences', 'medium', 3, ARRAY['avoidance', 'patterns'], true),
+('What is a decision you have made that surprised you — that revealed something about yourself you did not know was there?', 'decision_making', 'medium', 3, ARRAY['self-discovery', 'identity'], true),
+('When you are making a high-stakes decision, who do you actually talk to — and what are you hoping to hear from them?', 'relationships', 'medium', 3, ARRAY['relationships', 'validation'], true),
+('Describe a time when doing the right thing was also the costly thing. How did you weigh it?', 'values', 'medium', 3, ARRAY['integrity', 'cost'], true),
+('What is a pattern in how you make decisions that you have noticed but never changed? Why not?', 'decision_making', 'medium', 3, ARRAY['patterns', 'self-awareness'], true),
+('When have you been most decisive in your life? What conditions made that possible?', 'decision_making', 'medium', 3, ARRAY['confidence', 'clarity'], true);
 
--- Make level NOT NULL now that all rows have a value
-ALTER TABLE oasis.daily_questions
-  ALTER COLUMN level SET NOT NULL;
+-- ============================================
+-- LEVEL 4 — Values under pressure (27 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('Tell me about a time you stayed quiet when you should have spoken up. What was actually holding you back?', 'values', 'medium', 4, ARRAY['courage', 'honesty'], true),
+('What is something you believe is right that you consistently do not do? What lives in that gap?', 'values', 'medium', 4, ARRAY['integrity', 'self-awareness'], true),
+('When have you compromised on something you said you would not compromise on? What story did you tell yourself?', 'values', 'medium', 4, ARRAY['integrity', 'self-deception'], true),
+('Think of a time someone needed something from you that was inconvenient. What did you actually do — not what you wish you had done?', 'relationships', 'medium', 4, ARRAY['generosity', 'honesty'], true),
+('What is a value you hold that costs you something real? What does it regularly ask you to give up?', 'values', 'medium', 4, ARRAY['sacrifice', 'integrity'], true),
+('When have you been most proud of how you handled a difficult moment? What made that version of you possible?', 'experiences', 'medium', 4, ARRAY['character', 'pride'], true),
+('Describe a time you chose comfort over growth. Were you at peace with it then? Are you now?', 'experiences', 'medium', 4, ARRAY['growth', 'comfort'], true),
+('What is something you have done that conflicted with who you think you are? How did you reconcile it?', 'values', 'medium', 4, ARRAY['identity', 'integrity'], true),
+('When have you been let down by someone you trusted? How did that change how you extend trust?', 'relationships', 'medium', 4, ARRAY['trust', 'betrayal'], true),
+('What is a belief about yourself that you protect fiercely — even when evidence challenges it?', 'values', 'medium', 4, ARRAY['identity', 'defensiveness'], true),
+('Think of a time you were under real pressure and your actual character showed up. What did you learn?', 'experiences', 'medium', 4, ARRAY['character', 'pressure'], true),
+('When something unfair happened to you, what did you do? What does that response say about you?', 'experiences', 'medium', 4, ARRAY['fairness', 'character'], true),
+('What is the most honest feedback someone has given you that you did not want to hear — but needed to?', 'experiences', 'medium', 4, ARRAY['feedback', 'growth'], true),
+('When have you let a relationship deteriorate because taking action felt too uncomfortable?', 'relationships', 'medium', 4, ARRAY['avoidance', 'relationships'], true),
+('What is something you have never apologized for that you probably should have? What makes it hard?', 'relationships', 'medium', 4, ARRAY['accountability', 'pride'], true),
+('Describe the last time you felt genuinely conflicted about what to do. Not confused — conflicted. What was pulling in each direction?', 'values', 'medium', 4, ARRAY['conflict', 'values'], true),
+('What is a standard you hold other people to that you do not always meet yourself?', 'values', 'medium', 4, ARRAY['hypocrisy', 'honesty'], true),
+('When have you been at your most selfish — in a way that revealed something real about what you prioritize?', 'values', 'medium', 4, ARRAY['self-awareness', 'priorities'], true),
+('What is something you would change about how you treated someone, if you could?', 'relationships', 'medium', 4, ARRAY['regret', 'accountability'], true),
+('Think of a moment when you were genuinely tested. Not inconvenienced — tested. What showed up?', 'experiences', 'medium', 4, ARRAY['character', 'resilience'], true),
+('When do you lie to yourself most easily? What does it protect?', 'values', 'medium', 4, ARRAY['self-deception', 'honesty'], true),
+('What is a boundary you set and then did not hold? What does the pattern tell you?', 'values', 'medium', 4, ARRAY['boundaries', 'patterns'], true),
+('Describe a time when being honest made things significantly worse. What did you conclude from that?', 'experiences', 'medium', 4, ARRAY['honesty', 'consequences'], true),
+('What is something you keep doing even though it contradicts a value you say you hold? What is the real reason?', 'values', 'medium', 4, ARRAY['integrity', 'self-awareness'], true),
+('When have you shown up for someone at real cost to yourself? What made you do it?', 'relationships', 'medium', 4, ARRAY['sacrifice', 'character'], true),
+('What is the most difficult conversation you have ever had to initiate? What made you finally do it?', 'relationships', 'medium', 4, ARRAY['courage', 'communication'], true),
+('Think of a time you were rewarded for something you did not feel you deserved. How did you handle it internally?', 'experiences', 'medium', 4, ARRAY['integrity', 'self-worth'], true);
 
--- NOTE: CHECK constraint below was not applied in the live migration
--- ALTER TABLE oasis.daily_questions
---   ADD CONSTRAINT daily_questions_level_check CHECK (level BETWEEN 1 AND 8);
+-- ============================================
+-- LEVEL 5 — Identity and self-concept (32 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('What is a story you tell about yourself that you are not entirely sure is still true?', 'values', 'deep', 5, ARRAY['identity', 'self-narrative'], true),
+('What does discipline mean to you in practice — not the version you would say out loud, the version your calendar shows?', 'values', 'deep', 5, ARRAY['discipline', 'honesty'], true),
+('How do you think most people see you? How does that differ from how you actually are?', 'experiences', 'deep', 5, ARRAY['perception', 'identity'], true),
+('What part of who you are now would your younger self not recognize — and would that be a loss or a gain?', 'experiences', 'deep', 5, ARRAY['growth', 'identity'], true),
+('What are you most afraid of becoming? What makes you afraid of that specifically?', 'values', 'deep', 5, ARRAY['fear', 'identity'], true),
+('When do you feel most like yourself? What is present in those moments that usually is not?', 'experiences', 'deep', 5, ARRAY['authenticity', 'identity'], true),
+('What is a quality you have always wanted to have that you have stopped pretending you will develop?', 'values', 'deep', 5, ARRAY['self-acceptance', 'identity'], true),
+('Who do you most envy? What does that tell you about what you actually want?', 'values', 'deep', 5, ARRAY['envy', 'desire'], true),
+('What is a narrative about your past that shapes how you make decisions now — even when it might not apply anymore?', 'experiences', 'deep', 5, ARRAY['patterns', 'self-narrative'], true),
+('What role do you default to in groups? Is that who you actually are, or who it is easiest to be?', 'relationships', 'deep', 5, ARRAY['social', 'authenticity'], true),
+('What is something you believe about yourself that people who know you well would strongly disagree with?', 'values', 'deep', 5, ARRAY['blind-spots', 'self-perception'], true),
+('When you imagine your ideal future self, what is the one quality that person has that you are most uncertain you will develop?', 'goals', 'deep', 5, ARRAY['growth', 'uncertainty'], true),
+('What part of your personality have you learned to hide — not suppress, but hide — because it does not go over well?', 'values', 'deep', 5, ARRAY['authenticity', 'social'], true),
+('What is the difference between who you are when things are going well and who you are when they are not?', 'experiences', 'deep', 5, ARRAY['character', 'resilience'], true),
+('What would you do differently if you were completely certain no one was watching or judging?', 'values', 'deep', 5, ARRAY['authenticity', 'approval'], true),
+('What is something you have outgrown but still carry with you out of habit or identity?', 'experiences', 'deep', 5, ARRAY['growth', 'identity'], true),
+('When have you felt most at odds with who you thought you were? What did you do with that feeling?', 'experiences', 'deep', 5, ARRAY['identity', 'dissonance'], true),
+('What is a strength of yours that sometimes becomes a problem? How does it flip?', 'values', 'deep', 5, ARRAY['strengths', 'shadow'], true),
+('What is something about yourself you have made peace with that other people in your life have not?', 'values', 'deep', 5, ARRAY['self-acceptance', 'boundaries'], true),
+('If your behavior for the last 30 days was the only evidence someone had of who you are, what would they conclude?', 'values', 'deep', 5, ARRAY['integrity', 'accountability'], true),
+('What is the most significant way you have changed in the last five years? What caused it?', 'experiences', 'deep', 5, ARRAY['growth', 'change'], true),
+('What do you want to be remembered for? Is what you are actually doing aligned with that?', 'goals', 'deep', 5, ARRAY['legacy', 'alignment'], true),
+('What is something you have convinced yourself you do not care about that you actually do?', 'values', 'deep', 5, ARRAY['self-deception', 'desire'], true),
+('When do you most feel like you are performing a version of yourself rather than being it?', 'experiences', 'deep', 5, ARRAY['authenticity', 'performance'], true),
+('What is a part of your identity that you built as a response to something that happened — not because it is naturally who you are?', 'experiences', 'deep', 5, ARRAY['identity', 'origin'], true),
+('What is the most honest thing you could say about how ambitious you actually are?', 'values', 'deep', 5, ARRAY['ambition', 'honesty'], true),
+('What would you pursue if failure was not a signal about your worth — just data?', 'goals', 'deep', 5, ARRAY['fear', 'ambition'], true),
+('What aspect of who you are do you think took the longest to develop? What built it?', 'experiences', 'deep', 5, ARRAY['growth', 'identity'], true),
+('What is something you do that you would struggle to explain to yourself, let alone anyone else?', 'experiences', 'deep', 5, ARRAY['self-knowledge', 'behavior'], true),
+('When you are at your worst, what is the version of the story you tell yourself about why it happened?', 'values', 'deep', 5, ARRAY['accountability', 'self-narrative'], true),
+('What is a version of success you have quietly given up on? Have you made peace with that, or just stopped talking about it?', 'goals', 'deep', 5, ARRAY['acceptance', 'ambition'], true),
+('What is the difference between how you make yourself available to others versus how you make yourself available to yourself?', 'relationships', 'deep', 5, ARRAY['self-care', 'priorities'], true);
 
--- Index for level-filtered queries
-CREATE INDEX IF NOT EXISTS idx_questions_level ON oasis.daily_questions(level);
+-- ============================================
+-- LEVEL 6 — Belief systems (36 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('What is something most people believe about success that you think is genuinely wrong?', 'beliefs', 'deep', 6, ARRAY['success', 'worldview'], true),
+('Do you believe people fundamentally change, or do they just learn better expressions of the same thing?', 'beliefs', 'deep', 6, ARRAY['change', 'human-nature'], true),
+('What is a belief you held 10 years ago that you would now consider naive? What changed your mind?', 'beliefs', 'deep', 6, ARRAY['growth', 'beliefs'], true),
+('Where do your strongest beliefs come from — observation, experience, or something you were told?', 'beliefs', 'deep', 6, ARRAY['beliefs', 'origin'], true),
+('What is something you believe about human nature that most people would find pessimistic — and you have found to be true?', 'beliefs', 'deep', 6, ARRAY['human-nature', 'realism'], true),
+('What do you think most people get wrong about how to build a meaningful life?', 'beliefs', 'deep', 6, ARRAY['meaning', 'worldview'], true),
+('What is your honest view of how much control any person has over the shape of their own life?', 'beliefs', 'deep', 6, ARRAY['agency', 'control'], true),
+('What is a cultural belief you absorbed growing up that you have since actively rejected? What replaced it?', 'beliefs', 'deep', 6, ARRAY['culture', 'growth'], true),
+('What do you believe about failure that most people in your life do not share?', 'beliefs', 'deep', 6, ARRAY['failure', 'worldview'], true),
+('What is your view of luck versus effort in outcomes? Has that belief changed based on what has happened to you?', 'beliefs', 'deep', 6, ARRAY['luck', 'effort'], true),
+('What do you think is the most underrated quality in a person? Why do you think it is underrated?', 'beliefs', 'deep', 6, ARRAY['character', 'worldview'], true),
+('What is something you believe about relationships that you have never said out loud because it is easier not to?', 'beliefs', 'deep', 6, ARRAY['relationships', 'honesty'], true),
+('What do you think most people are wrong about when it comes to how they spend their time?', 'beliefs', 'deep', 6, ARRAY['time', 'priorities'], true),
+('What is your belief about whether hard work guarantees anything? What evidence is that based on?', 'beliefs', 'deep', 6, ARRAY['work', 'merit'], true),
+('What is a conviction you have about money that shapes how you actually live — not what you would say in theory?', 'beliefs', 'deep', 6, ARRAY['money', 'values'], true),
+('What do you believe about suffering — is it necessary, avoidable, useful? Where does that belief come from?', 'beliefs', 'deep', 6, ARRAY['suffering', 'meaning'], true),
+('What is your honest view of what most people are actually after, underneath the reasons they give?', 'beliefs', 'deep', 6, ARRAY['human-nature', 'motivation'], true),
+('What do you think is the most common self-deception people practice? Do you do it?', 'beliefs', 'deep', 6, ARRAY['self-deception', 'honesty'], true),
+('What is something you believe about happiness that most self-help frameworks get wrong?', 'beliefs', 'deep', 6, ARRAY['happiness', 'worldview'], true),
+('What do you think is the real reason most people do not follow through on what they say matters to them?', 'beliefs', 'deep', 6, ARRAY['behavior', 'motivation'], true),
+('What do you believe about identity — is it fixed, chosen, or revealed? Does your behavior match that belief?', 'beliefs', 'deep', 6, ARRAY['identity', 'beliefs'], true),
+('What is your view on forgiveness — is it for you or for the other person? Has that view cost you anything?', 'beliefs', 'deep', 6, ARRAY['forgiveness', 'values'], true),
+('What do you think most people misunderstand about what makes a good life?', 'beliefs', 'deep', 6, ARRAY['meaning', 'worldview'], true),
+('What is a belief you have about work that you think separates people who thrive from those who do not?', 'beliefs', 'deep', 6, ARRAY['work', 'worldview'], true),
+('What do you actually believe about whether most people are fundamentally good?', 'beliefs', 'deep', 6, ARRAY['human-nature', 'worldview'], true),
+('What is something you believe about how trust works that most people in your life have found frustrating?', 'beliefs', 'deep', 6, ARRAY['trust', 'relationships'], true),
+('What is your honest view of what ambition does to a person over time?', 'beliefs', 'deep', 6, ARRAY['ambition', 'consequences'], true),
+('What do you believe about regret — is it useful, indulgent, or something else? Has that view served you?', 'beliefs', 'deep', 6, ARRAY['regret', 'philosophy'], true),
+('What is your belief about the role of community versus independence in living well?', 'beliefs', 'deep', 6, ARRAY['community', 'independence'], true),
+('What do you think is the most important thing a person can develop in their 20s? Why?', 'beliefs', 'deep', 6, ARRAY['growth', 'wisdom'], true),
+('What is your view on discipline — is it something you cultivate or something you either have or do not?', 'beliefs', 'deep', 6, ARRAY['discipline', 'nature-nurture'], true),
+('What do you believe about what people owe each other — in general, not in a legal sense?', 'beliefs', 'deep', 6, ARRAY['ethics', 'community'], true),
+('What is a moral position you hold that you would have difficulty defending publicly but you are certain of privately?', 'beliefs', 'deep', 6, ARRAY['ethics', 'integrity'], true),
+('What is your view of the relationship between comfort and growth?', 'beliefs', 'deep', 6, ARRAY['growth', 'comfort'], true),
+('What do you believe about where meaning actually comes from — and has that changed?', 'beliefs', 'deep', 6, ARRAY['meaning', 'philosophy'], true),
+('What is the most important thing you have concluded from watching how other people live their lives?', 'beliefs', 'deep', 6, ARRAY['observation', 'wisdom'], true);
 
--- Add question_level to user_memory_profiles
-ALTER TABLE oasis.user_memory_profiles
-  ADD COLUMN IF NOT EXISTS question_level INTEGER NOT NULL DEFAULT 1;
+-- ============================================
+-- LEVEL 7 — Shadow and contradiction (42 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('What quality in other people bothers you most — and where do you see it in yourself?', 'values', 'deep', 7, ARRAY['shadow', 'projection'], true),
+('What would the people closest to you say is your biggest blind spot? Are they right?', 'relationships', 'deep', 7, ARRAY['blind-spots', 'feedback'], true),
+('What is a pattern you have noticed in yourself that you keep making excuses for instead of changing?', 'values', 'deep', 7, ARRAY['patterns', 'accountability'], true),
+('When you have hurt someone, what story do you usually tell yourself about it? How accurate is it?', 'relationships', 'deep', 7, ARRAY['accountability', 'self-narrative'], true),
+('What is the version of you that shows up under real stress — not the one you would want others to see?', 'experiences', 'deep', 7, ARRAY['shadow', 'stress'], true),
+('What is something you have done that you have never fully forgiven yourself for? What makes it stick?', 'experiences', 'deep', 7, ARRAY['guilt', 'self-forgiveness'], true),
+('What is a way you self-sabotage that you have never fully admitted to yourself?', 'values', 'deep', 7, ARRAY['self-sabotage', 'honesty'], true),
+('When do you most feel like a fraud? What is actually underneath that feeling?', 'experiences', 'deep', 7, ARRAY['impostor-syndrome', 'identity'], true),
+('What is a part of yourself you have worked hard to change — and have not? What do you think that means?', 'values', 'deep', 7, ARRAY['change', 'acceptance'], true),
+('What is the most dishonest thing you do regularly — not to others, but to yourself?', 'values', 'deep', 7, ARRAY['self-deception', 'honesty'], true),
+('When have you been most cruel — not obviously, but in the way that lands quietly and stays?', 'relationships', 'deep', 7, ARRAY['shadow', 'impact'], true),
+('What is a fear you have dressed up as a principle or preference so you do not have to face it?', 'values', 'deep', 7, ARRAY['fear', 'self-deception'], true),
+('What is the thing about you that the person who loves you most finds hardest to tolerate?', 'relationships', 'deep', 7, ARRAY['shadow', 'relationships'], true),
+('When you fail, what is your default response — and how long does it take you to actually look at what went wrong?', 'experiences', 'deep', 7, ARRAY['failure', 'accountability'], true),
+('What is something you resent in others that you suspect is really resentment at yourself?', 'values', 'deep', 7, ARRAY['resentment', 'projection'], true),
+('What is a way you make yourself feel better that leaves you feeling worse over time?', 'values', 'deep', 7, ARRAY['coping', 'patterns'], true),
+('What is the most significant thing you have avoided dealing with — not because you do not know it is there, but because dealing with it feels too costly?', 'values', 'deep', 7, ARRAY['avoidance', 'courage'], true),
+('What part of your personality do you think has caused the most damage to people around you?', 'relationships', 'deep', 7, ARRAY['shadow', 'impact'], true),
+('When do you most treat people as means rather than ends? What justification do you use?', 'relationships', 'deep', 7, ARRAY['ethics', 'shadow'], true),
+('What is a thing you do that you know is not good for you — that you do more when you are doing well, not less?', 'values', 'deep', 7, ARRAY['patterns', 'shadow'], true),
+('What is the gap between how you think you listen and how you actually listen?', 'relationships', 'deep', 7, ARRAY['communication', 'blind-spots'], true),
+('When have you been most afraid — not of a situation, but of yourself?', 'experiences', 'deep', 7, ARRAY['fear', 'shadow'], true),
+('What is a way you have let someone down that you have never acknowledged to them or to yourself?', 'relationships', 'deep', 7, ARRAY['accountability', 'avoidance'], true),
+('What is a pattern in your closest relationships that keeps repeating? What is your role in it?', 'relationships', 'deep', 7, ARRAY['patterns', 'accountability'], true),
+('What is something you have convinced yourself is strength that is actually avoidance?', 'values', 'deep', 7, ARRAY['avoidance', 'self-deception'], true),
+('When do you most need to be right? What does being wrong cost you?', 'values', 'deep', 7, ARRAY['ego', 'pride'], true),
+('What is the most unflattering accurate description someone could give of you at your worst?', 'experiences', 'deep', 7, ARRAY['shadow', 'honesty'], true),
+('What is a relationship you have damaged that you have never repaired — not because you could not, but because you did not?', 'relationships', 'deep', 7, ARRAY['accountability', 'avoidance'], true),
+('What is the part of your past you are most reluctant to examine? What do you think you would find?', 'experiences', 'deep', 7, ARRAY['past', 'avoidance'], true),
+('When are you most likely to be unkind — not dramatically, but in the small dismissive ways?', 'relationships', 'deep', 7, ARRAY['shadow', 'behavior'], true),
+('What is something about how you relate to people that you know is a response to old pain rather than current reality?', 'relationships', 'deep', 7, ARRAY['patterns', 'past'], true),
+('What is a way you have used honesty as a weapon while telling yourself you were just being direct?', 'relationships', 'deep', 7, ARRAY['shadow', 'honesty'], true),
+('When do you most feel entitled? What do you think that entitlement is covering?', 'values', 'deep', 7, ARRAY['entitlement', 'shadow'], true),
+('What is a compromise you made a long time ago that you have built an identity around — so you cannot see it as a compromise anymore?', 'values', 'deep', 7, ARRAY['identity', 'self-deception'], true),
+('What is something about you that the version of you at 18 would be disappointed by?', 'experiences', 'deep', 7, ARRAY['identity', 'growth'], true),
+('What is a way your ego gets in the way of what you actually want?', 'values', 'deep', 7, ARRAY['ego', 'shadow'], true),
+('When you are at your most defensive, what are you actually protecting?', 'values', 'deep', 7, ARRAY['defensiveness', 'shadow'], true),
+('What is the hardest thing to love about yourself?', 'values', 'deep', 7, ARRAY['self-acceptance', 'shadow'], true),
+('What pattern do you repeat that you already know the ending to but keep starting anyway?', 'experiences', 'deep', 7, ARRAY['patterns', 'self-awareness'], true),
+('What is something you have never said out loud about yourself that has been true for a long time?', 'values', 'deep', 7, ARRAY['honesty', 'self-knowledge'], true),
+('When do you feel most unworthy — and what do you do with that feeling?', 'experiences', 'deep', 7, ARRAY['worth', 'shadow'], true),
+('What is the thing about your life that, if you are honest, you are most afraid will still be true in 10 years?', 'values', 'deep', 7, ARRAY['fear', 'honesty'], true);
 
-COMMIT;
+-- ============================================
+-- LEVEL 8 — Philosophy and meaning (52 questions)
+-- ============================================
+INSERT INTO oasis.daily_questions (question_text, category, difficulty, level, tags, active) VALUES
+('What would you need to believe about the world for your current way of living to make complete sense?', 'beliefs', 'deep', 8, ARRAY['philosophy', 'meaning'], true),
+('At what point in your life did you most feel like you were becoming who you are supposed to be?', 'experiences', 'deep', 8, ARRAY['identity', 'becoming'], true),
+('What is a question you have been living with for years that you are no closer to answering?', 'beliefs', 'deep', 8, ARRAY['philosophy', 'uncertainty'], true),
+('If the way you spend your days is the way you spend your life, what kind of life are you building?', 'goals', 'deep', 8, ARRAY['meaning', 'alignment'], true),
+('What does it mean to you to live well — not successfully, but well?', 'values', 'deep', 8, ARRAY['meaning', 'philosophy'], true),
+('What would you do with your life if approval and disapproval ceased to exist as forces?', 'values', 'deep', 8, ARRAY['freedom', 'authenticity'], true),
+('What is the most important thing you have learned that cannot be taught?', 'experiences', 'deep', 8, ARRAY['wisdom', 'experience'], true),
+('What does it mean to you to be free? Have you been free?', 'values', 'deep', 8, ARRAY['freedom', 'philosophy'], true),
+('When have you felt most fully alive — not happy, but alive?', 'experiences', 'deep', 8, ARRAY['vitality', 'meaning'], true),
+('What do you think you are here to do — not in a grand sense, but in the particular sense of what you and no one else might be suited for?', 'goals', 'deep', 8, ARRAY['purpose', 'identity'], true),
+('What is the relationship between who you are and the circumstances you were born into? Where does one end and the other begin?', 'beliefs', 'deep', 8, ARRAY['identity', 'agency'], true),
+('What would you need to let go of to become who you most want to be?', 'values', 'deep', 8, ARRAY['growth', 'letting-go'], true),
+('What is your actual relationship with death — not the one you present, but the one you live by?', 'beliefs', 'deep', 8, ARRAY['mortality', 'philosophy'], true),
+('What do you think the purpose of suffering is — if you think it has one?', 'beliefs', 'deep', 8, ARRAY['suffering', 'meaning'], true),
+('What is something you believe about the meaning of your own life that you could not explain to someone else but feel deeply?', 'beliefs', 'deep', 8, ARRAY['meaning', 'intuition'], true),
+('What would a genuinely good day look like, lived entirely by your own standards and no one else''s?', 'values', 'deep', 8, ARRAY['standards', 'authenticity'], true),
+('What have you built in your life that you are most proud of — not that others are proud of, but that you are?', 'experiences', 'deep', 8, ARRAY['pride', 'legacy'], true),
+('What is something you have stopped believing in that you used to organize your life around?', 'beliefs', 'deep', 8, ARRAY['change', 'beliefs'], true),
+('If you could only pass one thing on to the people who come after you — one way of seeing or being — what would it be?', 'values', 'deep', 8, ARRAY['legacy', 'wisdom'], true),
+('What is the question about your own life that most frightens you to answer honestly?', 'values', 'deep', 8, ARRAY['fear', 'honesty'], true),
+('What is the price you have paid for being who you are? Was it worth it?', 'experiences', 'deep', 8, ARRAY['identity', 'cost'], true),
+('When you imagine your life from the outside — as someone watching it unfold — what do you see?', 'experiences', 'deep', 8, ARRAY['perspective', 'reflection'], true),
+('What do you think it takes to actually change? Not improve — change.', 'beliefs', 'deep', 8, ARRAY['change', 'philosophy'], true),
+('What is your relationship with uncertainty? Not how you handle it — what do you think of it?', 'beliefs', 'deep', 8, ARRAY['uncertainty', 'philosophy'], true),
+('What do you believe happens after we die, and how does that belief actually shape how you live?', 'beliefs', 'deep', 8, ARRAY['mortality', 'meaning'], true),
+('What does loyalty mean to you at the deepest level — not as an idea, but as something you have practiced and tested?', 'values', 'deep', 8, ARRAY['loyalty', 'values'], true),
+('What is the most important relationship you have with yourself? How did you build it?', 'values', 'deep', 8, ARRAY['self-relationship', 'growth'], true),
+('What is the central tension of your life — the thing that is never fully resolved, that you keep navigating?', 'experiences', 'deep', 8, ARRAY['tension', 'meaning'], true),
+('What is something beautiful you have witnessed that changed how you see things?', 'experiences', 'deep', 8, ARRAY['beauty', 'perspective'], true),
+('What do you think is the hardest part of being a person?', 'beliefs', 'deep', 8, ARRAY['philosophy', 'humanity'], true),
+('If your life ended tomorrow, what would be the most honest account of what you did with it?', 'values', 'deep', 8, ARRAY['legacy', 'honesty'], true),
+('What is your relationship with time — do you feel like you have enough, too much, or that it moves at the wrong speed?', 'experiences', 'deep', 8, ARRAY['time', 'philosophy'], true),
+('What do you think is the most important thing you have ever done for someone else — the thing that cost you but mattered?', 'relationships', 'deep', 8, ARRAY['sacrifice', 'meaning'], true),
+('What is the difference between a life that was lived and a life that was survived?', 'beliefs', 'deep', 8, ARRAY['philosophy', 'meaning'], true),
+('What would you say to the version of yourself who is 20 years younger — not advice, but something true?', 'experiences', 'deep', 8, ARRAY['wisdom', 'reflection'], true),
+('What do you think gratitude actually requires — beyond the feeling?', 'values', 'deep', 8, ARRAY['gratitude', 'philosophy'], true),
+('What is the most important thing you have learned about other people?', 'beliefs', 'deep', 8, ARRAY['wisdom', 'relationships'], true),
+('What have you accepted about yourself that took a very long time to accept?', 'experiences', 'deep', 8, ARRAY['acceptance', 'growth'], true),
+('What does home mean to you — not a place, but a state? Have you found it?', 'values', 'deep', 8, ARRAY['belonging', 'meaning'], true),
+('What is the most important conversation you have never had?', 'relationships', 'deep', 8, ARRAY['courage', 'relationships'], true),
+('What do you think it means to take responsibility for your life — not in a self-help sense, but in the actual complete sense?', 'values', 'deep', 8, ARRAY['responsibility', 'philosophy'], true),
+('What is the clearest view you have ever had of yourself — when was it, and what did you see?', 'experiences', 'deep', 8, ARRAY['self-knowledge', 'clarity'], true),
+('What is your relationship with the idea of enough — when have you felt it, and what made it possible?', 'values', 'deep', 8, ARRAY['contentment', 'meaning'], true),
+('What do you believe about whether life has inherent meaning, or whether meaning is made? How does your answer change how you live?', 'beliefs', 'deep', 8, ARRAY['meaning', 'philosophy'], true),
+('What is the most significant thing you have ever risked? What was the outcome, and was the risk right regardless of outcome?', 'experiences', 'deep', 8, ARRAY['risk', 'courage'], true),
+('What is something you have stopped trying to explain to other people because they would have to have lived it to understand?', 'experiences', 'deep', 8, ARRAY['experience', 'understanding'], true),
+('What is the most honest thing you can say about why you want what you want?', 'values', 'deep', 8, ARRAY['desire', 'honesty'], true),
+('When have you felt most connected to something larger than yourself? What was it?', 'experiences', 'deep', 8, ARRAY['meaning', 'transcendence'], true),
+('What does integrity mean to you in practice — not as a word, but as a daily reality?', 'values', 'deep', 8, ARRAY['integrity', 'philosophy'], true),
+('What is the thing you have most needed to hear in your life? Did you ever hear it?', 'experiences', 'deep', 8, ARRAY['needs', 'reflection'], true),
+('What is the most complete version of yourself you have ever been? What made it possible?', 'experiences', 'deep', 8, ARRAY['wholeness', 'conditions'], true),
+('What would you do if you were certain you could not fail — not because of talent, but because the attempt itself was enough?', 'goals', 'deep', 8, ARRAY['courage', 'meaning'], true);
