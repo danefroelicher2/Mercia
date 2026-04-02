@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect, NavigationProp } from '@react-navigation/native';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { cacheQuestionState, getCachedQuestionState } from '../services/questionCache';
+import { cacheQuestionState, getCachedQuestionState, clearQuestionCache } from '../services/questionCache';
 import { formatRelativeTime } from '../utils/dateUtils';
 import { DailyQuestion, QuestionState, DailyQuestionApiResponse, AnswerApiResponse } from '../types/question';
 import { Chat, ChatsListApiResponse, CreateChatApiResponse } from '../types/chat';
@@ -69,6 +69,7 @@ const MerciaHomeScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSkipping, setIsSkipping] = useState<boolean>(false);
   const [questionError, setQuestionError] = useState<string>('');
+  const [canContinue, setCanContinue] = useState<boolean>(false);
 
   // ============================================
   // CHAT LIST STATE MANAGEMENT
@@ -191,6 +192,7 @@ const MerciaHomeScreen: React.FC = () => {
         setSubmittedAnswer(answerText);
         setAnswerText('');
         setQuestionState('answered');
+        setCanContinue(response.data.data.can_continue === true);
         console.log('[MerciaHomeScreen] Answer saved successfully');
 
         // Refresh memory profile and grouped insights to show updated data
@@ -210,6 +212,13 @@ const MerciaHomeScreen: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleContinue = async () => {
+    if (!user?.id) return;
+    setCanContinue(false);
+    await clearQuestionCache(user.id);
+    await fetchDailyQuestion();
   };
 
   const skipQuestion = async () => {
@@ -661,6 +670,15 @@ const MerciaHomeScreen: React.FC = () => {
       <View style={styles.answeredBox}>
         <Text style={styles.answeredText}>{submittedAnswer}</Text>
       </View>
+
+      {canContinue && (
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={handleContinue}
+        >
+          <Text style={styles.continueButtonText}>Next Question →</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.successRow}>
         <Text style={styles.successText}>✓ Thank you for answering today's question!</Text>
@@ -1309,6 +1327,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#5DCAA5',
     marginLeft: 8,
+  },
+  continueButton: {
+    marginTop: spacing.elementGap,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  continueButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
