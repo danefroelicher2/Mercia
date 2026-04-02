@@ -44,7 +44,6 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         .maybeSingle();
 
       if (existingQuestion) {
-        // Return existing question
         const { data: question } = await this.client
           .from('daily_questions')
           .select('*')
@@ -55,12 +54,21 @@ export class SupabaseStorageAdapter implements StorageAdapter {
           question_id: question.id,
           question_text: question.question_text,
           category: question.category,
+          level: question.level || 1,
           assigned_date: new Date(today),
           skip_count: existingQuestion.skipped_on?.length || 0,
         };
       }
 
-      // Get random unanswered question
+      // Get user's current question level
+      const { data: profileData } = await this.client
+        .from('user_memory_profiles')
+        .select('question_level')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const userLevel = profileData?.question_level || 1;
+
+      // Get answered question IDs
       const { data: answeredIds } = await this.client
         .from('user_question_responses')
         .select('question_id')
@@ -68,22 +76,24 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
       const answeredQuestionIds = answeredIds?.map(r => r.question_id) || [];
 
+      // Query questions at the user's current level only
       let query = this.client
         .from('daily_questions')
         .select('*')
-        .eq('active', true);
+        .eq('active', true)
+        .eq('level', userLevel);
 
       if (answeredQuestionIds.length > 0) {
         query = query.not('id', 'in', `(${answeredQuestionIds.join(',')})`);
       }
 
-      const { data: questions } = await query.limit(10);
+      const { data: questions } = await query.limit(20);
 
       if (!questions || questions.length === 0) {
-        return null; // All questions answered
+        return null; // All questions at this level answered
       }
 
-      // Pick random question
+      // Pick random question from the level pool
       const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
 
       // Assign to user
@@ -100,6 +110,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         question_id: randomQuestion.id,
         question_text: randomQuestion.question_text,
         category: randomQuestion.category,
+        level: randomQuestion.level || 1,
         assigned_date: new Date(today),
         skip_count: 0,
       };
