@@ -17,6 +17,10 @@ export class MemoryManager {
     private llm: LLMAdapter
   ) {}
 
+  // Cumulative questions_answered thresholds to advance to each level
+  // Index 0 = questions needed to reach level 2, index 6 = to reach level 8
+  private readonly QUESTION_LEVEL_THRESHOLDS = [4, 9, 19, 34, 54, 79, 109];
+
   // ============================================
   // PUBLIC API
   // ============================================
@@ -37,6 +41,7 @@ export class MemoryManager {
         supporting_quotes: [],
         profile_completeness: 0,
         questions_answered: 0,
+        question_level: 1,
         chat_messages_analyzed: 0,
         chat_extractions_count: 0,
         insights_metadata: [],
@@ -219,11 +224,22 @@ export class MemoryManager {
       newQuotes.push(quote);
     }
 
+    const newQuestionsAnswered = (profile.questions_answered || 0) + 1;
+    let newQuestionLevel = profile.question_level || 1;
+    if (newQuestionLevel < 8) {
+      const threshold = this.QUESTION_LEVEL_THRESHOLDS[newQuestionLevel - 1];
+      if (newQuestionsAnswered >= threshold) {
+        newQuestionLevel = newQuestionLevel + 1;
+        console.log(`[MemoryManager] User leveled up to question level ${newQuestionLevel} (${newQuestionsAnswered} questions answered)`);
+      }
+    }
+
     await this.storage.updateMemoryProfile(userId, {
       ...flatFields,
       insights_metadata: updatedMetadata,
       supporting_quotes: newQuotes.slice(-50),
-      questions_answered: (profile.questions_answered || 0) + 1,
+      questions_answered: newQuestionsAnswered,
+      question_level: newQuestionLevel,
       question_facts_count: questionFactsCount,
       conversation_facts_count: conversationFactsCount,
       question_facts_completeness: questionFactsCompleteness,
