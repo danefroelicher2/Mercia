@@ -30,6 +30,7 @@ export interface AnswerApiResponse {
       totalAnswered: number;
       currentStreak: number;
     };
+    can_continue: boolean;
   };
 }
 

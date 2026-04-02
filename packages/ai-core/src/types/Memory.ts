@@ -41,6 +41,7 @@ export interface MemoryProfile {
   // Legacy metadata
   profile_completeness: number; // average of the two completeness values
   questions_answered: number;
+  question_level: number;
   chat_messages_analyzed: number;
   chat_extractions_count: number;
   total_interactions: number;
