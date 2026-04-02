@@ -90,8 +90,10 @@ router.post(
         responseText
       );
       // Process response to update memory profile (synchronous for debugging)
+      let questionLevel = 1;
       try {
-        await memoryManager.processQuestionResponse(userId, response);
+        const updatedProfile = await memoryManager.processQuestionResponse(userId, response);
+        questionLevel = updatedProfile.question_level || 1;
         console.log('✅ Memory profile updated successfully');
       } catch (err) {
         console.error('❌ Failed to process response:', err);
@@ -144,6 +146,7 @@ router.post(
         data: {
           response,
           progress,
+          can_continue: questionLevel <= 3,
         },
       });
     } catch (error: any) {
