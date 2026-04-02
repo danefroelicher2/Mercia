@@ -1,6 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import api from './api';
 
 const PUSH_TOKEN_KEY = 'mercia_push_token';
 const NOTIFICATION_PREFS_KEY = 'mercia_notification_prefs';
@@ -51,9 +53,21 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
   const token = tokenData.data;
   await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+
+  // Sync token to backend so the server can send push notifications
+  try {
+    await api.post('/api/notifications/register', {
+      token,
+      platform: Platform.OS === 'ios' ? 'ios' : 'android',
+    });
+  } catch {
+    // Non-fatal — token is cached locally; will retry on next save
+  }
+
   return token;
 }
 
@@ -112,7 +126,16 @@ export async function applyNotificationPreferences(prefs: NotificationPrefs): Pr
     );
   }
 
-  // inactivityReminder and streakAtRisk are server-side push notifications.
-  // Preferences are already saved to AsyncStorage above; the server reads them
-  // via the push token to decide whether to send those notifications.
+  // Sync all preferences (including server-side ones) to backend
+  try {
+    await api.put('/api/notifications/preferences', {
+      dailyQuestionEnabled: prefs.dailyQuestionReminder,
+      dailyQuestionTime: `${String(prefs.dailyQuestionTime.hour).padStart(2, '0')}:${String(prefs.dailyQuestionTime.minute).padStart(2, '0')}`,
+      weeklySummaryEnabled: prefs.weeklySummaryReady,
+      inactivityReminderEnabled: prefs.inactivityReminder,
+      streakAtRiskEnabled: prefs.streakAtRisk,
+    });
+  } catch {
+    // Non-fatal — local prefs still applied
+  }
 }

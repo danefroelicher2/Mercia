@@ -13,6 +13,9 @@ project context across: Daily, Hub, Mercia, JS Learn directories.
 Run: git -C /Users/danefroelicher/obsidian-vault pull
 Then read relevant vault files before making recommendations.
 
+## SQL Commands
+Never create SQL migration files in the codebase. When SQL needs to be run, provide it directly in the chat so it can be copied into the Supabase SQL editor.
+
 ## Project Stack
 - React Native / Expo (mobile)
 - Node.js / Express (backend on Render)

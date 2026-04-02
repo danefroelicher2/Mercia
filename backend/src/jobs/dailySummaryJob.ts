@@ -1,6 +1,7 @@
 import { CronJob } from 'cron';
 import { getLLM } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
+import { sendPush } from '../services/pushNotifications';
 
 // ============================================
 // DAILY SUMMARY JOB
@@ -116,19 +117,26 @@ async function generateSummaryForUser(
     .eq('activity_type', 'question_answered')
     .limit(1);
 
-  // ── 5. Current weekly goal state ──────────────────────────────────────────
-  const { data: goalRows } = await supabase
+  // ── 5. Current weekly + monthly goal state (with text) ───────────────────
+  const { data: weeklyGoalRows } = await supabase
     .schema('oasis')
     .from('routine_goals')
-    .select('completed')
+    .select('id, text, completed')
     .eq('user_id', userId)
     .eq('type', 'weekly');
+
+  const { data: monthlyGoalRows } = await supabase
+    .schema('oasis')
+    .from('routine_goals')
+    .select('id, text, completed')
+    .eq('user_id', userId)
+    .eq('type', 'monthly');
 
   // ── 6. Previous daily summary for improvement comparison ──────────────────
   const { data: prevRow } = await supabase
     .schema('oasis')
     .from('weekly_summaries')
-    .select('nonnegotiables_percentage')
+    .select('nonnegotiables_percentage, nicetohaves_percentage, weekly_goals_percentage, overall_percentage, weekly_goals_completed, monthly_goals_completed')
     .eq('user_id', userId)
     .lt('week_end_date', date)
     .order('week_end_date', { ascending: false })
@@ -149,30 +157,68 @@ async function generateSummaryForUser(
   const niceCompleted = niceTasks.filter((t: any) => completedIds.has(t.id)).length;
   const nicePct       = niceTotal > 0 ? Math.round((niceCompleted / niceTotal) * 100) : 0;
 
-  // Weekly goals percentage (used for overall display)
-  const goals = goalRows || [];
-  const goalsTotal     = goals.length;
-  const goalsCompleted = goals.filter((g: any) => g.completed).length;
-  const goalsPct       = goalsTotal > 0 ? Math.round((goalsCompleted / goalsTotal) * 100) : 0;
+  // Weekly goals
+  const weeklyGoals = weeklyGoalRows || [];
+  const weeklyGoalsTotal     = weeklyGoals.length;
+  const weeklyGoalsCompleted = weeklyGoals.filter((g: any) => g.completed).length;
+  const weeklyGoalsPct       = weeklyGoalsTotal > 0 ? Math.round((weeklyGoalsCompleted / weeklyGoalsTotal) * 100) : 0;
+  const completedWeeklyGoalTexts = weeklyGoals
+    .filter((g: any) => g.completed)
+    .map((g: any) => g.text as string);
+
+  // Monthly goals
+  const monthlyGoals = monthlyGoalRows || [];
+  const monthlyGoalsTotal     = monthlyGoals.length;
+  const monthlyGoalsCompleted = monthlyGoals.filter((g: any) => g.completed).length;
+  const monthlyGoalsPct       = monthlyGoalsTotal > 0 ? Math.round((monthlyGoalsCompleted / monthlyGoalsTotal) * 100) : 0;
+  const completedMonthlyGoalTexts = monthlyGoals
+    .filter((g: any) => g.completed)
+    .map((g: any) => g.text as string);
 
   const gymLogged  = (gymRows || []).length > 0;
   const gymGroup   = gymLogged ? (gymRows![0] as any).workout_group : null;
   const questionAnswered = (questionRows || []).length > 0;
 
-  // Tasks missed = tasks scheduled for this day that weren't completed
+  // Tasks missed = tasks scheduled for this day that weren't completed (with type)
   const tasksMissedFrequently = allTasks
     .filter((t: any) => !completedIds.has(t.id))
-    .map((t: any) => ({ task_name: t.text, times_missed: 1, day: dayOfWeek }));
+    .map((t: any) => ({ task_name: t.text, times_missed: 1, day: dayOfWeek, task_type: t.type }));
 
-  // Improvement vs previous day
-  const prevPct = prevRow ? Number(prevRow.nonnegotiables_percentage) : null;
+  // Overall percentage = average of nonneg, nice, weekly goals
+  const activePctSources = [
+    ...(nonnegTotal > 0 ? [nonnegPct] : []),
+    ...(niceTotal > 0 ? [nicePct] : []),
+    ...(weeklyGoalsTotal > 0 ? [weeklyGoalsPct] : []),
+  ];
+  const overallPct = activePctSources.length > 0
+    ? Math.round(activePctSources.reduce((a, b) => a + b, 0) / activePctSources.length)
+    : 0;
+
+  // Yesterday's overall for performance comparison
+  const yesterdayOverallPct = prevRow
+    ? (prevRow.overall_percentage != null
+        ? Number(prevRow.overall_percentage)
+        : Math.round((
+            Number(prevRow.nonnegotiables_percentage || 0) +
+            Number(prevRow.nicetohaves_percentage || 0) +
+            Number(prevRow.weekly_goals_percentage || 0)
+          ) / 3))
+    : 0;
+
+  // Performance delta
   let improvementPct = 0;
   let isImprovement = false;
-  if (prevPct !== null && nonnegTotal > 0) {
-    const diff = nonnegPct - prevPct;
+  if (prevRow && activePctSources.length > 0) {
+    const diff = overallPct - yesterdayOverallPct;
     improvementPct = Math.abs(Math.round(diff));
     isImprovement  = diff >= 0;
   }
+
+  // Goal changes vs yesterday
+  const prevWeeklyGoalsCompleted = prevRow ? Number(prevRow.weekly_goals_completed || 0) : 0;
+  const prevMonthlyGoalsCompleted = prevRow ? Number(prevRow.monthly_goals_completed || 0) : 0;
+  const weeklyGoalsChangeToday  = weeklyGoalsCompleted - prevWeeklyGoalsCompleted;
+  const monthlyGoalsChangeToday = monthlyGoalsCompleted - prevMonthlyGoalsCompleted;
 
   const hasData = allTasks.length > 0 || gymLogged || questionAnswered;
 
@@ -187,7 +233,7 @@ async function generateSummaryForUser(
         nonnegTotal,
         niceCompleted,
         niceTotal,
-        tasksMissed: tasksMissedFrequently.map((t) => t.task_name),
+        tasksMissed: tasksMissedFrequently.map((t: any) => t.task_name),
         gymLogged,
         gymGroup,
         questionAnswered,
@@ -231,11 +277,19 @@ async function generateSummaryForUser(
         best_day_combined: '—',
         most_consistent_day: '—',
         tasks_missed_frequently: tasksMissedFrequently,
-        weekly_goals_completed: goalsCompleted,
-        weekly_goals_total: goalsTotal,
-        weekly_goals_percentage: goalsPct,
-        monthly_goals_total: 0,
+        weekly_goals_completed: weeklyGoalsCompleted,
+        weekly_goals_total: weeklyGoalsTotal,
+        weekly_goals_percentage: weeklyGoalsPct,
+        completed_weekly_goal_texts: completedWeeklyGoalTexts,
+        weekly_goals_change_today: weeklyGoalsChangeToday,
+        monthly_goals_total: monthlyGoalsTotal,
+        monthly_goals_completed: monthlyGoalsCompleted,
+        monthly_goals_percentage: monthlyGoalsPct,
         monthly_goals_change_from_last_week: 0,
+        completed_monthly_goal_texts: completedMonthlyGoalTexts,
+        monthly_goals_change_today: monthlyGoalsChangeToday,
+        overall_percentage: overallPct,
+        yesterday_overall_percentage: yesterdayOverallPct,
         improvement_percentage: improvementPct,
         is_improvement: isImprovement,
         has_complete_data: hasData,
@@ -252,6 +306,56 @@ async function generateSummaryForUser(
     `[DAILY-SUMMARY] Saved — user ${userId} | score: ${nonnegPct}% non-neg | ` +
     `gym: ${gymLogged} | question: ${questionAnswered} | narrative: ${!!narrative}`
   );
+
+  // ── 10. Push notification ─────────────────────────────────────────────────
+  // Check if user has weekly_summary_enabled before sending
+  const { data: prefRow } = await supabase
+    .schema('oasis')
+    .from('notification_preferences')
+    .select('weekly_summary_enabled')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  // Default to enabled if no preference row exists yet
+  const summaryEnabled = prefRow ? prefRow.weekly_summary_enabled : true;
+
+  if (summaryEnabled && hasData) {
+    // Generate a punchy single-line push body from the summary data using Groq
+    let pushBody = 'Your daily summary is ready.';
+    try {
+      const llm = getLLM();
+      const pushPrompt = buildPushPrompt({
+        nonnegCompleted,
+        nonnegTotal,
+        gymLogged,
+        gymGroup,
+        overallPct,
+        isImprovement,
+        improvementPct,
+        narrative,
+      });
+      const rawPush = await llm.chat(
+        [
+          {
+            role: 'system',
+            content:
+              'You are Mercia. Write one punchy push notification line — under 60 characters. ' +
+              'Be specific, direct, and personal. No quotes. No period at the end. No filler.',
+          },
+          { role: 'user', content: pushPrompt },
+        ],
+        { temperature: 0.7, maxTokens: 30 }
+      );
+      if (rawPush && rawPush.trim().length > 0) {
+        pushBody = rawPush.trim().replace(/^["']|["']$/g, '');
+      }
+    } catch (err) {
+      console.error(`[DAILY-SUMMARY] Push body generation failed for user ${userId}:`, err);
+    }
+
+    await sendPush(userId, 'Daily Summary Ready', pushBody, { screen: 'SummaryHistory' });
+    console.log(`[DAILY-SUMMARY] Push sent to user ${userId}: "${pushBody}"`);
+  }
 }
 
 // ============================================
@@ -286,6 +390,28 @@ function buildNarrativePrompt(data: {
     'Sentence 2: one direct, actionable callout — either reinforce what worked or name what to fix tomorrow. ' +
     'Under 55 words total.'
   );
+  return lines.join('\n');
+}
+
+function buildPushPrompt(data: {
+  nonnegCompleted: number;
+  nonnegTotal: number;
+  gymLogged: boolean;
+  gymGroup: string | null;
+  overallPct: number;
+  isImprovement: boolean;
+  improvementPct: number;
+  narrative: string | null;
+}): string {
+  const lines: string[] = [];
+  lines.push(`Non-negotiables: ${data.nonnegCompleted}/${data.nonnegTotal}`);
+  if (data.gymLogged) lines.push(`Gym: ${data.gymGroup ?? 'yes'}`);
+  lines.push(`Overall score: ${data.overallPct}%`);
+  if (data.improvementPct > 0) {
+    lines.push(`${data.isImprovement ? '+' : '-'}${data.improvementPct}% vs yesterday`);
+  }
+  if (data.narrative) lines.push(`Summary: ${data.narrative}`);
+  lines.push('Write one notification line that makes them want to open the app.');
   return lines.join('\n');
 }
 

@@ -90,13 +90,20 @@ router.post(
         responseText
       );
       // Process response to update memory profile (synchronous for debugging)
-      let questionLevel = 1;
+      let questionLevel: number | null = null;
       try {
         const updatedProfile = await memoryManager.processQuestionResponse(userId, response);
         questionLevel = updatedProfile.question_level || 1;
         console.log('✅ Memory profile updated successfully');
       } catch (err) {
         console.error('❌ Failed to process response:', err);
+        // Fall back to the currently stored level so can_continue is correct
+        try {
+          const storedProfile = await memoryManager.getProfile(userId);
+          questionLevel = storedProfile?.question_level || 1;
+        } catch {
+          questionLevel = null; // Unknown — default to no continue to be safe
+        }
       }
       // Get updated progress
       const progress = await questionEngine.getProgress(userId);
@@ -146,7 +153,7 @@ router.post(
         data: {
           response,
           progress,
-          can_continue: questionLevel <= 3,
+          can_continue: questionLevel !== null && questionLevel <= 3,
         },
       });
     } catch (error: any) {

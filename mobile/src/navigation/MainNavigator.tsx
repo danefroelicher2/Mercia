@@ -18,6 +18,10 @@ import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
 import { MerciaStackParamList } from '../types/navigation';
 import { getConsent } from '../services/consentService';
+import api from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerForPushNotifications } from '../services/notifications';
+import { STORAGE_KEYS } from '../constants/config';
 
 // Root stack param list (tabs + paywall modal)
 export type MainRootStackParamList = {
@@ -157,6 +161,15 @@ const MainTabs: React.FC = () => {
     getConsent().then((value) => {
       setHasConsent(value);
       setIsLoadingConsent(false);
+    });
+
+    // Only ping and register if we have a valid session token
+    AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN).then((token) => {
+      if (!token) return;
+      // Update last_active_at on backend (for inactivity push detection)
+      api.post('/api/notifications/ping').catch(() => {});
+      // Ensure push token is registered / synced to backend
+      registerForPushNotifications().catch(() => {});
     });
   }, []);
 

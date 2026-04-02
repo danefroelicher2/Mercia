@@ -8,22 +8,26 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { WeeklySummary } from '../types/summary';
 
-const colors = {
-  screenBg: '#1A1A1A',
-  cardBg: '#2A2A2A',
-  sectionBg: '#333333',
+const C = {
+  bg: '#2A2A2A',
+  section: '#333333',
+  border: '#3A3A3A',
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0A0',
-  textTertiary: '#707070',
+  textTertiary: '#666666',
   primary: '#FF6B35',
-  success: '#00FF00',
-  error: '#FF0000',
-  border: '#3A3A3A',
+  teal: '#00D9A0',
+  blue: '#7B9EFF',
+  red: '#FF4444',
+  trackOrange: '#3A2A20',
+  trackTeal: '#1A3030',
+  trackBlue: '#1A1E30',
 };
 
-interface WeeklySummaryModalProps {
+interface Props {
   visible: boolean;
   summary: WeeklySummary | null;
   onDismiss: () => void;
@@ -31,23 +35,62 @@ interface WeeklySummaryModalProps {
   readOnly?: boolean;
 }
 
-function formatDateRange(startDate: string, endDate: string): string {
-  const start = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  const startStr = start.toLocaleDateString('en-US', opts);
-  const endStr = end.toLocaleDateString('en-US', { ...opts, year: 'numeric' });
-  return `${startStr} - ${endStr}`;
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function getWeekOfMonth(dateStr: string): number {
-  const date = new Date(dateStr + 'T00:00:00');
-  const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  const dayOfMonth = date.getDate();
-  return Math.ceil(dayOfMonth / 7);
+// ── Progress Ring ────────────────────────────────────────────────────────────
+
+interface RingProps {
+  percentage: number;
+  color: string;
+  trackColor: string;
+  size?: number;
+  stroke?: number;
 }
 
-const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
+function ProgressRing({ percentage, color, trackColor, size = 86, stroke = 8 }: RingProps) {
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const filled = circumference * (Math.min(Math.max(percentage, 0), 100) / 100);
+
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size}>
+        {/* track */}
+        <Circle
+          cx={cx} cy={cx} r={r}
+          fill="none"
+          stroke={trackColor}
+          strokeWidth={stroke}
+        />
+        {/* progress */}
+        <Circle
+          cx={cx} cy={cx} r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={[filled, circumference - filled]}
+          strokeLinecap="round"
+          rotation={-90}
+          originX={cx}
+          originY={cx}
+        />
+      </Svg>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={styles.ringInner}>
+          <Text style={styles.ringPct}>{percentage}%</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
+
+const WeeklySummaryModal: React.FC<Props> = ({
   visible,
   summary,
   onDismiss,
@@ -57,7 +100,6 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(summary?.is_saved || false);
 
-  // Reset saved state when summary changes
   React.useEffect(() => {
     setSaved(summary?.is_saved || false);
   }, [summary?.id]);
@@ -78,135 +120,170 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
     }
   };
 
-  const overallPercentage = Math.round(
-    (summary.nonnegotiables_percentage +
-      summary.nicetohaves_percentage +
-      summary.weekly_goals_percentage) / 3
-  );
+  // Overall: use stored value or fall back to computed
+  const overallPct = summary.overall_percentage != null
+    ? summary.overall_percentage
+    : Math.round((
+        summary.nonnegotiables_percentage +
+        summary.nicetohaves_percentage +
+        (summary.weekly_goals_percentage || 0)
+      ) / 3);
 
-  const weekOfMonth = getWeekOfMonth(summary.week_start_date);
-  const showMonthlySection = weekOfMonth >= 2;
+  const yesterdayPct = summary.yesterday_overall_percentage ?? 0;
+  const perfDelta = overallPct - yesterdayPct;
+  const showPerf = summary.yesterday_overall_percentage != null && summary.yesterday_overall_percentage > 0;
 
-  // Check if this is the first-ever summary (no previous week data)
-  const isFirstSummary = summary.improvement_percentage === 0 && !summary.is_improvement;
-  // We'll show performance section only if there's meaningful data
-  // A zero improvement with is_improvement=false could be first week OR genuinely no change
-  // We'll show it unless it looks like a first summary (both zero and no change)
+  const missedTasks = summary.tasks_missed_frequently || [];
+  const completedWeekly = summary.completed_weekly_goal_texts || [];
+  const completedMonthly = summary.completed_monthly_goal_texts || [];
 
-  const renderIncompleteData = () => (
-    <View style={styles.incompleteContainer}>
-      <Text style={styles.incompleteIcon}>📋</Text>
-      <Text style={styles.incompleteTitle}>Insufficient Data</Text>
-      <Text style={styles.incompleteText}>
-        Complete a full week (Monday–Sunday) to see your first summary. Check back next Monday!
-      </Text>
-    </View>
-  );
+  const weeklyChange = summary.weekly_goals_change_today ?? 0;
+  const monthlyChange = summary.monthly_goals_change_today ?? 0;
 
-  const renderStats = () => (
+  const renderContent = () => (
     <>
-      {/* Overall */}
-      <View style={styles.overallSection}>
-        <Text style={styles.overallPercentage}>{overallPercentage}%</Text>
-        <Text style={styles.overallLabel}>Overall Completion</Text>
+      {/* ① THREE RINGS */}
+      <View style={styles.ringsRow}>
+        <View style={styles.ringItem}>
+          <ProgressRing
+            percentage={summary.nonnegotiables_percentage}
+            color={C.primary}
+            trackColor={C.trackOrange}
+          />
+          <Text style={[styles.ringLabel, { color: C.primary }]}>Required</Text>
+        </View>
+
+        <View style={styles.ringItem}>
+          <ProgressRing
+            percentage={overallPct}
+            color={C.teal}
+            trackColor={C.trackTeal}
+            size={94}
+            stroke={9}
+          />
+          <Text style={[styles.ringLabel, { color: C.teal }]}>Overall</Text>
+        </View>
+
+        <View style={styles.ringItem}>
+          <ProgressRing
+            percentage={summary.nicetohaves_percentage}
+            color={C.blue}
+            trackColor={C.trackBlue}
+          />
+          <Text style={[styles.ringLabel, { color: C.blue }]}>Optional</Text>
+        </View>
       </View>
 
-      {/* Daily Tasks Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Daily Tasks</Text>
-
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Non-Negotiables</Text>
-          <Text style={styles.statValue}>
-            {summary.nonnegotiables_completed}/{summary.nonnegotiables_total}{' '}
-            <Text style={styles.statPercentage}>({summary.nonnegotiables_percentage}%)</Text>
+      {/* ② PERFORMANCE */}
+      {showPerf && (
+        <View style={[
+          styles.perfCard,
+          perfDelta >= 0 ? styles.perfCardUp : styles.perfCardDown,
+        ]}>
+          <Text style={[
+            styles.perfArrow,
+            { color: perfDelta >= 0 ? C.teal : C.red },
+          ]}>
+            {perfDelta >= 0 ? '↑' : '↓'}
           </Text>
-        </View>
-
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Nice-to-Haves</Text>
-          <Text style={styles.statValue}>
-            {summary.nicetohaves_completed}/{summary.nicetohaves_total}{' '}
-            <Text style={styles.statPercentage}>({summary.nicetohaves_percentage}%)</Text>
+          <Text style={[
+            styles.perfDelta,
+            { color: perfDelta >= 0 ? C.teal : C.red },
+          ]}>
+            {perfDelta >= 0 ? '+' : ''}{perfDelta}%
           </Text>
+          <Text style={styles.perfText}>from yesterday</Text>
         </View>
+      )}
 
-        <View style={styles.divider} />
-
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Best Day (Combined)</Text>
-          <Text style={styles.statValueHighlight}>{summary.best_day_combined}</Text>
+      {/* ③ MISSED TODAY */}
+      {missedTasks.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Missed Today</Text>
+          {missedTasks.map((item, i) => {
+            const isReq = item.task_type === 'non-negotiable';
+            return (
+              <View
+                key={i}
+                style={[styles.missedRow, i < missedTasks.length - 1 && styles.missedRowBorder]}
+              >
+                <View style={[styles.dot, { backgroundColor: isReq ? C.primary : C.blue }]} />
+                <Text style={styles.missedText}>{item.task_name}</Text>
+                <Text style={styles.missedType}>{isReq ? 'req' : 'opt'}</Text>
+              </View>
+            );
+          })}
         </View>
+      )}
 
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Most Consistent Day</Text>
-          <Text style={styles.statValueHighlight}>{summary.most_consistent_day}</Text>
+      {/* ④ WEEKLY GOALS */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Weekly Goals</Text>
+          <Text style={styles.cardPct}>{summary.weekly_goals_percentage ?? 0}%</Text>
         </View>
-
-        {summary.tasks_missed_frequently && summary.tasks_missed_frequently.length > 0 && (
-          <>
-            <View style={styles.divider} />
-            <Text style={styles.missedTitle}>Frequently Missed</Text>
-            {summary.tasks_missed_frequently.slice(0, 3).map((item, idx) => (
-              <Text key={idx} style={styles.missedItem}>
-                {item.task_name}: {item.times_missed}/7 missed
-              </Text>
-            ))}
-          </>
+        <Text style={styles.completedLabel}>Completed</Text>
+        {completedWeekly.length > 0 ? (
+          completedWeekly.map((text, i) => (
+            <View
+              key={i}
+              style={[styles.goalRow, i < completedWeekly.length - 1 && styles.goalRowBorder]}
+            >
+              <View style={styles.checkCircle}>
+                <Text style={styles.checkMark}>✓</Text>
+              </View>
+              <Text style={styles.goalText}>{text}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noneText}>None today</Text>
+        )}
+        {weeklyChange > 0 && (
+          <View style={styles.changeBadge}>
+            <Text style={styles.changeBadgeText}>↑ +{weeklyChange} since yesterday</Text>
+          </View>
         )}
       </View>
 
-      {/* Weekly Goals Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Weekly Goals</Text>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Completed</Text>
-          <Text style={styles.statValue}>
-            {summary.weekly_goals_completed}/{summary.weekly_goals_total}{' '}
-            <Text style={styles.statPercentage}>({summary.weekly_goals_percentage}%)</Text>
-          </Text>
+      {/* ⑤ MONTHLY GOALS */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Monthly Goals</Text>
+          <Text style={styles.cardPct}>{summary.monthly_goals_percentage ?? 0}%</Text>
         </View>
+        <Text style={styles.completedLabel}>Completed</Text>
+        {completedMonthly.length > 0 ? (
+          completedMonthly.map((text, i) => (
+            <View
+              key={i}
+              style={[styles.goalRow, i < completedMonthly.length - 1 && styles.goalRowBorder]}
+            >
+              <View style={styles.checkCircle}>
+                <Text style={styles.checkMark}>✓</Text>
+              </View>
+              <Text style={styles.goalText}>{text}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noneText}>None today</Text>
+        )}
+        {monthlyChange > 0 && (
+          <View style={styles.changeBadge}>
+            <Text style={styles.changeBadgeText}>↑ +{monthlyChange} since yesterday</Text>
+          </View>
+        )}
       </View>
-
-      {/* Monthly Goals Section (hide for week 1 of month) */}
-      {showMonthlySection && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Monthly Goals</Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Completed This Month</Text>
-            <Text style={styles.statValue}>{summary.monthly_goals_total}</Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Change from Last Week</Text>
-            <Text style={[
-              styles.statValue,
-              summary.monthly_goals_change_from_last_week > 0 && { color: colors.success },
-            ]}>
-              {summary.monthly_goals_change_from_last_week > 0 ? '+' : ''}
-              {summary.monthly_goals_change_from_last_week}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Performance Section (hide for first summary) */}
-      {!isFirstSummary && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Performance</Text>
-          <View style={styles.performanceRow}>
-            <Text style={[
-              styles.performanceIndicator,
-              { color: summary.is_improvement ? colors.success : colors.error },
-            ]}>
-              {summary.is_improvement ? '↑' : '↓'} {Math.abs(summary.improvement_percentage)}%
-            </Text>
-            <Text style={styles.performanceLabel}>
-              {summary.is_improvement ? 'improvement' : 'decrease'} from yesterday
-            </Text>
-          </View>
-        </View>
-      )}
     </>
+  );
+
+  const renderNoData = () => (
+    <View style={styles.noDataContainer}>
+      <Text style={styles.noDataIcon}>📋</Text>
+      <Text style={styles.noDataTitle}>No Data Yet</Text>
+      <Text style={styles.noDataText}>
+        Complete tasks or log your day to see your daily summary.
+      </Text>
+    </View>
   );
 
   return (
@@ -218,47 +295,39 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
+          {/* Handle bar */}
+          <View style={styles.handle}><View style={styles.handleBar} /></View>
+
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Daily Summary</Text>
-            <Text style={styles.headerDate}>
-              {formatDateRange(summary.week_start_date, summary.week_end_date)}
-            </Text>
+            <Text style={styles.headerDate}>{formatDate(summary.week_start_date)}</Text>
           </View>
 
           <ScrollView
-            style={styles.scrollContent}
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {summary.has_complete_data ? renderStats() : renderIncompleteData()}
+            {summary.has_complete_data ? renderContent() : renderNoData()}
           </ScrollView>
 
           {/* Buttons */}
           <View style={styles.buttonRow}>
             {!readOnly && (
               <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  saved && styles.saveButtonDisabled,
-                ]}
+                style={[styles.btnPrimary, saved && styles.btnPrimaryDone]}
                 onPress={handleSave}
                 disabled={saved || saving}
                 activeOpacity={0.8}
               >
-                <Text style={[
-                  styles.saveButtonText,
-                  saved && styles.saveButtonTextDisabled,
-                ]}>
+                <Text style={[styles.btnPrimaryText, saved && styles.btnPrimaryTextDone]}>
                   {saved ? 'Saved ✓' : saving ? 'Saving...' : 'Save to Profile'}
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={styles.dismissButton}
-              onPress={onDismiss}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.dismissButtonText}>Close</Text>
+            <TouchableOpacity style={styles.btnSecondary} onPress={onDismiss} activeOpacity={0.8}>
+              <Text style={styles.btnSecondaryText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -270,174 +339,290 @@ const WeeklySummaryModal: React.FC<WeeklySummaryModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: C.bg,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
+    maxHeight: '88%',
     paddingBottom: 34,
   },
+  handle: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#555',
+    borderRadius: 2,
+  },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  headerDate: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  overallSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  overallPercentage: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  overallLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  section: {
-    backgroundColor: colors.sectionBg,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  statLabel: {
-    fontSize: 15,
-    color: colors.textSecondary,
-  },
-  statValue: {
-    fontSize: 15,
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: C.textPrimary,
   },
-  statPercentage: {
-    color: colors.textSecondary,
-    fontWeight: '400',
-  },
-  statValueHighlight: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 10,
-  },
-  missedTitle: {
+  headerDate: {
     fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 6,
+    color: C.textSecondary,
   },
-  missedItem: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    paddingVertical: 3,
+  scroll: {
+    flex: 1,
   },
-  performanceRow: {
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+
+  // ── Rings ──
+  ringsRow: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    paddingBottom: 24,
+    paddingTop: 4,
+  },
+  ringItem: {
     alignItems: 'center',
     gap: 8,
   },
-  performanceIndicator: {
-    fontSize: 20,
+  ringInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringPct: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: C.textPrimary,
+  },
+  ringLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
+  // ── Performance ──
+  perfCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  perfCardUp: {
+    backgroundColor: 'rgba(0,217,160,0.08)',
+    borderColor: 'rgba(0,217,160,0.2)',
+  },
+  perfCardDown: {
+    backgroundColor: 'rgba(255,68,68,0.08)',
+    borderColor: 'rgba(255,68,68,0.2)',
+  },
+  perfArrow: {
+    fontSize: 16,
+  },
+  perfDelta: {
+    fontSize: 16,
     fontWeight: '700',
   },
-  performanceLabel: {
-    fontSize: 15,
-    color: colors.textSecondary,
+  perfText: {
+    fontSize: 14,
+    color: C.textSecondary,
   },
-  incompleteContainer: {
+
+  // ── Cards ──
+  card: {
+    backgroundColor: C.section,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: C.textSecondary,
+    marginBottom: 8,
+  },
+  cardPct: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.textPrimary,
+    marginBottom: 8,
+  },
+
+  // ── Missed ──
+  missedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+  },
+  missedRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  missedText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#D0D0D0',
+  },
+  missedType: {
+    fontSize: 11,
+    color: C.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  // ── Goals ──
+  completedLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: C.textTertiary,
+    marginBottom: 6,
+  },
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingVertical: 5,
+  },
+  goalRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  checkCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,217,160,0.15)',
+    borderWidth: 1.5,
+    borderColor: C.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkMark: {
+    fontSize: 9,
+    color: C.teal,
+    fontWeight: '700',
+  },
+  goalText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#D0D0D0',
+    lineHeight: 20,
+  },
+  noneText: {
+    fontSize: 14,
+    color: C.textTertiary,
+    fontStyle: 'italic',
+    paddingVertical: 4,
+  },
+  changeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,217,160,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 8,
+  },
+  changeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.teal,
+  },
+
+  // ── No data ──
+  noDataContainer: {
     alignItems: 'center',
     paddingVertical: 40,
     paddingHorizontal: 20,
   },
-  incompleteIcon: {
+  noDataIcon: {
     fontSize: 48,
     marginBottom: 16,
   },
-  incompleteTitle: {
-    fontSize: 20,
+  noDataTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 12,
+    color: C.textPrimary,
+    marginBottom: 10,
   },
-  incompleteText: {
-    fontSize: 15,
-    color: colors.textSecondary,
+  noDataText: {
+    fontSize: 14,
+    color: C.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 21,
   },
+
+  // ── Buttons ──
   buttonRow: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 10,
   },
-  saveButton: {
+  btnPrimary: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: C.primary,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 25,
     alignItems: 'center',
   },
-  saveButtonDisabled: {
-    backgroundColor: colors.sectionBg,
+  btnPrimaryDone: {
+    backgroundColor: C.section,
   },
-  saveButtonText: {
-    fontSize: 16,
+  btnPrimaryText: {
+    fontSize: 15,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: C.textPrimary,
   },
-  saveButtonTextDisabled: {
-    color: colors.textTertiary,
+  btnPrimaryTextDone: {
+    color: C.textTertiary,
   },
-  dismissButton: {
+  btnSecondary: {
     flex: 1,
-    backgroundColor: colors.sectionBg,
+    backgroundColor: 'transparent',
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 25,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
   },
-  dismissButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
+  btnSecondaryText: {
+    fontSize: 15,
+    color: C.textSecondary,
   },
 });
 

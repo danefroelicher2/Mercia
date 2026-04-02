@@ -14,11 +14,14 @@ import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
 import summaryRoutes from './routes/summaries';
 import gymRoutes from './routes/gym';
+import notificationRoutes from './routes/notifications';
 
 // Import jobs (extraction scheduling is handled by pg_cron on Supabase)
 import { startWeeklyResetCronJob, startMonthlyResetCronJob } from './jobs/extractionJob';
 import { startDailySummaryJob } from './jobs/dailySummaryJob';
 import { startMemoryCondensationJob } from './jobs/memoryCondensationJob';
+import { startInactivityJob } from './jobs/inactivityJob';
+import { startStreakRiskJob } from './jobs/streakRiskJob';
 
 // Load environment variables
 dotenv.config();
@@ -67,6 +70,7 @@ app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/summaries', summaryRoutes);
 app.use('/api/gym', gymRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
@@ -82,10 +86,14 @@ async function startServer() {
     startMonthlyResetCronJob();
     startDailySummaryJob();
     startMemoryCondensationJob();
+    startInactivityJob();
+    startStreakRiskJob();
     console.log('  Weekly reset cron job started (runs Mondays at 12:00 AM)');
     console.log('  Monthly reset cron job started (runs 1st of month at 12:00 AM)');
     console.log('  Daily summary job started (runs 6:00 AM ET)');
     console.log('  Memory condensation job started (runs Mon & Thu at 3:00 AM ET)');
+    console.log('  Inactivity job started (runs 2:00 PM ET)');
+    console.log('  Streak risk job started (runs 7:00 PM ET)');
     console.log('  Chat extraction: scheduled via pg_cron on Supabase (5:00 AM UTC daily)');
 
     app.listen(PORT, () => {
