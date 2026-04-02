@@ -226,11 +226,12 @@ export class MemoryManager {
 
     const newQuestionsAnswered = (profile.questions_answered || 0) + 1;
     let newQuestionLevel = profile.question_level || 1;
+    // Level 8 is the max — once reached, no further level-ups occur
     if (newQuestionLevel < 8) {
       const threshold = this.QUESTION_LEVEL_THRESHOLDS[newQuestionLevel - 1];
       if (newQuestionsAnswered >= threshold) {
         newQuestionLevel = newQuestionLevel + 1;
-        console.log(`[MemoryManager] User leveled up to question level ${newQuestionLevel} (${newQuestionsAnswered} questions answered)`);
+        console.log(`[MemoryManager] User leveled up to question level ${newQuestionLevel} (${newQuestionsAnswered} questions answered, threshold was ${threshold})`);
       }
     }
 
