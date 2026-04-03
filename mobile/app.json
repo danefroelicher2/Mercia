@@ -43,7 +43,15 @@
     "plugins": [
       "expo-apple-authentication",
       "@react-native-google-signin/google-signin",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPodfileConfig": "post_install do |pi|\n  pi.pods_project.targets.each do |t|\n    t.build_configurations.each do |c|\n      c.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']\n      c.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_CFG_NO_COROUTINES=1'\n    end\n  end\nend"
+          }
+        }
+      ]
     ],
     "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
     "extra": {
