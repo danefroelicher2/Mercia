@@ -19,6 +19,49 @@ function withFollyPatch(config) {
       File.write(header_path, patched) if patched != src
     end
   end
+
+  # withFollyPatch: fix ReanimatedMountHook signature for RN 0.81 (double -> HighResTimeStamp)
+  project_root = installer.sandbox.root.parent.parent
+
+  # Patch the node_modules header
+  rn_mount_hook_h = File.join(project_root, "node_modules/react-native-reanimated/Common/cpp/reanimated/Fabric/ReanimatedMountHook.h")
+  if File.exist?(rn_mount_hook_h)
+    src = File.read(rn_mount_hook_h)
+    patched = src
+    # Fix signature: double -> HighResTimeStamp to match UIManagerMountHook base class in RN 0.81
+    patched = patched.gsub('double mountTime) noexcept override;', 'HighResTimeStamp mountTime) noexcept override;')
+    # Add include for HighResTimeStamp if not already present
+    unless patched.include?('react/timing/primitives.h')
+      patched = patched.gsub(
+        '#include <react/renderer/uimanager/UIManagerMountHook.h>',
+        "#include <react/renderer/uimanager/UIManagerMountHook.h>\\n#include <react/timing/primitives.h>"
+      )
+    end
+    File.write(rn_mount_hook_h, patched) if patched != src
+  end
+
+  # Patch the node_modules implementation
+  rn_mount_hook_cpp = File.join(project_root, "node_modules/react-native-reanimated/Common/cpp/reanimated/Fabric/ReanimatedMountHook.cpp")
+  if File.exist?(rn_mount_hook_cpp)
+    src = File.read(rn_mount_hook_cpp)
+    patched = src.gsub('    double) noexcept {', '    HighResTimeStamp) noexcept {')
+    File.write(rn_mount_hook_cpp, patched) if patched != src
+  end
+
+  # Patch the pod sandbox copy of the header
+  sandbox_mount_hook_h = File.join(installer.sandbox.root, "Headers/Private/RNReanimated/reanimated/Fabric/ReanimatedMountHook.h")
+  if File.exist?(sandbox_mount_hook_h)
+    src = File.read(sandbox_mount_hook_h)
+    patched = src
+    patched = patched.gsub('double mountTime) noexcept override;', 'HighResTimeStamp mountTime) noexcept override;')
+    unless patched.include?('react/timing/primitives.h')
+      patched = patched.gsub(
+        '#include <react/renderer/uimanager/UIManagerMountHook.h>',
+        "#include <react/renderer/uimanager/UIManagerMountHook.h>\\n#include <react/timing/primitives.h>"
+      )
+    end
+    File.write(sandbox_mount_hook_h, patched) if patched != src
+  end
 `;
 
       if (contents.includes('post_install do |installer|')) {
