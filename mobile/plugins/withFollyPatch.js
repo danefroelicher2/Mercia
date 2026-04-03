@@ -10,25 +10,26 @@ function withFollyPatch(config) {
       let contents = fs.readFileSync(podfilePath, 'utf8');
 
       const injection = `
-  # withFollyPatch: disable missing coro header
-  expected_h = File.join(installer.sandbox.root, "Headers/Public/ReactNativeDependencies/folly/Expected.h")
-  if File.exist?(expected_h)
-    src = File.read(expected_h)
-    patched = src.gsub('#include <folly/coro/Coroutine.h>', '// #include <folly/coro/Coroutine.h> -- disabled by withFollyPatch')
-    File.write(expected_h, patched) if patched != src
+  # withFollyPatch: replace #if FOLLY_HAS_COROUTINES with #if 0 in both offending headers
+  ['Expected.h', 'Optional.h'].each do |fname|
+    header_path = File.join(installer.sandbox.root, "Headers/Public/ReactNativeDependencies/folly/\#{fname}")
+    if File.exist?(header_path)
+      src = File.read(header_path)
+      patched = src.gsub('#if FOLLY_HAS_COROUTINES', '#if 0 /* FOLLY_HAS_COROUTINES disabled by withFollyPatch */')
+      File.write(header_path, patched) if patched != src
+    end
   end
 `;
 
-      // Inject into the existing post_install block instead of adding a second one
       if (contents.includes('post_install do |installer|')) {
         contents = contents.replace(
           'post_install do |installer|',
           'post_install do |installer|' + injection
         );
       } else {
-        // Fallback: no existing post_install, add one
         contents = contents + `\npost_install do |installer|\n${injection}end\n`;
       }
+
       fs.writeFileSync(podfilePath, contents);
       return config;
     },
