@@ -20,8 +20,35 @@ function withFollyPatch(config) {
     end
   end
 
-  # withFollyPatch: fix ReanimatedMountHook signature for RN 0.81 (double -> HighResTimeStamp)
+  # withFollyPatch: add shadowNodeFromValue shim for RN 0.81 (removed in favor of shadowNodeListFromValue)
   project_root = installer.sandbox.root.parent.parent
+
+  rn_proxy_cpp = File.join(project_root, "node_modules/react-native-reanimated/Common/cpp/reanimated/NativeModules/ReanimatedModuleProxy.cpp")
+  if File.exist?(rn_proxy_cpp)
+    src = File.read(rn_proxy_cpp)
+    shim = <<~'SHIM'
+      // RN 0.81 compat: shadowNodeFromValue was removed; wrap shadowNodeListFromValue
+      #ifndef REANIMATED_SHADOW_NODE_FROM_VALUE_SHIM
+      #define REANIMATED_SHADOW_NODE_FROM_VALUE_SHIM
+      namespace facebook::react {
+      inline static std::shared_ptr<const ShadowNode> shadowNodeFromValue(
+          jsi::Runtime& runtime,
+          const jsi::Value& value) {
+        auto list = shadowNodeListFromValue(runtime, value);
+        return (*list)[0];
+      }
+      } // namespace facebook::react
+      #endif
+    SHIM
+    # Inject shim after the primitives.h include inside RCT_NEW_ARCH_ENABLED block
+    target = '#include <react/renderer/uimanager/primitives.h>'
+    if src.include?(target) && !src.include?('REANIMATED_SHADOW_NODE_FROM_VALUE_SHIM')
+      patched = src.sub(target, target + "\\n" + shim)
+      File.write(rn_proxy_cpp, patched)
+    end
+  end
+
+  # withFollyPatch: fix ReanimatedMountHook signature for RN 0.81 (double -> HighResTimeStamp)
 
   # Patch the node_modules header
   rn_mount_hook_h = File.join(project_root, "node_modules/react-native-reanimated/Common/cpp/reanimated/Fabric/ReanimatedMountHook.h")
