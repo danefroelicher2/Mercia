@@ -44,7 +44,8 @@
       "expo-apple-authentication",
       "@react-native-google-signin/google-signin",
       "expo-notifications",
-      "expo-build-properties"
+      "expo-build-properties",
+      "./plugins/withFollyPatch"
     ],
     "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
     "extra": {
