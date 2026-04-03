@@ -12,13 +12,13 @@
       "distribution": "internal",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.2-xcode-16.2"
+        "image": "sdk-54"
       }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.2-xcode-16.2"
+        "image": "sdk-54"
       }
     }
   },
