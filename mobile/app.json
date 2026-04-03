@@ -44,14 +44,7 @@
       "expo-apple-authentication",
       "@react-native-google-signin/google-signin",
       "expo-notifications",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "extraPodfileConfig": "post_install do |pi|\n  pi.pods_project.targets.each do |t|\n    t.build_configurations.each do |c|\n      c.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -DFOLLY_CFG_NO_COROUTINES=1'\n    end\n  end\nend"
-          }
-        }
-      ]
+      "expo-build-properties"
     ],
     "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
     "extra": {
