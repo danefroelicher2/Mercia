@@ -27,15 +27,19 @@ function withFollyPatch(config) {
   if File.exist?(rn_proxy_cpp)
     src = File.read(rn_proxy_cpp)
     shim = <<~'SHIM'
-      // RN 0.81 compat: shadowNodeFromValue was removed; wrap shadowNodeListFromValue
+      // RN 0.81 compat: shadowNodeFromValue was removed from primitives.h but
+      // ShadowNodeWrapper (single-node wrapper) still exists in ShadowNode.h.
+      // updateProps passes ShadowNodeWrapper values, not ShadowNodeListWrapper —
+      // unwrap directly via getNativeState<ShadowNodeWrapper>.
       #ifndef REANIMATED_SHADOW_NODE_FROM_VALUE_SHIM
       #define REANIMATED_SHADOW_NODE_FROM_VALUE_SHIM
       namespace facebook::react {
       inline static std::shared_ptr<const ShadowNode> shadowNodeFromValue(
           jsi::Runtime& runtime,
           const jsi::Value& value) {
-        auto list = shadowNodeListFromValue(runtime, value);
-        return (*list)[0];
+        return value.asObject(runtime)
+            .getNativeState<ShadowNodeWrapper>(runtime)
+            ->shadowNode;
       }
       } // namespace facebook::react
       #endif

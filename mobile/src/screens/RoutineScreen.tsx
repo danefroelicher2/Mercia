@@ -23,13 +23,9 @@ import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
 import { WeeklySummary } from '../types/summary';
-import { IS_EXPO_GO } from '../constants/config';
-import type { RenderItemParams } from 'react-native-draggable-flatlist';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
-
-const DraggableFlatList = IS_EXPO_GO ? null : require('react-native-draggable-flatlist').default;
-const ScaleDecorator = IS_EXPO_GO ? ({ children }: any) => children : require('react-native-draggable-flatlist').ScaleDecorator;
+import { Ionicons } from '@expo/vector-icons';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -135,6 +131,13 @@ const RoutineScreen: React.FC = () => {
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
+
+  // Edit mode state — each card manages its own independently
+  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly' | null>(null);
+  const [editNonNeg, setEditNonNeg] = useState<RoutineTask[]>([]);
+  const [editNiceToHave, setEditNiceToHave] = useState<RoutineTask[]>([]);
+  const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
+  const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
 
   const availableQuotes = useMemo(() => {
     const filtered = QUOTES.filter(q => !dislikedQuoteIds.includes(q.id));
@@ -517,6 +520,57 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
+  // Edit mode handlers
+  const handleEnterEdit = (card: 'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly') => {
+    if (card === 'non-negotiable') setEditNonNeg(nonNegotiables.slice());
+    else if (card === 'nice-to-have') setEditNiceToHave(niceToHave.slice());
+    else if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
+    else setEditMonthly(monthlyGoals.slice());
+    setEditingCard(card);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCard(null);
+  };
+
+  const handleSaveEdit = (card: 'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly') => {
+    if (card === 'non-negotiable') handleReorder(editNonNeg, 'non-negotiable');
+    else if (card === 'nice-to-have') handleReorder(editNiceToHave, 'nice-to-have');
+    else if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
+    else handleReorderGoal(editMonthly, 'monthly');
+    setEditingCard(null);
+  };
+
+  const moveTaskItem = (card: 'non-negotiable' | 'nice-to-have', index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (card === 'non-negotiable') {
+      const arr = editNonNeg.slice();
+      if (target < 0 || target >= arr.length) return;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      setEditNonNeg(arr);
+    } else {
+      const arr = editNiceToHave.slice();
+      if (target < 0 || target >= arr.length) return;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      setEditNiceToHave(arr);
+    }
+  };
+
+  const moveGoalItem = (card: 'weekly' | 'monthly', index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (card === 'weekly') {
+      const arr = editWeekly.slice();
+      if (target < 0 || target >= arr.length) return;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      setEditWeekly(arr);
+    } else {
+      const arr = editMonthly.slice();
+      if (target < 0 || target >= arr.length) return;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      setEditMonthly(arr);
+    }
+  };
+
   // Render helpers
   const renderWeekNavigator = () => {
     const today = new Date();
@@ -550,20 +604,46 @@ const RoutineScreen: React.FC = () => {
     );
   };
 
-  const renderDraggableTaskItem = ({ item, drag }: RenderItemParams<RoutineTask>) => (
-    <ScaleDecorator style={{ width: '100%' }}>
-      <TouchableOpacity
-        onPress={() => handleToggleTask(item.id, item.completed)}
-        onLongPress={drag}
-        style={[styles.taskItem, { width: '100%' }]}
-        activeOpacity={0.7}
-      >
-        <View style={styles.checkbox}>
-          {item.completed && <View style={styles.checkboxChecked} />}
+  const renderTaskItem = (
+    item: RoutineTask,
+    isEditing: boolean,
+    index: number,
+    listLength: number,
+    onMoveUp: () => void,
+    onMoveDown: () => void,
+  ) => (
+    <TouchableOpacity
+      key={item.id}
+      onPress={isEditing ? undefined : () => handleToggleTask(item.id, item.completed)}
+      style={[styles.taskItem, { width: '100%' }]}
+      activeOpacity={isEditing ? 1 : 0.7}
+    >
+      <View style={styles.checkbox}>
+        {item.completed && <View style={styles.checkboxChecked} />}
+      </View>
+      <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
+        {item.text}
+      </Text>
+      {isEditing ? (
+        <View style={styles.reorderButtons}>
+          <TouchableOpacity
+            onPress={onMoveUp}
+            disabled={index === 0}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={{ opacity: index === 0 ? 0.25 : 1 }}
+          >
+            <Ionicons name="chevron-up" size={18} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onMoveDown}
+            disabled={index === listLength - 1}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={{ opacity: index === listLength - 1 ? 0.25 : 1 }}
+          >
+            <Ionicons name="chevron-down" size={18} color="#666" />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
-          {item.text}
-        </Text>
+      ) : (
         <TouchableOpacity
           onPress={() => handleDeleteTask(item.id)}
           style={styles.deleteButton}
@@ -571,24 +651,50 @@ const RoutineScreen: React.FC = () => {
         >
           <Text style={styles.deleteButtonText}>×</Text>
         </TouchableOpacity>
-      </TouchableOpacity>
-    </ScaleDecorator>
+      )}
+    </TouchableOpacity>
   );
 
-  const renderDraggableGoalItem = ({ item, drag }: RenderItemParams<RoutineGoal>) => (
-    <ScaleDecorator style={{ width: '100%' }}>
-      <TouchableOpacity
-        onPress={() => handleToggleGoal(item.id, item.completed, item.type)}
-        onLongPress={drag}
-        style={[styles.taskItem, { width: '100%' }]}
-        activeOpacity={0.7}
-      >
-        <View style={styles.checkbox}>
-          {item.completed && <View style={styles.checkboxChecked} />}
+  const renderGoalItem = (
+    item: RoutineGoal,
+    isEditing: boolean,
+    index: number,
+    listLength: number,
+    onMoveUp: () => void,
+    onMoveDown: () => void,
+  ) => (
+    <TouchableOpacity
+      key={item.id}
+      onPress={isEditing ? undefined : () => handleToggleGoal(item.id, item.completed, item.type)}
+      style={[styles.taskItem, { width: '100%' }]}
+      activeOpacity={isEditing ? 1 : 0.7}
+    >
+      <View style={styles.checkbox}>
+        {item.completed && <View style={styles.checkboxChecked} />}
+      </View>
+      <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
+        {item.text}
+      </Text>
+      {isEditing ? (
+        <View style={styles.reorderButtons}>
+          <TouchableOpacity
+            onPress={onMoveUp}
+            disabled={index === 0}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={{ opacity: index === 0 ? 0.25 : 1 }}
+          >
+            <Ionicons name="chevron-up" size={18} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onMoveDown}
+            disabled={index === listLength - 1}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={{ opacity: index === listLength - 1 ? 0.25 : 1 }}
+          >
+            <Ionicons name="chevron-down" size={18} color="#666" />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
-          {item.text}
-        </Text>
+      ) : (
         <TouchableOpacity
           onPress={() => handleDeleteGoal(item.id, item.type)}
           style={styles.deleteButton}
@@ -596,8 +702,8 @@ const RoutineScreen: React.FC = () => {
         >
           <Text style={styles.deleteButtonText}>×</Text>
         </TouchableOpacity>
-      </TouchableOpacity>
-    </ScaleDecorator>
+      )}
+    </TouchableOpacity>
   );
 
   return (
@@ -649,60 +755,74 @@ const RoutineScreen: React.FC = () => {
         <View style={styles.taskCard}>
           <View style={styles.taskCardHeader}>
             <Text style={styles.taskCardTitle}>Required</Text>
-            <TouchableOpacity
-              style={styles.taskCardAddButton}
-              onPress={() => { setTaskType('non-negotiable'); setTaskModalVisible(true); }}
-            >
-              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editingCard === 'non-negotiable' ? (
+                <>
+                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('non-negotiable')}>
+                    <Text style={styles.taskCardAddButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => handleEnterEdit('non-negotiable')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setTaskType('non-negotiable'); setTaskModalVisible(true); }}>
+                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           {nonNegotiables.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : IS_EXPO_GO
-              ? nonNegotiables.map((item) => (
-                  <React.Fragment key={item.id}>
-                    {renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
-                  </React.Fragment>
-                ))
-              : <DraggableFlatList
-                  data={nonNegotiables}
-                  keyExtractor={item => item.id}
-                  onDragEnd={({ data }) => handleReorder(data, 'non-negotiable')}
-                  renderItem={renderDraggableTaskItem}
-                  activationDistance={10}
-                  dragItemOverflow={true}
-                  scrollEnabled={false}
-                />}
+            : (editingCard === 'non-negotiable' ? editNonNeg : nonNegotiables).map((item, index, arr) =>
+                renderTaskItem(item, editingCard === 'non-negotiable', index, arr.length,
+                  () => moveTaskItem('non-negotiable', index, 'up'),
+                  () => moveTaskItem('non-negotiable', index, 'down'),
+                )
+              )
+          }
         </View>
 
         {/* Optional (Nice to Have) Card */}
         <View style={styles.taskCard}>
           <View style={styles.taskCardHeader}>
             <Text style={styles.taskCardTitle}>Optional</Text>
-            <TouchableOpacity
-              style={styles.taskCardAddButton}
-              onPress={() => { setTaskType('nice-to-have'); setTaskModalVisible(true); }}
-            >
-              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editingCard === 'nice-to-have' ? (
+                <>
+                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('nice-to-have')}>
+                    <Text style={styles.taskCardAddButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => handleEnterEdit('nice-to-have')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setTaskType('nice-to-have'); setTaskModalVisible(true); }}>
+                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           {niceToHave.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : IS_EXPO_GO
-              ? niceToHave.map((item) => (
-                  <React.Fragment key={item.id}>
-                    {renderDraggableTaskItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
-                  </React.Fragment>
-                ))
-              : <DraggableFlatList
-                  data={niceToHave}
-                  keyExtractor={item => item.id}
-                  onDragEnd={({ data }) => handleReorder(data, 'nice-to-have')}
-                  renderItem={renderDraggableTaskItem}
-                  activationDistance={10}
-                  dragItemOverflow={true}
-                  scrollEnabled={false}
-                />}
+            : (editingCard === 'nice-to-have' ? editNiceToHave : niceToHave).map((item, index, arr) =>
+                renderTaskItem(item, editingCard === 'nice-to-have', index, arr.length,
+                  () => moveTaskItem('nice-to-have', index, 'up'),
+                  () => moveTaskItem('nice-to-have', index, 'down'),
+                )
+              )
+          }
         </View>
 
         {/* Goals Section */}
@@ -722,30 +842,37 @@ const RoutineScreen: React.FC = () => {
                 </Text>
               ) : null}
             </View>
-            <TouchableOpacity
-              style={styles.taskCardAddButton}
-              onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}
-            >
-              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editingCard === 'weekly' ? (
+                <>
+                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('weekly')}>
+                    <Text style={styles.taskCardAddButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
+                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           {weeklyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : IS_EXPO_GO
-              ? weeklyGoals.map((item) => (
-                  <React.Fragment key={item.id}>
-                    {renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
-                  </React.Fragment>
-                ))
-              : <DraggableFlatList
-                  data={weeklyGoals}
-                  keyExtractor={item => item.id}
-                  onDragEnd={({ data }) => handleReorderGoal(data, 'weekly')}
-                  renderItem={renderDraggableGoalItem}
-                  activationDistance={10}
-                  dragItemOverflow={true}
-                  scrollEnabled={false}
-                />}
+            : (editingCard === 'weekly' ? editWeekly : weeklyGoals).map((item, index, arr) =>
+                renderGoalItem(item, editingCard === 'weekly', index, arr.length,
+                  () => moveGoalItem('weekly', index, 'up'),
+                  () => moveGoalItem('weekly', index, 'down'),
+                )
+              )
+          }
         </View>
 
         {/* Monthly Goals Card */}
@@ -759,30 +886,37 @@ const RoutineScreen: React.FC = () => {
                 </Text>
               ) : null}
             </View>
-            <TouchableOpacity
-              style={styles.taskCardAddButton}
-              onPress={() => { setGoalType('monthly'); setGoalModalVisible(true); }}
-            >
-              <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editingCard === 'monthly' ? (
+                <>
+                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('monthly')}>
+                    <Text style={styles.taskCardAddButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('monthly'); setGoalModalVisible(true); }}>
+                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
           {monthlyGoals.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : IS_EXPO_GO
-              ? monthlyGoals.map((item) => (
-                  <React.Fragment key={item.id}>
-                    {renderDraggableGoalItem({ item, drag: () => {}, isActive: false, getIndex: () => 0 })}
-                  </React.Fragment>
-                ))
-              : <DraggableFlatList
-                  data={monthlyGoals}
-                  keyExtractor={item => item.id}
-                  onDragEnd={({ data }) => handleReorderGoal(data, 'monthly')}
-                  renderItem={renderDraggableGoalItem}
-                  activationDistance={10}
-                  dragItemOverflow={true}
-                  scrollEnabled={false}
-                />}
+            : (editingCard === 'monthly' ? editMonthly : monthlyGoals).map((item, index, arr) =>
+                renderGoalItem(item, editingCard === 'monthly', index, arr.length,
+                  () => moveGoalItem('monthly', index, 'up'),
+                  () => moveGoalItem('monthly', index, 'down'),
+                )
+              )
+          }
         </View>
       </ScrollView>
 
@@ -1298,6 +1432,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     fontWeight: '400',
+  },
+  reorderButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 
   // Modal
