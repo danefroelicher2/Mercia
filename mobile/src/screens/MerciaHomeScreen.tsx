@@ -235,19 +235,26 @@ const MerciaHomeScreen: React.FC = () => {
       console.log('[MerciaHomeScreen] Skip response:', response.data);
 
       if (response.data.success) {
-        if (user?.id) {
-          await cacheQuestionState(
-            user.id,
-            question.question_id,
-            question.question_text,
-            question.category,
-            'skipped'
-          );
-          console.log('[MerciaHomeScreen] Skip cached successfully');
-        }
+        const canGetNew = response.data.data?.can_get_new ?? false;
 
-        setQuestionState('skipped');
-        console.log('[MerciaHomeScreen] Question skipped successfully');
+        if (canGetNew) {
+          // First skip of the day — fetch a replacement question immediately
+          if (user?.id) await clearQuestionCache(user.id);
+          await fetchDailyQuestion();
+        } else {
+          // Second skip of the day — lock out until tomorrow
+          if (user?.id) {
+            await cacheQuestionState(
+              user.id,
+              question.question_id,
+              question.question_text,
+              question.category,
+              'skipped'
+            );
+          }
+          setQuestionState('skipped');
+          console.log('[MerciaHomeScreen] Daily skip limit reached — come back tomorrow');
+        }
       } else {
         throw new Error('Failed to skip question');
       }

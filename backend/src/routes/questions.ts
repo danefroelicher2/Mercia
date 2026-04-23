@@ -178,11 +178,12 @@ router.post(
       const { questionId } = req.body;
 
       const questionEngine = getQuestionEngine();
-      await questionEngine.skipQuestion(userId, questionId);
+      const { can_get_new } = await questionEngine.skipQuestion(userId, questionId);
 
       res.json({
         success: true,
         message: 'Question skipped',
+        data: { can_get_new },
       });
     } catch (error: any) {
       res.status(500).json({

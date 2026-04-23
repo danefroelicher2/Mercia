@@ -49,12 +49,12 @@ export class QuestionEngine {
   }
 
   /**
-   * Skip today's question
-   * After 3 skips, automatically marks as answered
+   * Skip today's question.
+   * Returns can_get_new: true if the user may receive a replacement question today.
    */
-  async skipQuestion(userId: string, questionId: string): Promise<void> {
+  async skipQuestion(userId: string, questionId: string): Promise<{ can_get_new: boolean }> {
     const today = new Date();
-    await this.storage.skipQuestion(userId, questionId, today);
+    return await this.storage.skipQuestion(userId, questionId, today);
   }
 
   /**

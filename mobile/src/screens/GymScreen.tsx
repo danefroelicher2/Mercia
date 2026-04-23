@@ -209,6 +209,7 @@ const GymScreen: React.FC = () => {
 
   const renderWeekNavigator = () => {
     const today = new Date();
+    const todayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Mon=0 … Sun=6
     const mondayOffset = today.getDay() === 0 ? -6 : 1 - today.getDay();
     const weekDates = DAYS.map((_, index) => {
       const d = new Date(today);
@@ -220,6 +221,7 @@ const GymScreen: React.FC = () => {
       <View style={styles.weekNavigator}>
         {DAYS.map((day, index) => {
           const isSelected = selectedDay === day;
+          const isPastDay = index < todayIndex;
           const logEntry = weekLog.find(e => e.day_of_week === day);
           const hasWorkout = !!(logEntry && logEntry.workout_group);
           return (
@@ -235,6 +237,11 @@ const GymScreen: React.FC = () => {
                 {weekDates[index]}
               </Text>
               {hasWorkout && !isSelected && <View style={styles.dot} />}
+              {isPastDay && !isSelected && (
+                <View pointerEvents="none" style={styles.pastDaySlashContainer}>
+                  <View style={styles.pastDaySlash} />
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -360,6 +367,24 @@ const styles = StyleSheet.create({
   weekDayDateSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  pastDaySlashContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  pastDaySlash: {
+    position: 'absolute',
+    width: '200%',
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    top: '50%',
+    left: '-50%',
+    transform: [{ rotate: '-52deg' }],
   },
   dot: {
     width: 4,

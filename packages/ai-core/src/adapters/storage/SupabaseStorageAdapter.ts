@@ -34,14 +34,19 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-      // Check if user has unanswered question for today
-      const { data: existingQuestion } = await this.client
+      // Check if user has an unanswered, not-yet-skipped-today question assigned today
+      const { data: todayAssignments } = await this.client
         .from('user_daily_questions')
         .select('question_id, skipped_on')
         .eq('user_id', userId)
         .eq('assigned_date', today)
         .eq('answered', false)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
+
+      // Find the most recent assignment that hasn't been skipped today
+      const existingQuestion = (todayAssignments || []).find(
+        a => !(a.skipped_on || []).includes(today)
+      );
 
       if (existingQuestion) {
         const { data: question } = await this.client
@@ -154,43 +159,74 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return responseData;
   }
 
-  async skipQuestion(userId: string, questionId: string, date: Date): Promise<void> {
-    // Get current skip data
-    const { data: existingData } = await this.client
+  async skipQuestion(userId: string, questionId: string, date: Date): Promise<{ can_get_new: boolean }> {
+    const today = date.toISOString().split('T')[0];
+
+    // Update today's assignment row for this specific question
+    const { data: todayAssignment } = await this.client
       .from('user_daily_questions')
-      .select('skipped_on')
+      .select('id, skipped_on')
       .eq('user_id', userId)
       .eq('question_id', questionId)
-      .single();
+      .eq('assigned_date', today)
+      .maybeSingle();
 
-    const skippedDates = existingData?.skipped_on || [];
-    skippedDates.push(date.toISOString().split('T')[0]);
-
-    // If skipped 3 times, mark as answered
-    if (skippedDates.length >= 3) {
-      await this.client
-        .from('user_daily_questions')
-        .update({
-          answered: true,
-          skipped_on: skippedDates,
-        })
-        .eq('user_id', userId)
-        .eq('question_id', questionId);
-
-      // Create placeholder response
-      await this.client.from('user_question_responses').insert({
-        user_id: userId,
-        question_id: questionId,
-        response_text: '[Auto-skipped after 3 attempts]',
-        skip_count: 3,
-      });
-    } else {
+    if (todayAssignment) {
+      const skippedDates = [...(todayAssignment.skipped_on || []), today];
       await this.client
         .from('user_daily_questions')
         .update({ skipped_on: skippedDates })
-        .eq('user_id', userId)
-        .eq('question_id', questionId);
+        .eq('id', todayAssignment.id);
     }
+
+    // Count total lifetime skips for this question across all days
+    const { data: allAssignments } = await this.client
+      .from('user_daily_questions')
+      .select('skipped_on')
+      .eq('user_id', userId)
+      .eq('question_id', questionId);
+
+    const totalSkips = (allAssignments || []).reduce(
+      (sum, a) => sum + (a.skipped_on?.length || 0), 0
+    );
+
+    // After 2 lifetime skips, permanently exclude from the question pool
+    if (totalSkips >= 2) {
+      if (todayAssignment) {
+        await this.client
+          .from('user_daily_questions')
+          .update({ answered: true })
+          .eq('id', todayAssignment.id);
+      }
+      const { data: existingResponse } = await this.client
+        .from('user_question_responses')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('question_id', questionId)
+        .maybeSingle();
+      if (!existingResponse) {
+        await this.client.from('user_question_responses').insert({
+          user_id: userId,
+          question_id: questionId,
+          response_text: '[Skipped twice — permanently excluded]',
+          skip_count: totalSkips,
+        });
+      }
+    }
+
+    // Count how many distinct questions the user has skipped today
+    const { data: todayRows } = await this.client
+      .from('user_daily_questions')
+      .select('skipped_on')
+      .eq('user_id', userId)
+      .eq('assigned_date', today);
+
+    const todaySkipCount = (todayRows || []).filter(
+      row => (row.skipped_on || []).includes(today)
+    ).length;
+
+    // User can get a replacement question only on their first skip of the day
+    return { can_get_new: todaySkipCount < 2 };
   }
   async getUserQuestionStats(userId: string): Promise<UserProgress> {
     // Count answered questions

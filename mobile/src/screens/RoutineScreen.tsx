@@ -493,7 +493,6 @@ const RoutineScreen: React.FC = () => {
 
   // Filter tasks by type
   const nonNegotiables = tasks.filter(t => t.type === 'non-negotiable');
-  const niceToHave = tasks.filter(t => t.type === 'nice-to-have');
 
   // Reorder handlers
   const handleReorder = async (newData: RoutineTask[], listType: 'non-negotiable' | 'nice-to-have') => {
@@ -574,6 +573,7 @@ const RoutineScreen: React.FC = () => {
   // Render helpers
   const renderWeekNavigator = () => {
     const today = new Date();
+    const todayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Mon=0 … Sun=6
     const mondayOffset = today.getDay() === 0 ? -6 : 1 - today.getDay();
     const weekDates = DAYS.map((_, index) => {
       const d = new Date(today);
@@ -585,6 +585,7 @@ const RoutineScreen: React.FC = () => {
       <View style={styles.weekNavigator}>
         {DAYS.map((day, index) => {
           const isSelected = selectedDay === day;
+          const isPastDay = index < todayIndex;
           return (
             <TouchableOpacity
               key={day}
@@ -597,6 +598,11 @@ const RoutineScreen: React.FC = () => {
               <Text style={[styles.weekDayDate, isSelected && styles.weekDayDateSelected]}>
                 {weekDates[index]}
               </Text>
+              {isPastDay && !isSelected && (
+                <View pointerEvents="none" style={styles.pastDaySlashContainer}>
+                  <View style={styles.pastDaySlash} />
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -788,43 +794,6 @@ const RoutineScreen: React.FC = () => {
           }
         </View>
 
-        {/* Optional (Nice to Have) Card */}
-        <View style={styles.taskCard}>
-          <View style={styles.taskCardHeader}>
-            <Text style={styles.taskCardTitle}>Optional</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {editingCard === 'nice-to-have' ? (
-                <>
-                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('nice-to-have')}>
-                    <Text style={styles.taskCardAddButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('nice-to-have')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setTaskType('nice-to-have'); setTaskModalVisible(true); }}>
-                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-          {niceToHave.length === 0
-            ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'nice-to-have' ? editNiceToHave : niceToHave).map((item, index, arr) =>
-                renderTaskItem(item, editingCard === 'nice-to-have', index, arr.length,
-                  () => moveTaskItem('nice-to-have', index, 'up'),
-                  () => moveTaskItem('nice-to-have', index, 'down'),
-                )
-              )
-          }
-        </View>
-
         {/* Goals Section */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionAccent} />
@@ -985,38 +954,6 @@ const RoutineScreen: React.FC = () => {
             ) : (
               <>
                 <Text style={styles.modalTitle}>Add Task</Text>
-
-                <View style={styles.typeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      taskType === 'non-negotiable' && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setTaskType('non-negotiable')}
-                  >
-                    <Text style={[
-                      styles.typeButtonText,
-                      taskType === 'non-negotiable' && styles.typeButtonTextActive,
-                    ]}>
-                      Required
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      taskType === 'nice-to-have' && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setTaskType('nice-to-have')}
-                  >
-                    <Text style={[
-                      styles.typeButtonText,
-                      taskType === 'nice-to-have' && styles.typeButtonTextActive,
-                    ]}>
-                      Optional
-                    </Text>
-                  </TouchableOpacity>
-                </View>
 
                 {copyNoTasksMessage !== '' && (
                   <Text style={styles.copyNoTasksText}>{copyNoTasksMessage}</Text>
@@ -1282,6 +1219,24 @@ const styles = StyleSheet.create({
   weekDayDateSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  pastDaySlashContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  pastDaySlash: {
+    position: 'absolute',
+    width: '200%',
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    top: '50%',
+    left: '-50%',
+    transform: [{ rotate: '-52deg' }],
   },
 
   // Scroll content

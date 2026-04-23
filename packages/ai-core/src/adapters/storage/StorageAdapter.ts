@@ -62,10 +62,11 @@ export interface StorageAdapter {
   ): Promise<QuestionResponse>;
 
   /**
-   * Skip a question (increment skip count)
-   * After 3 skips, auto-marks as answered
+   * Skip a question.
+   * After 2 lifetime skips on the same question, permanently excludes it from the pool.
+   * Returns can_get_new: true if the user has skipped fewer than 2 questions today.
    */
-  skipQuestion(userId: string, questionId: string, date: Date): Promise<void>;
+  skipQuestion(userId: string, questionId: string, date: Date): Promise<{ can_get_new: boolean }>;
 
   /**
    * Get user's question answering statistics
