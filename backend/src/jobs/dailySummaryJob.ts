@@ -220,7 +220,7 @@ async function generateSummaryForUser(
   const weeklyGoalsChangeToday  = weeklyGoalsCompleted - prevWeeklyGoalsCompleted;
   const monthlyGoalsChangeToday = monthlyGoalsCompleted - prevMonthlyGoalsCompleted;
 
-  const hasData = allTasks.length > 0 || gymLogged || questionAnswered;
+  const hasData = nonnegCompleted > 0 || niceCompleted > 0 || gymLogged || questionAnswered;
 
   // ── 8. Groq narrative (skip if no data) ───────────────────────────────────
   let narrative: string | null = null;
