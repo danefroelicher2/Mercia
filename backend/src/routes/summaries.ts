@@ -5,6 +5,14 @@ import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
 
 const router = Router();
 
+// POST /api/summaries/trigger - Manually trigger daily summary generation (no auth — used by pg_cron pre-warm)
+router.post('/trigger', async (req: Request, res: Response): Promise<void> => {
+  res.json({ success: true, message: 'Daily summary generation started' });
+  runDailySummaryGeneration()
+    .then(result => console.log('[Summaries] Trigger result:', result))
+    .catch(err => console.error('[Summaries] Trigger error:', err));
+});
+
 router.use(authenticateToken);
 
 // GET /api/summaries/current - Returns the most recent weekly summary

@@ -118,7 +118,7 @@ async function saveJobLog(date: Date, stats: any): Promise<void> {
  */
 export function startWeeklyResetCronJob(): CronJob {
   const job = new CronJob(
-    '0 0 * * 1',  // Every Monday at midnight
+    '10 6 * * 1',  // Every Monday at 6:10 AM ET (after daily summary job reads Sunday's gym data)
     async () => {
       console.log('\n[CRON] ========================================');
       console.log('[CRON] Starting weekly reset job');
@@ -139,7 +139,7 @@ export function startWeeklyResetCronJob(): CronJob {
     'America/New_York'
   );
 
-  console.log('[CRON] Weekly reset job scheduled for Mondays at 12:00 AM');
+  console.log('[CRON] Weekly reset job scheduled for Mondays at 6:10 AM ET');
 
   return job;
 }
