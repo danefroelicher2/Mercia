@@ -664,17 +664,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 
   async getWeeklyGoals(userId: string): Promise<RoutineGoal[]> {
-    const now = new Date();
-    const currentWeek = this.getISOWeek(now);
-    const currentYear = now.getFullYear();
-
     const { data, error } = await this.client
       .from('routine_goals')
       .select('*')
       .eq('user_id', userId)
       .eq('type', 'weekly')
-      .eq('week_number', currentWeek)
-      .eq('year', currentYear)
       .order('sort_order', { ascending: true });
 
     if (error) {
@@ -685,17 +679,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 
   async getMonthlyGoals(userId: string): Promise<RoutineGoal[]> {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-
     const { data, error } = await this.client
       .from('routine_goals')
       .select('*')
       .eq('user_id', userId)
       .eq('type', 'monthly')
-      .eq('month', currentMonth)
-      .eq('year', currentYear)
       .order('sort_order', { ascending: true });
 
     if (error) {
