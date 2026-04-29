@@ -115,25 +115,27 @@ const GymMemoryScreen: React.FC = () => {
                 <Text style={styles.deleteText}>Delete</Text>
               </TouchableOpacity>
             </View>
-            {group.entries.map(entry => (
-              <View key={entry.id}>
-                <TouchableOpacity
-                  style={styles.entryRow}
-                  onPress={() => toggleEntry(entry.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.entryDate}>{formatDate(entry.session_date)}</Text>
-                  <Text style={styles.entryChevron}>
-                    {expandedEntries.has(entry.id) ? '∧' : '∨'}
-                  </Text>
-                </TouchableOpacity>
-                {expandedEntries.has(entry.id) && (
-                  <View style={styles.entryExpanded}>
-                    <Text style={styles.entryNotes}>{entry.notes}</Text>
-                  </View>
-                )}
-              </View>
-            ))}
+            {group.entries.map((entry, index) => {
+              const isLast = index === group.entries.length - 1;
+              const isExpanded = expandedEntries.has(entry.id);
+              return (
+                <View key={entry.id}>
+                  <TouchableOpacity
+                    style={[styles.entryRow, isLast && !isExpanded && styles.entryRowLast]}
+                    onPress={() => toggleEntry(entry.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.entryDate}>{formatDate(entry.session_date)}</Text>
+                    <Text style={styles.entryChevron}>{isExpanded ? '∧' : '∨'}</Text>
+                  </TouchableOpacity>
+                  {isExpanded && (
+                    <View style={[styles.entryExpanded, isLast && styles.entryExpandedLast]}>
+                      <Text style={styles.entryNotes}>{entry.notes}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
         ))}
       </ScrollView>
@@ -275,6 +277,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#191919',
     borderBottomWidth: 1,
     borderBottomColor: '#1E1E1E',
+  },
+  entryRowLast: {
+    borderBottomWidth: 0,
+  },
+  entryExpandedLast: {
+    borderBottomWidth: 0,
   },
   entryNotes: {
     fontSize: 13,

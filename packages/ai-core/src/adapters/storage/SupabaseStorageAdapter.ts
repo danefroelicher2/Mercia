@@ -1025,7 +1025,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .eq('user_id', userId)
       .eq('workout_group', normalized)
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(5);
 
     if (error) throw new Error(`Failed to get gym memory by group: ${error.message}`);
     return data || [];
@@ -1040,19 +1040,19 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
     if (insertError) throw new Error(`Failed to save gym memory entry: ${insertError.message}`);
 
-    // Keep only the 3 most recent entries per user+group
+    // Keep only the 5 most recent entries per user+group
     const { data: recent, error: selectError } = await this.client
       .from('gym_memory')
       .select('id')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(5);
 
     if (selectError) throw new Error(`Failed to fetch gym memory for trimming: ${selectError.message}`);
 
     const keepIds = (recent || []).map((r: any) => r.id);
-    if (keepIds.length === 3) {
+    if (keepIds.length === 5) {
       await this.client
         .from('gym_memory')
         .delete()

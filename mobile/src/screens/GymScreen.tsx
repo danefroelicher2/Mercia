@@ -75,7 +75,7 @@ const GymScreen: React.FC = () => {
   const [workoutGroup, setWorkoutGroup] = useState('');
   const [notes, setNotes] = useState('');
   const [hasKeystroke, setHasKeystroke] = useState(false);
-  const [priorSession, setPriorSession] = useState<GymMemoryEntry | null>(null);
+  const [priorSessions, setPriorSessions] = useState<GymMemoryEntry[]>([]);
   const [priorSessionEmpty, setPriorSessionEmpty] = useState(false);
   const [weekLog, setWeekLog] = useState<GymWorkoutLog[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -105,14 +105,14 @@ const GymScreen: React.FC = () => {
         if (entry.workout_group) {
           loadPriorSession(entry.workout_group);
         } else {
-          setPriorSession(null);
+          setPriorSessions([]);
           setPriorSessionEmpty(false);
         }
       } else {
         setWorkoutGroup('');
         setNotes('');
         setHasKeystroke(false);
-        setPriorSession(null);
+        setPriorSessions([]);
         setPriorSessionEmpty(false);
       }
     } catch {
@@ -146,14 +146,14 @@ const GymScreen: React.FC = () => {
       const res = await api.get(`/api/gym/memory/${encodeURIComponent(normalized)}`);
       const entries: GymMemoryEntry[] = res.data.data || [];
       if (entries.length > 0) {
-        setPriorSession(entries[0]);
+        setPriorSessions(entries.slice(0, 3));
         setPriorSessionEmpty(false);
       } else {
-        setPriorSession(null);
+        setPriorSessions([]);
         setPriorSessionEmpty(true);
       }
     } catch {
-      setPriorSession(null);
+      setPriorSessions([]);
       setPriorSessionEmpty(false);
     }
   };
@@ -298,14 +298,17 @@ const GymScreen: React.FC = () => {
         {/* Prior Session Card */}
         {workoutGroup.trim().length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Prior Session</Text>
+            <Text style={styles.cardLabel}>Prior Sessions</Text>
             {priorSessionEmpty ? (
               <Text style={styles.emptyState}>No previous {workoutGroup} sessions yet.</Text>
-            ) : priorSession ? (
-              <>
-                <Text style={styles.priorDate}>{formatDate(priorSession.session_date)}</Text>
-                <Text style={styles.priorNotes}>{priorSession.notes}</Text>
-              </>
+            ) : priorSessions.length > 0 ? (
+              priorSessions.map((session, index) => (
+                <View key={session.id}>
+                  {index > 0 && <View style={styles.sessionDivider} />}
+                  <Text style={styles.priorDate}>{formatDate(session.session_date)}</Text>
+                  <Text style={styles.priorNotes}>{session.notes}</Text>
+                </View>
+              ))
             ) : null}
             <TouchableOpacity
               style={styles.memoryLink}
@@ -466,6 +469,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 12,
+  },
+  sessionDivider: {
+    height: 1,
+    backgroundColor: '#232323',
+    marginVertical: 4,
   },
   memoryLink: {
     marginTop: 4,
