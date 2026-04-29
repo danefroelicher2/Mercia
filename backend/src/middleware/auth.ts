@@ -36,6 +36,28 @@ export function authenticateToken(
 }
 
 /**
+ * Authenticates pg_cron HTTP trigger requests via a shared secret.
+ * If CRON_SECRET is not set in env, all requests are rejected.
+ */
+export function authenticateCronSecret(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    res.status(503).json({ error: 'Cron endpoints not configured' });
+    return;
+  }
+  const provided = req.headers['x-cron-secret'];
+  if (!provided || provided !== cronSecret) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  next();
+}
+
+/**
  * Optional authentication - doesn't fail if no token
  */
 export function optionalAuth(

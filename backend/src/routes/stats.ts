@@ -362,10 +362,22 @@ function getISOWeekKey(date: Date): string {
   return `${d.getFullYear()}-W${weekNum}`;
 }
 
+// Per-user cooldown so achievement checks don't fire 11+ DB queries on every task toggle.
+// In-memory — resets on server restart, which is fine (just means one extra check).
+const achievementCooldowns = new Map<string, number>();
+const ACHIEVEMENT_COOLDOWN_MS = 30_000; // 30 seconds per user
+
 async function checkAndUnlockAchievements(
   userId: string,
   supabase: ReturnType<typeof getSupabase>
 ): Promise<Array<{ id: string; title: string }>> {
+  const now = Date.now();
+  const lastCheck = achievementCooldowns.get(userId) ?? 0;
+  if (now - lastCheck < ACHIEVEMENT_COOLDOWN_MS) {
+    return [];
+  }
+  achievementCooldowns.set(userId, now);
+
   console.log('[checkAndUnlockAchievements] ===== START =====');
   console.log('[checkAndUnlockAchievements] User ID:', userId);
 
