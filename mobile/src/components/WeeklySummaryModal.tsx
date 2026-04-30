@@ -121,13 +121,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
   };
 
   // Overall: use stored value or fall back to computed
-  const overallPct = summary.overall_percentage != null
-    ? summary.overall_percentage
-    : Math.round((
-        summary.nonnegotiables_percentage +
-        summary.nicetohaves_percentage +
-        (summary.weekly_goals_percentage || 0)
-      ) / 3);
+  const overallPct = summary.overall_percentage ?? 0;
 
   const yesterdayPct = summary.yesterday_overall_percentage ?? 0;
   const perfDelta = overallPct - yesterdayPct;
@@ -164,14 +158,6 @@ const WeeklySummaryModal: React.FC<Props> = ({
           <Text style={[styles.ringLabel, { color: C.teal }]}>Overall</Text>
         </View>
 
-        <View style={styles.ringItem}>
-          <ProgressRing
-            percentage={summary.nicetohaves_percentage}
-            color={C.blue}
-            trackColor={C.trackBlue}
-          />
-          <Text style={[styles.ringLabel, { color: C.blue }]}>Optional</Text>
-        </View>
       </View>
 
       {/* ② PERFORMANCE */}

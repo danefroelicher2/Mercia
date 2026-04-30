@@ -54,9 +54,7 @@ const SummaryHistoryScreen: React.FC = () => {
   };
 
   const renderItem = ({ item }: { item: WeeklySummary }) => {
-    const overallPercentage = Math.round(
-      (item.nonnegotiables_percentage + item.nicetohaves_percentage + item.weekly_goals_percentage) / 3
-    );
+    const overallPercentage = item.overall_percentage ?? 0;
 
     return (
       <TouchableOpacity

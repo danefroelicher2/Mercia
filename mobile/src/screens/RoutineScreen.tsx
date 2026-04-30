@@ -111,7 +111,6 @@ const RoutineScreen: React.FC = () => {
   const [newTaskText, setNewTaskText] = useState('');
   const [newGoalText, setNewGoalText] = useState('');
 
-  const [taskType, setTaskType] = useState<'non-negotiable' | 'nice-to-have'>('non-negotiable');
   const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
 
   const [copyModeActive, setCopyModeActive] = useState(false);
@@ -133,9 +132,8 @@ const RoutineScreen: React.FC = () => {
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
   // Edit mode state — each card manages its own independently
-  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly' | null>(null);
+  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | null>(null);
   const [editNonNeg, setEditNonNeg] = useState<RoutineTask[]>([]);
-  const [editNiceToHave, setEditNiceToHave] = useState<RoutineTask[]>([]);
   const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
   const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
 
@@ -322,7 +320,7 @@ const RoutineScreen: React.FC = () => {
     try {
       const response = await api.post('/api/routine/tasks', {
         text: newTaskText.trim(),
-        type: taskType,
+        type: 'non-negotiable',
         dayOfWeek: selectedDay,
       });
 
@@ -384,11 +382,10 @@ const RoutineScreen: React.FC = () => {
       const response = await api.get(`/api/routine/tasks/${sourceDay}`);
       if (response.data.success) {
         const allSourceTasks: RoutineTask[] = response.data.data;
-        const filtered = allSourceTasks.filter(t => t.type === taskType);
+        const filtered = allSourceTasks.filter(t => t.type === 'non-negotiable');
         if (filtered.length === 0) {
-          const label = taskType === 'non-negotiable' ? 'Required' : 'Optional';
           const dayLabel = sourceDay.charAt(0).toUpperCase() + sourceDay.slice(1);
-          setCopyNoTasksMessage(`No ${label} tasks on ${dayLabel}`);
+          setCopyNoTasksMessage(`No Required tasks on ${dayLabel}`);
           setCopyModeActive(false);
           setIsCopying(false);
           return;
@@ -397,7 +394,7 @@ const RoutineScreen: React.FC = () => {
           try {
             await api.post('/api/routine/tasks', {
               text: task.text,
-              type: taskType,
+              type: 'non-negotiable',
               dayOfWeek: selectedDay,
             });
           } catch (err) {
@@ -495,10 +492,8 @@ const RoutineScreen: React.FC = () => {
   const nonNegotiables = tasks.filter(t => t.type === 'non-negotiable');
 
   // Reorder handlers
-  const handleReorder = async (newData: RoutineTask[], listType: 'non-negotiable' | 'nice-to-have') => {
-    const otherType = listType === 'non-negotiable' ? 'nice-to-have' : 'non-negotiable';
-    const otherTasks = tasks.filter(t => t.type === otherType);
-    setTasks([...newData, ...otherTasks]);
+  const handleReorder = async (newData: RoutineTask[]) => {
+    setTasks([...newData, ...tasks.filter(t => t.type !== 'non-negotiable')]);
     try {
       await api.patch('/api/routine/tasks/reorder', { ids: newData.map(t => t.id) });
     } catch (error) {
@@ -520,9 +515,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Edit mode handlers
-  const handleEnterEdit = (card: 'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly') => {
+  const handleEnterEdit = (card: 'non-negotiable' | 'weekly' | 'monthly') => {
     if (card === 'non-negotiable') setEditNonNeg(nonNegotiables.slice());
-    else if (card === 'nice-to-have') setEditNiceToHave(niceToHave.slice());
     else if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
     else setEditMonthly(monthlyGoals.slice());
     setEditingCard(card);
@@ -532,27 +526,19 @@ const RoutineScreen: React.FC = () => {
     setEditingCard(null);
   };
 
-  const handleSaveEdit = (card: 'non-negotiable' | 'nice-to-have' | 'weekly' | 'monthly') => {
-    if (card === 'non-negotiable') handleReorder(editNonNeg, 'non-negotiable');
-    else if (card === 'nice-to-have') handleReorder(editNiceToHave, 'nice-to-have');
+  const handleSaveEdit = (card: 'non-negotiable' | 'weekly' | 'monthly') => {
+    if (card === 'non-negotiable') handleReorder(editNonNeg);
     else if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
     else handleReorderGoal(editMonthly, 'monthly');
     setEditingCard(null);
   };
 
-  const moveTaskItem = (card: 'non-negotiable' | 'nice-to-have', index: number, direction: 'up' | 'down') => {
+  const moveTaskItem = (index: number, direction: 'up' | 'down') => {
     const target = direction === 'up' ? index - 1 : index + 1;
-    if (card === 'non-negotiable') {
-      const arr = editNonNeg.slice();
-      if (target < 0 || target >= arr.length) return;
-      [arr[index], arr[target]] = [arr[target], arr[index]];
-      setEditNonNeg(arr);
-    } else {
-      const arr = editNiceToHave.slice();
-      if (target < 0 || target >= arr.length) return;
-      [arr[index], arr[target]] = [arr[target], arr[index]];
-      setEditNiceToHave(arr);
-    }
+    const arr = editNonNeg.slice();
+    if (target < 0 || target >= arr.length) return;
+    [arr[index], arr[target]] = [arr[target], arr[index]];
+    setEditNonNeg(arr);
   };
 
   const moveGoalItem = (card: 'weekly' | 'monthly', index: number, direction: 'up' | 'down') => {
@@ -776,7 +762,7 @@ const RoutineScreen: React.FC = () => {
                   <TouchableOpacity onPress={() => handleEnterEdit('non-negotiable')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setTaskType('non-negotiable'); setTaskModalVisible(true); }}>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => setTaskModalVisible(true)}>
                     <Text style={styles.taskCardAddButtonText}>+ Add</Text>
                   </TouchableOpacity>
                 </>
@@ -787,8 +773,8 @@ const RoutineScreen: React.FC = () => {
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
             : (editingCard === 'non-negotiable' ? editNonNeg : nonNegotiables).map((item, index, arr) =>
                 renderTaskItem(item, editingCard === 'non-negotiable', index, arr.length,
-                  () => moveTaskItem('non-negotiable', index, 'up'),
-                  () => moveTaskItem('non-negotiable', index, 'down'),
+                  () => moveTaskItem(index, 'up'),
+                  () => moveTaskItem(index, 'down'),
                 )
               )
           }
@@ -1267,7 +1253,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Task cards (Required / Optional)
+  // Task cards (Required)
   taskCard: {
     backgroundColor: '#161616',
     borderRadius: 12,

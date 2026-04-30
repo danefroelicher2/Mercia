@@ -136,7 +136,7 @@ async function generateSummaryForUser(
   const { data: prevRow } = await supabase
     .schema('oasis')
     .from('weekly_summaries')
-    .select('nonnegotiables_percentage, nicetohaves_percentage, weekly_goals_percentage, overall_percentage, weekly_goals_completed, monthly_goals_completed')
+    .select('overall_percentage, weekly_goals_completed, monthly_goals_completed')
     .eq('user_id', userId)
     .lt('week_end_date', date)
     .order('week_end_date', { ascending: false })
@@ -145,17 +145,12 @@ async function generateSummaryForUser(
 
   // ── 7. Compute stats ───────────────────────────────────────────────────────
   const nonNegTasks = allTasks.filter((t: any) => t.type === 'non-negotiable');
-  const niceTasks   = allTasks.filter((t: any) => t.type === 'nice-to-have');
 
   const completedIds = new Set(completedTasks.map((t: any) => t.task_id));
 
   const nonnegTotal     = nonNegTasks.length;
   const nonnegCompleted = nonNegTasks.filter((t: any) => completedIds.has(t.id)).length;
   const nonnegPct       = nonnegTotal > 0 ? Math.round((nonnegCompleted / nonnegTotal) * 100) : 0;
-
-  const niceTotal     = niceTasks.length;
-  const niceCompleted = niceTasks.filter((t: any) => completedIds.has(t.id)).length;
-  const nicePct       = niceTotal > 0 ? Math.round((niceCompleted / niceTotal) * 100) : 0;
 
   // Weekly goals
   const weeklyGoals = weeklyGoalRows || [];
@@ -184,10 +179,9 @@ async function generateSummaryForUser(
     .filter((t: any) => !completedIds.has(t.id))
     .map((t: any) => ({ task_name: t.text, times_missed: 1, day: dayOfWeek, task_type: t.type }));
 
-  // Overall percentage = average of nonneg, nice, weekly goals
+  // Overall percentage = average of nonneg + weekly goals
   const activePctSources = [
     ...(nonnegTotal > 0 ? [nonnegPct] : []),
-    ...(niceTotal > 0 ? [nicePct] : []),
     ...(weeklyGoalsTotal > 0 ? [weeklyGoalsPct] : []),
   ];
   const overallPct = activePctSources.length > 0
@@ -195,15 +189,7 @@ async function generateSummaryForUser(
     : 0;
 
   // Yesterday's overall for performance comparison
-  const yesterdayOverallPct = prevRow
-    ? (prevRow.overall_percentage != null
-        ? Number(prevRow.overall_percentage)
-        : Math.round((
-            Number(prevRow.nonnegotiables_percentage || 0) +
-            Number(prevRow.nicetohaves_percentage || 0) +
-            Number(prevRow.weekly_goals_percentage || 0)
-          ) / 3))
-    : 0;
+  const yesterdayOverallPct = prevRow ? Number(prevRow.overall_percentage || 0) : 0;
 
   // Performance delta
   let improvementPct = 0;
@@ -220,7 +206,7 @@ async function generateSummaryForUser(
   const weeklyGoalsChangeToday  = weeklyGoalsCompleted - prevWeeklyGoalsCompleted;
   const monthlyGoalsChangeToday = monthlyGoalsCompleted - prevMonthlyGoalsCompleted;
 
-  const hasData = nonnegCompleted > 0 || niceCompleted > 0 || gymLogged || questionAnswered;
+  const hasData = nonnegCompleted > 0 || gymLogged || questionAnswered;
 
   // ── 8. Groq narrative (skip if no data) ───────────────────────────────────
   let narrative: string | null = null;
@@ -231,8 +217,6 @@ async function generateSummaryForUser(
         dayOfWeek,
         nonnegCompleted,
         nonnegTotal,
-        niceCompleted,
-        niceTotal,
         tasksMissed: tasksMissedFrequently.map((t: any) => t.task_name),
         gymLogged,
         gymGroup,
@@ -271,9 +255,6 @@ async function generateSummaryForUser(
         nonnegotiables_completed: nonnegCompleted,
         nonnegotiables_total: nonnegTotal,
         nonnegotiables_percentage: nonnegPct,
-        nicetohaves_completed: niceCompleted,
-        nicetohaves_total: niceTotal,
-        nicetohaves_percentage: nicePct,
         best_day_combined: '—',
         most_consistent_day: '—',
         tasks_missed_frequently: tasksMissedFrequently,
@@ -366,8 +347,6 @@ function buildNarrativePrompt(data: {
   dayOfWeek: string;
   nonnegCompleted: number;
   nonnegTotal: number;
-  niceCompleted: number;
-  niceTotal: number;
   tasksMissed: string[];
   gymLogged: boolean;
   gymGroup: string | null;
@@ -376,9 +355,6 @@ function buildNarrativePrompt(data: {
   const lines: string[] = [];
   lines.push(`Day: ${data.dayOfWeek}`);
   lines.push(`Non-negotiables: ${data.nonnegCompleted}/${data.nonnegTotal} completed`);
-  if (data.niceTotal > 0) {
-    lines.push(`Nice-to-haves: ${data.niceCompleted}/${data.niceTotal} completed`);
-  }
   if (data.tasksMissed.length > 0) {
     lines.push(`Missed: ${data.tasksMissed.slice(0, 3).join(', ')}`);
   }

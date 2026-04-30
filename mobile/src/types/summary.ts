@@ -8,9 +8,6 @@ export interface WeeklySummary {
   nonnegotiables_completed: number;
   nonnegotiables_total: number;
   nonnegotiables_percentage: number;
-  nicetohaves_completed: number;
-  nicetohaves_total: number;
-  nicetohaves_percentage: number;
 
   // Missed tasks for this day (includes type for req/opt label)
   tasks_missed_frequently: { task_name: string; times_missed: number; day: string; task_type?: string }[];

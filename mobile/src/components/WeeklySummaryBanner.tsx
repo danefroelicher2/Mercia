@@ -18,7 +18,7 @@ const WeeklySummaryBanner: React.FC<WeeklySummaryBannerProps> = ({ summary, onPr
         <View style={styles.textContainer}>
           <Text style={styles.title}>Daily Summary Available</Text>
           <Text style={styles.subtitle}>
-            {`${Math.round((summary.nonnegotiables_percentage + summary.nicetohaves_percentage + summary.weekly_goals_percentage) / 3)}% overall completion`}
+            {`${summary.overall_percentage}% overall completion`}
           </Text>
         </View>
         <Text style={styles.arrow}>›</Text>
