@@ -129,6 +129,8 @@ const WeeklySummaryModal: React.FC<Props> = ({
 
   const missedTasks = summary.tasks_missed_frequently || [];
   const weeklyMissedTasks = (summary.weekly_missed_tasks || []).filter(t => t.times_missed > 0);
+  const gymDays = summary.gym_days_this_week ?? null;
+  const gymPossible = summary.gym_days_possible ?? 1;
   const completedWeekly = summary.completed_weekly_goal_texts || [];
   const completedMonthly = summary.completed_monthly_goal_texts || [];
 
@@ -222,7 +224,26 @@ const WeeklySummaryModal: React.FC<Props> = ({
         </View>
       )}
 
-      {/* ⑤ WEEKLY GOALS */}
+      {/* ⑤ GYM THIS WEEK */}
+      {gymDays !== null && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Gym This Week</Text>
+          <View style={styles.gymRow}>
+            <Text style={styles.gymCount}>{gymDays}</Text>
+            <Text style={styles.gymOf}> / {gymPossible} days</Text>
+          </View>
+          <View style={styles.gymBar}>
+            <View
+              style={[
+                styles.gymBarFill,
+                { width: `${Math.round((gymDays / gymPossible) * 100)}%` },
+              ]}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* ⑥ WEEKLY GOALS */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Weekly Goals</Text>
@@ -506,6 +527,33 @@ const styles = StyleSheet.create({
     color: C.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+
+  // ── Gym ──
+  gymRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  gymCount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: C.teal,
+  },
+  gymOf: {
+    fontSize: 16,
+    color: C.textSecondary,
+  },
+  gymBar: {
+    height: 4,
+    backgroundColor: C.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  gymBarFill: {
+    height: 4,
+    backgroundColor: C.teal,
+    borderRadius: 2,
   },
 
   // ── Goals ──

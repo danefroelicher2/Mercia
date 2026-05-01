@@ -212,7 +212,7 @@ async function generateSummaryForUser(
   const weekDates = getDatesFromMondayToDate(date);
   const weekStart = weekDates[0];
 
-  const [{ data: allNonNegRows }, { data: weekCompletionRows }] = await Promise.all([
+  const [{ data: allNonNegRows }, { data: weekCompletionRows }, { data: gymWeekRows }] = await Promise.all([
     supabase
       .schema('oasis')
       .from('routine_tasks')
@@ -227,6 +227,14 @@ async function generateSummaryForUser(
       .gte('snapshot_date', weekStart)
       .lte('snapshot_date', date)
       .eq('completed', true),
+    supabase
+      .schema('oasis')
+      .from('gym_workout_log')
+      .select('logged_date')
+      .eq('user_id', userId)
+      .in('logged_date', weekDates)
+      .not('workout_group', 'is', null)
+      .neq('workout_group', ''),
   ]);
 
   const weekCompletedSet = new Set(
@@ -252,6 +260,11 @@ async function generateSummaryForUser(
 
   const weeklyMissedTasks = Array.from(weekMissedMap.values())
     .sort((a, b) => b.times_missed - a.times_missed);
+
+  // ── 7c. Gym days this week (Mon → yesterday) ──────────────────────────────
+  const gymDaysSet = new Set((gymWeekRows || []).map((r: any) => r.logged_date as string));
+  const gymDaysThisWeek = gymDaysSet.size;
+  const gymDaysPossible = weekDates.length;
 
   // ── 8. Groq narrative (skip if no data) ───────────────────────────────────
   let narrative: string | null = null;
@@ -321,6 +334,8 @@ async function generateSummaryForUser(
         has_complete_data: hasData,
         is_saved: false,
         weekly_missed_tasks: weeklyMissedTasks,
+        gym_days_this_week: gymDaysThisWeek,
+        gym_days_possible: gymDaysPossible,
       },
       { onConflict: 'user_id,week_end_date' }
     );

@@ -40,6 +40,10 @@ export interface WeeklySummary {
   best_day_combined: string;
   most_consistent_day: string;
 
+  // Gym tracking
+  gym_days_this_week?: number;
+  gym_days_possible?: number;
+
   // Meta
   is_saved: boolean;
   has_complete_data: boolean;
