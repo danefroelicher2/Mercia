@@ -128,6 +128,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
   const showPerf = summary.yesterday_overall_percentage != null && summary.yesterday_overall_percentage > 0;
 
   const missedTasks = summary.tasks_missed_frequently || [];
+  const weeklyMissedTasks = (summary.weekly_missed_tasks || []).filter(t => t.times_missed > 0);
   const completedWeekly = summary.completed_weekly_goal_texts || [];
   const completedMonthly = summary.completed_monthly_goal_texts || [];
 
@@ -202,7 +203,26 @@ const WeeklySummaryModal: React.FC<Props> = ({
         </View>
       )}
 
-      {/* ④ WEEKLY GOALS */}
+      {/* ④ MOST MISSED THIS WEEK */}
+      {weeklyMissedTasks.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Most Missed This Week</Text>
+          {weeklyMissedTasks.map((item, i) => (
+            <View
+              key={item.task_id}
+              style={[styles.missedRow, i < weeklyMissedTasks.length - 1 && styles.missedRowBorder]}
+            >
+              <View style={[styles.dot, { backgroundColor: C.red }]} />
+              <Text style={styles.missedText}>{item.task_name}</Text>
+              {item.times_missed > 1 && (
+                <Text style={styles.missedType}>×{item.times_missed}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ⑤ WEEKLY GOALS */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Weekly Goals</Text>
@@ -231,7 +251,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
         )}
       </View>
 
-      {/* ⑤ MONTHLY GOALS */}
+      {/* ⑥ MONTHLY GOALS */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Monthly Goals</Text>
@@ -332,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '88%',
+    height: '88%',
     paddingBottom: 34,
   },
   handle: {

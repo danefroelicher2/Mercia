@@ -249,15 +249,46 @@ router.delete('/tasks/:id', async (req: Request, res: Response): Promise<void> =
     const storage = getStorage();
     await storage.deleteRoutineTask(id, userId);
 
-    res.json({
-      success: true,
-      message: 'Task deleted',
-    });
+    res.json({ success: true, message: 'Task deleted' });
+
+    // Fire-and-forget: clean up orphaned records for the deleted task
+    const supabase = getSupabase();
+
+    // Remove completion history for this task
+    supabase
+      .schema('oasis')
+      .from('task_completion_history')
+      .delete()
+      .eq('user_id', userId)
+      .eq('task_id', id)
+      .then(({ error }) => {
+        if (error) console.error('[Routine] task_completion_history cleanup failed:', error);
+      });
+
+    // Remove deleted task from tasks_missed_frequently in any stored summaries
+    supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .select('id, tasks_missed_frequently')
+      .eq('user_id', userId)
+      .not('tasks_missed_frequently', 'is', null)
+      .then(async ({ data: summaries, error }) => {
+        if (error || !summaries) return;
+        for (const summary of summaries) {
+          const missed = summary.tasks_missed_frequently as any[];
+          if (!Array.isArray(missed) || missed.length === 0) continue;
+          const filtered = missed.filter((m: any) => m.task_id !== id);
+          if (filtered.length !== missed.length) {
+            await supabase
+              .schema('oasis')
+              .from('weekly_summaries')
+              .update({ tasks_missed_frequently: filtered })
+              .eq('id', summary.id);
+          }
+        }
+      });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

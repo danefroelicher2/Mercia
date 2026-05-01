@@ -197,8 +197,15 @@ const RoutineScreen: React.FC = () => {
         const response = await api.get('/api/summaries/current');
         if (response.data.success && response.data.data) {
           const summary: WeeklySummary = response.data.data;
-          setCurrentSummary(summary);
-          await checkUnsavedSummaryModal(summary);
+          // Only show banner for summaries from yesterday or today — ignore stale records
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          const todayStr = new Date().toISOString().split('T')[0];
+          if (summary.week_end_date >= yesterdayStr && summary.week_end_date <= todayStr) {
+            setCurrentSummary(summary);
+            await checkUnsavedSummaryModal(summary);
+          }
         }
       } catch (error) {
         console.error('[RoutineScreen] Error loading summary:', error);

@@ -177,7 +177,7 @@ async function generateSummaryForUser(
   // Tasks missed = tasks scheduled for this day that weren't completed (with type)
   const tasksMissedFrequently = allTasks
     .filter((t: any) => !completedIds.has(t.id))
-    .map((t: any) => ({ task_name: t.text, times_missed: 1, day: dayOfWeek, task_type: t.type }));
+    .map((t: any) => ({ task_id: t.id, task_name: t.text, times_missed: 1, day: dayOfWeek, task_type: t.type }));
 
   // Overall percentage = average of nonneg + weekly goals
   const activePctSources = [
@@ -207,6 +207,51 @@ async function generateSummaryForUser(
   const monthlyGoalsChangeToday = monthlyGoalsCompleted - prevMonthlyGoalsCompleted;
 
   const hasData = nonnegCompleted > 0 || gymLogged || questionAnswered;
+
+  // ── 7b. Weekly missed tasks (non-negotiables, Monday of this week → yesterday) ──
+  const weekDates = getDatesFromMondayToDate(date);
+  const weekStart = weekDates[0];
+
+  const [{ data: allNonNegRows }, { data: weekCompletionRows }] = await Promise.all([
+    supabase
+      .schema('oasis')
+      .from('routine_tasks')
+      .select('id, text, day_of_week')
+      .eq('user_id', userId)
+      .eq('type', 'non-negotiable'),
+    supabase
+      .schema('oasis')
+      .from('task_completion_history')
+      .select('task_id, snapshot_date')
+      .eq('user_id', userId)
+      .gte('snapshot_date', weekStart)
+      .lte('snapshot_date', date)
+      .eq('completed', true),
+  ]);
+
+  const weekCompletedSet = new Set(
+    (weekCompletionRows || []).map((c: any) => `${c.task_id}::${c.snapshot_date}`)
+  );
+
+  const weekMissedMap = new Map<string, { task_id: string; task_name: string; times_missed: number }>();
+
+  for (const d of weekDates) {
+    const dow = getDayOfWeekForDate(d);
+    const tasksForDay = (allNonNegRows || []).filter((t: any) => t.day_of_week === dow);
+    for (const task of tasksForDay as any[]) {
+      if (!weekCompletedSet.has(`${task.id}::${d}`)) {
+        const existing = weekMissedMap.get(task.id);
+        if (existing) {
+          existing.times_missed++;
+        } else {
+          weekMissedMap.set(task.id, { task_id: task.id, task_name: task.text, times_missed: 1 });
+        }
+      }
+    }
+  }
+
+  const weeklyMissedTasks = Array.from(weekMissedMap.values())
+    .sort((a, b) => b.times_missed - a.times_missed);
 
   // ── 8. Groq narrative (skip if no data) ───────────────────────────────────
   let narrative: string | null = null;
@@ -275,6 +320,7 @@ async function generateSummaryForUser(
         is_improvement: isImprovement,
         has_complete_data: hasData,
         is_saved: false,
+        weekly_missed_tasks: weeklyMissedTasks,
       },
       { onConflict: 'user_id,week_end_date' }
     );
@@ -399,6 +445,20 @@ function getYesterdayDateString(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().split('T')[0];
+}
+
+// Returns all dates from Monday of the week containing dateStr through dateStr (inclusive)
+function getDatesFromMondayToDate(dateStr: string): string[] {
+  const end = new Date(dateStr + 'T12:00:00Z');
+  const utcDay = end.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysFromMonday = utcDay === 0 ? 6 : utcDay - 1;
+  const dates: string[] = [];
+  for (let i = daysFromMonday; i >= 0; i--) {
+    const d = new Date(end);
+    d.setUTCDate(end.getUTCDate() - i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
 }
 
 // Returns lowercase day name matching routine_tasks.day_of_week constraint
