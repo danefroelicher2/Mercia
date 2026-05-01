@@ -22,13 +22,9 @@ const colors = {
   border: '#3A3A3A',
 };
 
-function formatDateRange(startDate: string, endDate: string): string {
-  const start = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  const startStr = start.toLocaleDateString('en-US', opts);
-  const endStr = end.toLocaleDateString('en-US', { ...opts, year: 'numeric' });
-  return `${startStr} - ${endStr}`;
+function formatSummaryDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const SummaryHistoryScreen: React.FC = () => {
@@ -64,7 +60,7 @@ const SummaryHistoryScreen: React.FC = () => {
       >
         <View style={styles.cardHeader}>
           <Text style={styles.cardDate}>
-            Week of {formatDateRange(item.week_start_date, item.week_end_date)}
+            {formatSummaryDate(item.week_end_date)}
           </Text>
           <Text style={styles.cardArrow}>›</Text>
         </View>
@@ -81,7 +77,7 @@ const SummaryHistoryScreen: React.FC = () => {
           </View>
           <View style={styles.cardStat}>
             <Text style={styles.cardStatValue}>{item.nonnegotiables_percentage}%</Text>
-            <Text style={styles.cardStatLabel}>Tasks</Text>
+            <Text style={styles.cardStatLabel}>Required</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -103,7 +99,7 @@ const SummaryHistoryScreen: React.FC = () => {
           <Text style={styles.emptyIcon}>📊</Text>
           <Text style={styles.emptyTitle}>No Saved Summaries</Text>
           <Text style={styles.emptyText}>
-            Save your weekly summaries from the Routine tab to see them here.
+            Save your daily summaries from the Routine tab to see them here.
           </Text>
         </View>
       ) : (
