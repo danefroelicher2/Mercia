@@ -12,6 +12,24 @@ import {
   RoutineGoal,
 } from '../../types';
 
+const DAY_OFFSETS: Record<string, number> = {
+  monday: 0, tuesday: 1, wednesday: 2, thursday: 3,
+  friday: 4, saturday: 5, sunday: 6,
+};
+
+// Returns the calendar date (YYYY-MM-DD) for a given day of the week within an ISO week+year.
+function getISOWeekDayDate(dayOfWeek: string, weekNumber: number, year: number): string {
+  // Find Jan 4 of the year, which is always in ISO week 1
+  const jan4 = new Date(year, 0, 4);
+  const jan4DayOfWeek = (jan4.getDay() + 6) % 7; // Mon=0 … Sun=6
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - jan4DayOfWeek + (weekNumber - 1) * 7);
+  const offset = DAY_OFFSETS[dayOfWeek.toLowerCase()] ?? 0;
+  const result = new Date(monday);
+  result.setDate(monday.getDate() + offset);
+  return result.toISOString().split('T')[0];
+}
+
 export class SupabaseStorageAdapter implements StorageAdapter {
   private client: SupabaseClient<any, 'oasis'>; // ← Specify schema type
 
@@ -966,7 +984,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     if (error) throw new Error(`Failed to upsert gym workout log: ${error.message}`);
 
     if (notes.trim()) {
-      await this.saveGymMemoryEntry(userId, workoutGroup, notes, today);
+      const sessionDate = getISOWeekDayDate(dayOfWeek, weekNumber, year);
+      await this.saveGymMemoryEntry(userId, workoutGroup, notes, sessionDate);
     }
 
     return data;
@@ -1034,19 +1053,23 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void> {
     const normalized = workoutGroup.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
 
-    const { error: insertError } = await this.client
+    // Upsert: one row per (user, group, date) — editing a session updates notes, not creates duplicates
+    const { error: upsertError } = await this.client
       .from('gym_memory')
-      .insert({ user_id: userId, workout_group: normalized, notes, session_date: sessionDate });
+      .upsert(
+        { user_id: userId, workout_group: normalized, notes, session_date: sessionDate },
+        { onConflict: 'user_id,workout_group,session_date' }
+      );
 
-    if (insertError) throw new Error(`Failed to save gym memory entry: ${insertError.message}`);
+    if (upsertError) throw new Error(`Failed to save gym memory entry: ${upsertError.message}`);
 
-    // Keep only the 5 most recent entries per user+group
+    // Keep only the 5 most recent sessions per user+group
     const { data: recent, error: selectError } = await this.client
       .from('gym_memory')
       .select('id')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
-      .order('created_at', { ascending: false })
+      .order('session_date', { ascending: false })
       .limit(5);
 
     if (selectError) throw new Error(`Failed to fetch gym memory for trimming: ${selectError.message}`);

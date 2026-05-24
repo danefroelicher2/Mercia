@@ -146,7 +146,7 @@ const GymScreen: React.FC = () => {
       const res = await api.get(`/api/gym/memory/${encodeURIComponent(normalized)}`);
       const entries: GymMemoryEntry[] = res.data.data || [];
       if (entries.length > 0) {
-        setPriorSessions(entries.slice(0, 3));
+        setPriorSessions(entries.slice(0, 5));
         setPriorSessionEmpty(false);
       } else {
         setPriorSessions([]);
