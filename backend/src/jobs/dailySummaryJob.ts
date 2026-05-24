@@ -174,10 +174,15 @@ async function generateSummaryForUser(
   const gymGroup   = gymLogged ? (gymRows![0] as any).workout_group : null;
   const questionAnswered = (questionRows || []).length > 0;
 
-  // Tasks missed = tasks scheduled for this day that weren't completed (with type)
+  // Tasks missed = today's tasks that weren't crossed off, deduped by id
+  const seenIds = new Set<string>();
   const tasksMissedFrequently = allTasks
-    .filter((t: any) => !completedIds.has(t.id))
-    .map((t: any) => ({ task_id: t.id, task_name: t.text, times_missed: 1, day: dayOfWeek, task_type: t.type }));
+    .filter((t: any) => {
+      if (completedIds.has(t.id) || seenIds.has(t.id)) return false;
+      seenIds.add(t.id);
+      return true;
+    })
+    .map((t: any) => ({ task_id: t.id, task_name: t.text }));
 
   // Overall percentage = average of nonneg + weekly goals
   const activePctSources = [

@@ -114,4 +114,27 @@ router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => 
   }
 });
 
+// DELETE /api/summaries/:id - Delete a saved summary
+router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const supabase = getSupabase();
+
+    const { error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Summaries] Error deleting:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

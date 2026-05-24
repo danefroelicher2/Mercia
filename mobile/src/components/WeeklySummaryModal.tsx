@@ -32,6 +32,7 @@ interface Props {
   summary: WeeklySummary | null;
   onDismiss: () => void;
   onSave?: (summaryId: string) => Promise<void>;
+  onDelete?: (summaryId: string) => Promise<void>;
   readOnly?: boolean;
 }
 
@@ -95,16 +96,42 @@ const WeeklySummaryModal: React.FC<Props> = ({
   summary,
   onDismiss,
   onSave,
+  onDelete,
   readOnly = false,
 }) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(summary?.is_saved || false);
+  const [deleting, setDeleting] = useState(false);
 
   React.useEffect(() => {
     setSaved(summary?.is_saved || false);
   }, [summary?.id]);
 
   if (!summary) return null;
+
+  const handleDelete = () => {
+    if (!onDelete || !summary) return;
+    Alert.alert(
+      'Delete Summary',
+      'This will permanently remove this summary. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await onDelete(summary.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete summary.');
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleSave = async () => {
     if (!onSave || saved) return;
@@ -189,19 +216,15 @@ const WeeklySummaryModal: React.FC<Props> = ({
       {missedTasks.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Missed Today</Text>
-          {missedTasks.map((item, i) => {
-            const isReq = item.task_type === 'non-negotiable';
-            return (
-              <View
-                key={i}
-                style={[styles.missedRow, i < missedTasks.length - 1 && styles.missedRowBorder]}
-              >
-                <View style={[styles.dot, { backgroundColor: isReq ? C.primary : C.blue }]} />
-                <Text style={styles.missedText}>{item.task_name}</Text>
-                <Text style={styles.missedType}>{isReq ? 'req' : 'opt'}</Text>
-              </View>
-            );
-          })}
+          {missedTasks.map((item, i) => (
+            <View
+              key={item.task_id ?? i}
+              style={[styles.missedRow, i < missedTasks.length - 1 && styles.missedRowBorder]}
+            >
+              <View style={[styles.dot, { backgroundColor: C.textTertiary }]} />
+              <Text style={styles.missedText}>{item.task_name}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -351,6 +374,16 @@ const WeeklySummaryModal: React.FC<Props> = ({
                 <Text style={[styles.btnPrimaryText, saved && styles.btnPrimaryTextDone]}>
                   {saved ? 'Saved ✓' : saving ? 'Saving...' : 'Save to Profile'}
                 </Text>
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                style={styles.btnDelete}
+                onPress={handleDelete}
+                disabled={deleting}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.btnDeleteText}>{deleting ? 'Deleting...' : 'Delete'}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.btnSecondary} onPress={onDismiss} activeOpacity={0.8}>
@@ -677,6 +710,19 @@ const styles = StyleSheet.create({
   btnSecondaryText: {
     fontSize: 15,
     color: C.textSecondary,
+  },
+  btnDelete: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    paddingVertical: 14,
+    borderRadius: 25,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,68,68,0.4)',
+  },
+  btnDeleteText: {
+    fontSize: 15,
+    color: C.red,
   },
 });
 

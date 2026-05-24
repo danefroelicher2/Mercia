@@ -9,8 +9,8 @@ export interface WeeklySummary {
   nonnegotiables_total: number;
   nonnegotiables_percentage: number;
 
-  // Missed tasks for this day (includes type for req/opt label)
-  tasks_missed_frequently: { task_id?: string; task_name: string; times_missed: number; day: string; task_type?: string }[];
+  // Today's tasks that weren't crossed off
+  tasks_missed_frequently: { task_id?: string; task_name: string }[];
   weekly_missed_tasks?: { task_id: string; task_name: string; times_missed: number }[];
 
   // Overall computed percentage (stored backend-side)

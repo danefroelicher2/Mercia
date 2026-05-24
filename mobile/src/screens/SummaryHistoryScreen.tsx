@@ -36,6 +36,12 @@ const SummaryHistoryScreen: React.FC = () => {
     loadHistory();
   }, []);
 
+  const handleDelete = async (summaryId: string) => {
+    await api.delete(`/api/summaries/${summaryId}`);
+    setSummaries(prev => prev.filter(s => s.id !== summaryId));
+    setSelectedSummary(null);
+  };
+
   const loadHistory = async () => {
     try {
       const response = await api.get('/api/summaries/history');
@@ -115,6 +121,7 @@ const SummaryHistoryScreen: React.FC = () => {
         visible={!!selectedSummary}
         summary={selectedSummary}
         onDismiss={() => setSelectedSummary(null)}
+        onDelete={handleDelete}
         readOnly
       />
     </View>
