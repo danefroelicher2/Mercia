@@ -138,4 +138,12 @@ api.interceptors.response.use(
   }
 );
 
+// Best-effort health ping — used on foreground resume to wake Render before the
+// user's first real request. Uses base axios (no auth interceptors, 10s timeout).
+export const pingHealth = (): Promise<void> =>
+  axios
+    .get(`${API_BASE_URL}/health`, { timeout: 10000 })
+    .then(() => {})
+    .catch(() => {});
+
 export default api;

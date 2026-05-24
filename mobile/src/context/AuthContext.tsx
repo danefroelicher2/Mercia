@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { User, AuthContextType } from '../types';
 import * as authService from '../services/auth';
+import { pingHealth } from '../services/api';
 
 // Create context with undefined default
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,7 +16,14 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectingMessage, setConnectingMessage] = useState('');
+
+  // Tracks when the app went to background so we can calculate elapsed time on resume
+  const backgroundedAt = useRef<number | null>(null);
+  // Ref mirror of user so the AppState listener always sees the current value
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
 
   // Check for existing auth on mount
   useEffect(() => {
@@ -46,6 +55,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
+  }, []);
+
+  // Foreground-resume handler: fires a health ping on Render so the backend is
+  // warm before the user's first real request. Only runs when backgrounded > 30s
+  // and the user is logged in. Does not touch token refresh — the existing axios
+  // interceptor handles 401s as before, but now Render is already awake.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background') {
+        backgroundedAt.current = Date.now();
+      } else if (nextState === 'active' && backgroundedAt.current !== null) {
+        const elapsed = Date.now() - backgroundedAt.current;
+        backgroundedAt.current = null;
+        if (elapsed > 30_000 && userRef.current !== null) {
+          setIsReconnecting(true);
+          pingHealth().finally(() => setIsReconnecting(false));
+        }
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -94,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated,
     isLoading,
+    isReconnecting,
     connectingMessage,
     login,
     register,

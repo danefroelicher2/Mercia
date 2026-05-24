@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import ConsentScreen from '../screens/ConsentScreen';
 import { hasConsentBeenAnswered } from '../services/consentService';
 
 const RootNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading: isAuthLoading, connectingMessage } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, connectingMessage, isReconnecting } = useAuth();
   // null = not yet checked, true = answered (yes or no), false = not yet answered
   const [consentAnswered, setConsentAnswered] = useState<boolean | null>(null);
 
@@ -56,9 +56,17 @@ const RootNavigator: React.FC = () => {
 
   // Authenticated and consent answered — show main app
   return (
-    <NavigationContainer>
-      <MainNavigator />
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <NavigationContainer>
+        <MainNavigator />
+      </NavigationContainer>
+      {isReconnecting && (
+        <View style={styles.reconnectingBanner} pointerEvents="none">
+          <ActivityIndicator size="small" color="#666" />
+          <Text style={styles.reconnectingText}>Reconnecting...</Text>
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -73,6 +81,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 13,
     color: '#888',
+  },
+  reconnectingBanner: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 105 : 85,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(20, 20, 20, 0.9)',
+  },
+  reconnectingText: {
+    fontSize: 12,
+    color: '#666',
   },
 });
 
