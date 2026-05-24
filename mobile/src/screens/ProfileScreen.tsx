@@ -205,6 +205,15 @@ const ProfileScreen: React.FC = () => {
             <Text style={styles.navRowChevron}>›</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.navRow, !isSubscribed && styles.navRowLast]}
+            onPress={() => navigation.navigate('YearlyGoals')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Yearly Goals</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+
           {isSubscribed && (
             <TouchableOpacity
               style={styles.navRow}
@@ -227,22 +236,13 @@ const ProfileScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {isSubscribed ? (
+          {isSubscribed && (
             <TouchableOpacity
               style={[styles.navRow, styles.navRowLast]}
               onPress={() => navigation.navigate('SummaryHistory')}
               activeOpacity={0.7}
             >
               <Text style={styles.navRowLabel}>Summary History</Text>
-              <Text style={styles.navRowChevron}>›</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.navRow, styles.navRowLast]}
-              onPress={() => setChangePasswordVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.navRowLabel}>Change Password</Text>
               <Text style={styles.navRowChevron}>›</Text>
             </TouchableOpacity>
           )}

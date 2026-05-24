@@ -13,6 +13,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import MerciaMemoryScreen from '../screens/MerciaMemoryScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
+import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -43,6 +44,7 @@ export type ProfileStackParamList = {
   MerciaMemory: undefined;
   GymMemory: undefined;
   NotificationSettings: undefined;
+  YearlyGoals: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -140,6 +142,18 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Notification Settings',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="YearlyGoals"
+        component={YearlyGoalsScreen}
+        options={{
+          headerShown: true,
+          title: 'Yearly Goals',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
