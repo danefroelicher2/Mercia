@@ -634,7 +634,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async createRoutineGoal(
     userId: string,
     text: string,
-    type: 'weekly' | 'monthly'
+    type: 'weekly' | 'monthly' | 'yearly'
   ): Promise<RoutineGoal> {
     const now = new Date();
     const year = now.getFullYear();
@@ -644,7 +644,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
     if (type === 'weekly') {
       weekNumber = this.getISOWeek(now);
-    } else {
+    } else if (type === 'monthly') {
       month = now.getMonth() + 1; // 1-12
     }
 

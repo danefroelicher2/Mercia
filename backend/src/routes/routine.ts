@@ -34,7 +34,7 @@ const createTaskSchema = z.object({
 
 const createGoalSchema = z.object({
   text: z.string().min(1).max(500),
-  type: z.enum(['weekly', 'monthly']),
+  type: z.enum(['weekly', 'monthly', 'yearly']),
 });
 
 const toggleCompletionSchema = z.object({
@@ -367,6 +367,21 @@ router.get('/goals/monthly', async (req: Request, res: Response): Promise<void> 
       success: false,
       error: error.message,
     });
+  }
+});
+
+/**
+ * GET /api/routine/goals/yearly
+ * Get all yearly goals (no reset — persist indefinitely)
+ */
+router.get('/goals/yearly', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const storage = getStorage();
+    const goals = await storage.getYearlyGoals(userId);
+    res.json({ success: true, data: goals });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
