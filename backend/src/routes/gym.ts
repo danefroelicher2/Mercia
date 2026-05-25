@@ -10,6 +10,13 @@ router.use(authenticateToken);
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
+const savePRSchema = z.object({
+  muscleGroup: z.enum(['Chest', 'Back', 'Legs', 'Shoulders', 'Arms']),
+  exerciseName: z.string().min(1).max(100),
+  weight: z.number().positive(),
+  reps: z.number().int().positive(),
+});
+
 const upsertLogSchema = z.object({
   dayOfWeek: z.enum(DAYS),
   workoutGroup: z.string().min(1).max(100),
@@ -133,6 +140,22 @@ router.get('/memory/:group', async (req: Request, res: Response): Promise<void> 
 });
 
 /**
+ * DELETE /api/gym/memory/entry/:entryId
+ * Delete a single memory entry by id
+ */
+router.delete('/memory/entry/:entryId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { entryId } = req.params;
+    const storage = getStorage();
+    await storage.deleteGymMemoryEntry(userId, entryId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * DELETE /api/gym/memory/:group
  * Delete a memory group
  */
@@ -142,6 +165,73 @@ router.delete('/memory/:group', async (req: Request, res: Response): Promise<voi
     const { group } = req.params;
     const storage = getStorage();
     await storage.deleteGymMemoryGroup(userId, decodeURIComponent(group));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/gym/prs
+ * Get all PR entries grouped by muscle group
+ */
+router.get('/prs', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const storage = getStorage();
+    const groups = await storage.getGymPRs(userId);
+    res.json({ success: true, data: groups });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/gym/prs
+ * Create a new PR entry
+ */
+router.post(
+  '/prs',
+  validate(savePRSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { muscleGroup, exerciseName, weight, reps } = req.body;
+      const storage = getStorage();
+      const entry = await storage.saveGymPR(userId, muscleGroup, exerciseName, weight, reps);
+      res.json({ success: true, data: entry });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+/**
+ * DELETE /api/gym/prs/entry/:entryId
+ * Delete a single PR entry
+ */
+router.delete('/prs/entry/:entryId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { entryId } = req.params;
+    const storage = getStorage();
+    await storage.deleteGymPREntry(userId, entryId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/gym/prs/:muscleGroup
+ * Delete all PR entries for a muscle group
+ */
+router.delete('/prs/:muscleGroup', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { muscleGroup } = req.params;
+    const storage = getStorage();
+    await storage.deleteGymPRGroup(userId, decodeURIComponent(muscleGroup));
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

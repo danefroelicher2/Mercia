@@ -37,6 +37,21 @@ export interface GymMemoryGroup {
   entries: GymMemoryEntry[];
 }
 
+export interface GymPREntry {
+  id: string;
+  user_id: string;
+  muscle_group: string;
+  exercise_name: string;
+  weight: number;
+  reps: number;
+  created_at: string;
+}
+
+export interface GymPRGroup {
+  muscle_group: string;
+  entries: GymPREntry[];
+}
+
 /**
  * Storage Adapter Interface
  * Implement this for any database (Postgres, SQLite, MongoDB, etc.)
@@ -202,7 +217,7 @@ export interface StorageAdapter {
   /**
    * Create a routine goal (weekly or monthly)
    */
-  createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly'): Promise<RoutineGoal>;
+  createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly' | 'yearly'): Promise<RoutineGoal>;
 
   /**
    * Get current week's goals
@@ -213,6 +228,11 @@ export interface StorageAdapter {
    * Get current month's goals
    */
   getMonthlyGoals(userId: string): Promise<RoutineGoal[]>;
+
+  /**
+   * Get all yearly goals (persist indefinitely, no reset)
+   */
+  getYearlyGoals(userId: string): Promise<RoutineGoal[]>;
 
   /**
    * Update goal completion status
@@ -313,6 +333,11 @@ export interface StorageAdapter {
   getGymMemoryByGroup(userId: string, workoutGroup: string): Promise<GymMemoryEntry[]>;
   saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void>;
   deleteGymMemoryGroup(userId: string, workoutGroup: string): Promise<void>;
+  deleteGymMemoryEntry(userId: string, entryId: string): Promise<void>;
+  getGymPRs(userId: string): Promise<GymPRGroup[]>;
+  saveGymPR(userId: string, muscleGroup: string, exerciseName: string, weight: number, reps: number): Promise<GymPREntry>;
+  deleteGymPREntry(userId: string, entryId: string): Promise<void>;
+  deleteGymPRGroup(userId: string, muscleGroup: string): Promise<void>;
 
   // ============================================
   // UTILITY

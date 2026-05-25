@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { StorageAdapter, GymWorkoutLog, GymMemoryEntry, GymMemoryGroup } from './StorageAdapter';
+import { StorageAdapter, GymWorkoutLog, GymMemoryEntry, GymMemoryGroup, GymPREntry, GymPRGroup } from './StorageAdapter';
 import {
   DailyQuestion,
   DailyQuestionForUser,
@@ -711,6 +711,21 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return data || [];
   }
 
+  async getYearlyGoals(userId: string): Promise<RoutineGoal[]> {
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('type', 'yearly')
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to get yearly goals: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
   async updateRoutineGoalCompletion(
     goalId: string,
     userId: string,
@@ -1094,5 +1109,64 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .eq('workout_group', normalized);
 
     if (error) throw new Error(`Failed to delete gym memory group: ${error.message}`);
+  }
+
+  async deleteGymMemoryEntry(userId: string, entryId: string): Promise<void> {
+    const { error } = await this.client
+      .from('gym_memory')
+      .delete()
+      .eq('id', entryId)
+      .eq('user_id', userId);
+
+    if (error) throw new Error(`Failed to delete gym memory entry: ${error.message}`);
+  }
+
+  async getGymPRs(userId: string): Promise<GymPRGroup[]> {
+    const { data, error } = await this.client
+      .from('gym_prs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to get gym PRs: ${error.message}`);
+
+    const MUSCLE_ORDER = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms'];
+    const groups: Record<string, GymPREntry[]> = {};
+    for (const row of data ?? []) {
+      if (!groups[row.muscle_group]) groups[row.muscle_group] = [];
+      groups[row.muscle_group].push(row as GymPREntry);
+    }
+    return MUSCLE_ORDER.filter(m => groups[m]).map(m => ({ muscle_group: m, entries: groups[m] }));
+  }
+
+  async saveGymPR(userId: string, muscleGroup: string, exerciseName: string, weight: number, reps: number): Promise<GymPREntry> {
+    const { data, error } = await this.client
+      .from('gym_prs')
+      .insert({ user_id: userId, muscle_group: muscleGroup, exercise_name: exerciseName, weight, reps })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to save gym PR: ${error.message}`);
+    return data as GymPREntry;
+  }
+
+  async deleteGymPREntry(userId: string, entryId: string): Promise<void> {
+    const { error } = await this.client
+      .from('gym_prs')
+      .delete()
+      .eq('id', entryId)
+      .eq('user_id', userId);
+
+    if (error) throw new Error(`Failed to delete gym PR entry: ${error.message}`);
+  }
+
+  async deleteGymPRGroup(userId: string, muscleGroup: string): Promise<void> {
+    const { error } = await this.client
+      .from('gym_prs')
+      .delete()
+      .eq('user_id', userId)
+      .eq('muscle_group', muscleGroup);
+
+    if (error) throw new Error(`Failed to delete gym PR group: ${error.message}`);
   }
 }
