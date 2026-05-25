@@ -334,14 +334,14 @@ const GymMemoryScreen: React.FC = () => {
 
     return (
       <>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {prGroups.length === 0 ? (
-            <View style={styles.centered}>
-              <Text style={styles.emptyTitle}>No PRs logged yet</Text>
-              <Text style={styles.emptySubtitle}>Tap + to log your first personal record.</Text>
-            </View>
-          ) : (
-            prGroups.map(group => (
+        {prGroups.length === 0 ? (
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>No PRs logged yet</Text>
+            <Text style={styles.emptySubtitle}>Tap + to log your first personal record.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {prGroups.map(group => (
               <View key={group.muscle_group} style={styles.groupCard}>
                 <View style={styles.groupHeader}>
                   <Text style={styles.groupName}>{group.muscle_group}</Text>
@@ -378,9 +378,9 @@ const GymMemoryScreen: React.FC = () => {
                   );
                 })}
               </View>
-            ))
-          )}
-        </ScrollView>
+            ))}
+          </ScrollView>
+        )}
 
         <Modal
           visible={modalVisible}
