@@ -12,7 +12,7 @@ export interface RoutineGoal {
   id: string;
   user_id: string;
   text: string;
-  type: 'weekly' | 'monthly';
+  type: 'weekly' | 'monthly' | 'yearly';
   week_number: number | null;
   month: number | null;
   year: number;

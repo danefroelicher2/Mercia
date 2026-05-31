@@ -104,6 +104,16 @@ const getCalendarDateForDay = (day: DayOfWeek): string => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const getDayOfYear = (): { day: number; total: number } => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const total = isLeap ? 366 : 365;
+  const start = new Date(year, 0, 0);
+  const day = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return { day, total };
+};
+
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
 
@@ -116,6 +126,7 @@ const RoutineScreen: React.FC = () => {
   const [tasks, setTasks] = useState<RoutineTask[]>([]);
   const [weeklyGoals, setWeeklyGoals] = useState<RoutineGoal[]>([]);
   const [monthlyGoals, setMonthlyGoals] = useState<RoutineGoal[]>([]);
+  const [yearlyGoals, setYearlyGoals] = useState<RoutineGoal[]>([]);
 
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
@@ -123,7 +134,7 @@ const RoutineScreen: React.FC = () => {
   const [newTaskText, setNewTaskText] = useState('');
   const [newGoalText, setNewGoalText] = useState('');
 
-  const [goalType, setGoalType] = useState<'weekly' | 'monthly'>('weekly');
+  const [goalType, setGoalType] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
 
   const [copyModeActive, setCopyModeActive] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
@@ -144,10 +155,11 @@ const RoutineScreen: React.FC = () => {
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
   // Edit mode state — each card manages its own independently
-  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | null>(null);
+  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | 'yearly' | null>(null);
   const [editNonNeg, setEditNonNeg] = useState<RoutineTask[]>([]);
   const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
   const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
+  const [editYearly, setEditYearly] = useState<RoutineGoal[]>([]);
 
   const availableQuotes = useMemo(() => {
     const filtered = QUOTES.filter(q => !dislikedQuoteIds.includes(q.id));
@@ -287,6 +299,7 @@ const RoutineScreen: React.FC = () => {
         loadTasks(),
         loadWeeklyGoals(),
         loadMonthlyGoals(),
+        loadYearlyGoals(),
       ]);
     } catch (error) {
       console.error('[RoutineScreen] Error loading data:', error);
@@ -323,6 +336,17 @@ const RoutineScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('[RoutineScreen] Error loading monthly goals:', error);
+    }
+  };
+
+  const loadYearlyGoals = async () => {
+    try {
+      const response = await api.get('/api/routine/goals/yearly');
+      if (response.data.success) {
+        setYearlyGoals(response.data.data);
+      }
+    } catch (error) {
+      console.error('[RoutineScreen] Error loading yearly goals:', error);
     }
   };
 
@@ -456,8 +480,10 @@ const RoutineScreen: React.FC = () => {
       if (response.data.success) {
         if (goalType === 'weekly') {
           setWeeklyGoals([...weeklyGoals, response.data.data]);
-        } else {
+        } else if (goalType === 'monthly') {
           setMonthlyGoals([...monthlyGoals, response.data.data]);
+        } else {
+          setYearlyGoals([...yearlyGoals, response.data.data]);
         }
         setNewGoalText('');
         setGoalModalVisible(false);
@@ -468,7 +494,7 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const handleToggleGoal = async (goalId: string, currentStatus: boolean, type: 'weekly' | 'monthly') => {
+  const handleToggleGoal = async (goalId: string, currentStatus: boolean, type: 'weekly' | 'monthly' | 'yearly') => {
     try {
       const response = await api.patch(`/api/routine/goals/${goalId}`, {
         completed: !currentStatus,
@@ -480,8 +506,12 @@ const RoutineScreen: React.FC = () => {
           setWeeklyGoals(weeklyGoals.map(g =>
             g.id === goalId ? { ...g, completed: !currentStatus } : g
           ));
-        } else {
+        } else if (type === 'monthly') {
           setMonthlyGoals(monthlyGoals.map(g =>
+            g.id === goalId ? { ...g, completed: !currentStatus } : g
+          ));
+        } else {
+          setYearlyGoals(yearlyGoals.map(g =>
             g.id === goalId ? { ...g, completed: !currentStatus } : g
           ));
         }
@@ -491,7 +521,7 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const handleDeleteGoal = (goalId: string, type: 'weekly' | 'monthly') => {
+  const handleDeleteGoal = (goalId: string, type: 'weekly' | 'monthly' | 'yearly') => {
     Alert.alert(
       'Delete Goal',
       'Are you sure you want to delete this goal?',
@@ -505,8 +535,10 @@ const RoutineScreen: React.FC = () => {
               await api.delete(`/api/routine/goals/${goalId}`);
               if (type === 'weekly') {
                 setWeeklyGoals(weeklyGoals.filter(g => g.id !== goalId));
-              } else {
+              } else if (type === 'monthly') {
                 setMonthlyGoals(monthlyGoals.filter(g => g.id !== goalId));
+              } else {
+                setYearlyGoals(yearlyGoals.filter(g => g.id !== goalId));
               }
             } catch (error) {
               console.error('[RoutineScreen] Error deleting goal:', error);
@@ -532,9 +564,10 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const handleReorderGoal = async (newData: RoutineGoal[], type: 'weekly' | 'monthly') => {
+  const handleReorderGoal = async (newData: RoutineGoal[], type: 'weekly' | 'monthly' | 'yearly') => {
     if (type === 'weekly') setWeeklyGoals(newData);
-    else setMonthlyGoals(newData);
+    else if (type === 'monthly') setMonthlyGoals(newData);
+    else setYearlyGoals(newData);
     try {
       await api.patch('/api/routine/goals/reorder', { ids: newData.map(g => g.id) });
     } catch (error) {
@@ -545,10 +578,11 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Edit mode handlers
-  const handleEnterEdit = (card: 'non-negotiable' | 'weekly' | 'monthly') => {
+  const handleEnterEdit = (card: 'non-negotiable' | 'weekly' | 'monthly' | 'yearly') => {
     if (card === 'non-negotiable') setEditNonNeg(nonNegotiables.slice());
     else if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
-    else setEditMonthly(monthlyGoals.slice());
+    else if (card === 'monthly') setEditMonthly(monthlyGoals.slice());
+    else setEditYearly(yearlyGoals.slice());
     setEditingCard(card);
   };
 
@@ -556,10 +590,11 @@ const RoutineScreen: React.FC = () => {
     setEditingCard(null);
   };
 
-  const handleSaveEdit = (card: 'non-negotiable' | 'weekly' | 'monthly') => {
+  const handleSaveEdit = (card: 'non-negotiable' | 'weekly' | 'monthly' | 'yearly') => {
     if (card === 'non-negotiable') handleReorder(editNonNeg);
     else if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
-    else handleReorderGoal(editMonthly, 'monthly');
+    else if (card === 'monthly') handleReorderGoal(editMonthly, 'monthly');
+    else handleReorderGoal(editYearly, 'yearly');
     setEditingCard(null);
   };
 
@@ -571,20 +606,27 @@ const RoutineScreen: React.FC = () => {
     setEditNonNeg(arr);
   };
 
-  const moveGoalItem = (card: 'weekly' | 'monthly', index: number, direction: 'up' | 'down') => {
+  const moveGoalItem = (card: 'weekly' | 'monthly' | 'yearly', index: number, direction: 'up' | 'down') => {
     const target = direction === 'up' ? index - 1 : index + 1;
     if (card === 'weekly') {
       const arr = editWeekly.slice();
       if (target < 0 || target >= arr.length) return;
       [arr[index], arr[target]] = [arr[target], arr[index]];
       setEditWeekly(arr);
-    } else {
+    } else if (card === 'monthly') {
       const arr = editMonthly.slice();
       if (target < 0 || target >= arr.length) return;
       [arr[index], arr[target]] = [arr[target], arr[index]];
       setEditMonthly(arr);
+    } else {
+      const arr = editYearly.slice();
+      if (target < 0 || target >= arr.length) return;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      setEditYearly(arr);
     }
   };
+
+  const { day: yearDay, total: yearTotal } = getDayOfYear();
 
   // Render helpers
   const renderWeekNavigator = () => {
@@ -903,6 +945,47 @@ const RoutineScreen: React.FC = () => {
               )
           }
         </View>
+
+        {/* Yearly Goals Card */}
+        <View style={[styles.goalCard, styles.goalCardYearly]}>
+          <View style={styles.goalCardHeader}>
+            <Text style={styles.goalCardTitle}>This year</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editingCard === 'yearly' ? (
+                <>
+                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('yearly')}>
+                    <Text style={styles.taskCardAddButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('yearly'); setGoalModalVisible(true); }}>
+                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+          <Text style={styles.yearlyProgressText}>Day {yearDay} / {yearTotal}</Text>
+          <View style={styles.yearlyProgressTrack}>
+            <View style={[styles.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
+          </View>
+          {yearlyGoals.length === 0
+            ? <Text style={styles.emptyText}>Nothing here yet</Text>
+            : (editingCard === 'yearly' ? editYearly : yearlyGoals).map((item, index, arr) =>
+                renderGoalItem(item, editingCard === 'yearly', index, arr.length,
+                  () => moveGoalItem('yearly', index, 'up'),
+                  () => moveGoalItem('yearly', index, 'down'),
+                )
+              )
+          }
+        </View>
       </ScrollView>
 
       {/* Add Task Modal */}
@@ -1066,6 +1149,21 @@ const RoutineScreen: React.FC = () => {
                   goalType === 'monthly' && styles.typeButtonTextActive,
                 ]}>
                   This month
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.typeButton,
+                  goalType === 'yearly' && styles.typeButtonActive,
+                ]}
+                onPress={() => setGoalType('yearly')}
+              >
+                <Text style={[
+                  styles.typeButtonText,
+                  goalType === 'yearly' && styles.typeButtonTextActive,
+                ]}>
+                  This year
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1330,6 +1428,28 @@ const styles = StyleSheet.create({
   },
   goalCardMonthly: {
     borderLeftColor: 'rgba(15, 110, 86, 0.5)',
+  },
+  goalCardYearly: {
+    borderLeftColor: 'rgba(8, 60, 45, 0.7)',
+  },
+  yearlyProgressText: {
+    fontSize: 11,
+    color: '#1D9E75',
+    fontWeight: '500',
+    marginBottom: 6,
+    marginTop: 2,
+  },
+  yearlyProgressTrack: {
+    height: 4,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  yearlyProgressFill: {
+    height: '100%',
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
   },
   goalCardHeader: {
     flexDirection: 'row',
