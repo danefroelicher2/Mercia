@@ -811,9 +811,10 @@ const RoutineScreen: React.FC = () => {
       >
         {/* Today Card */}
         <View style={styles.taskCard}>
-          <View style={[styles.taskCardHeader, { position: 'relative' }]}>
-            <Text style={[styles.taskCardTitle, { flex: 1, textAlign: 'center' }]}>Today</Text>
-            <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.taskCardHeader}>
+            <View style={{ flex: 1 }} />
+            <Text style={styles.taskCardTitle}>Today</Text>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
               {editingCard === 'non-negotiable' ? (
                 <>
                   <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
