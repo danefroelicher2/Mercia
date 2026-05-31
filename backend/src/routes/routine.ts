@@ -40,6 +40,12 @@ const createGoalSchema = z.object({
 const toggleCompletionSchema = z.object({
   completed: z.boolean(),
   timezone: z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const toggleGoalSchema = z.object({
+  completed: z.boolean(),
+  timezone: z.string().optional(),
 });
 
 const reorderSchema = z.object({
@@ -149,7 +155,15 @@ router.patch(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { completed, timezone } = req.body;
+      const { completed, timezone, date } = req.body;
+      const today = getLocalDateString(timezone);
+
+      if (date && date > today) {
+        res.status(400).json({ success: false, error: 'Cannot log activity for a future date' });
+        return;
+      }
+
+      const activityDate = date ?? today;
 
       const storage = getStorage();
       const task = await storage.updateRoutineTaskCompletion(id, userId, completed);
@@ -158,7 +172,6 @@ router.patch(
       if (completed === true) {
         try {
           const supabase = getSupabase();
-          const today = getLocalDateString(timezone);
 
           console.log('[Routine] Inserting activity log for task completion, user:', userId);
           const { error: logError } = await supabase
@@ -167,7 +180,7 @@ router.patch(
             .insert({
               user_id: userId,
               activity_type: 'task_completed',
-              activity_date: today,
+              activity_date: activityDate,
             });
 
           if (logError) {
@@ -198,7 +211,7 @@ router.patch(
                 task_type: task.type,
                 day_of_week: task.day_of_week,
                 completed: true,
-                snapshot_date: today,
+                snapshot_date: activityDate,
               },
               { onConflict: 'user_id,task_id,snapshot_date' }
             )
@@ -211,14 +224,13 @@ router.patch(
       } else {
         // Fire-and-forget: remove history entry when task is unchecked
         const supabase = getSupabase();
-        const today = getLocalDateString(timezone);
         supabase
           .schema('oasis')
           .from('task_completion_history')
           .delete()
           .eq('user_id', userId)
           .eq('task_id', task.id)
-          .eq('snapshot_date', today)
+          .eq('snapshot_date', activityDate)
           .then(({ error }) => {
             if (error) console.error('[Routine] task_completion_history delete failed:', error);
           });
@@ -413,7 +425,7 @@ router.patch(
  */
 router.patch(
   '/goals/:id',
-  validate(toggleCompletionSchema),
+  validate(toggleGoalSchema),
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
