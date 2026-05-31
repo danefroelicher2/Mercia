@@ -809,17 +809,11 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
-        {/* Today's Tasks Section */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionAccent} />
-          <Text style={styles.sectionTitle}>Today's tasks</Text>
-        </View>
-
-        {/* Required (Non-Negotiables) Card */}
+        {/* Today Card */}
         <View style={styles.taskCard}>
-          <View style={styles.taskCardHeader}>
-            <Text style={styles.taskCardTitle}>Required</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.taskCardHeader, { position: 'relative' }]}>
+            <Text style={[styles.taskCardTitle, { flex: 1, textAlign: 'center' }]}>Today</Text>
+            <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {editingCard === 'non-negotiable' ? (
                 <>
                   <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
