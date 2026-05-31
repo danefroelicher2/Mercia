@@ -92,6 +92,18 @@ const formatTimeRemaining = (ms: number): string => {
 
 const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS;
 
+const getCalendarDateForDay = (day: DayOfWeek): string => {
+  const today = new Date();
+  const mondayOffset = today.getDay() === 0 ? -6 : 1 - today.getDay();
+  const dayIndex = DAYS.indexOf(day); // DAYS = ['monday','tuesday',...,'sunday']
+  const target = new Date(today);
+  target.setDate(today.getDate() + mondayOffset + dayIndex);
+  const yyyy = target.getFullYear();
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const dd = String(target.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
 
@@ -344,10 +356,21 @@ const RoutineScreen: React.FC = () => {
 
   const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
     try {
-      const response = await api.patch(`/api/routine/tasks/${taskId}`, {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const selectedDate = getCalendarDateForDay(selectedDay);
+      const now = new Date();
+      const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      const body: { completed: boolean; timezone: string; date?: string } = {
         completed: !currentStatus,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
+        timezone,
+      };
+
+      if (selectedDate < todayDate) {
+        body.date = selectedDate;
+      }
+
+      const response = await api.patch(`/api/routine/tasks/${taskId}`, body);
 
       if (response.data.success) {
         setTasks(tasks.map(t =>
