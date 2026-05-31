@@ -197,20 +197,11 @@ const ProfileScreen: React.FC = () => {
 
         <View style={styles.navGroup}>
           <TouchableOpacity
-            style={styles.navRow}
+            style={[styles.navRow, !isSubscribed && styles.navRowLast]}
             onPress={() => setChangePasswordVisible(true)}
             activeOpacity={0.7}
           >
             <Text style={styles.navRowLabel}>Change Password</Text>
-            <Text style={styles.navRowChevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.navRow, !isSubscribed && styles.navRowLast]}
-            onPress={() => navigation.navigate('YearlyGoals')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navRowLabel}>Yearly Goals</Text>
             <Text style={styles.navRowChevron}>›</Text>
           </TouchableOpacity>
 
@@ -246,6 +237,23 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.navRowChevron}>›</Text>
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* PREFERENCES SECTION */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>Preferences</Text>
+        </View>
+
+        <View style={styles.navGroup}>
+          <TouchableOpacity
+            style={[styles.navRow, styles.navRowLast]}
+            onPress={() => navigation.navigate('RoutinePreferences')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Routine Tab</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* SETTINGS SECTION */}

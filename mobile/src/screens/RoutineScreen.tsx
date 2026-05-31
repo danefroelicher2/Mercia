@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -154,6 +155,11 @@ const RoutineScreen: React.FC = () => {
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
+  // Routine preferences (which goal sections to show)
+  const [showWeekly, setShowWeekly] = useState(true);
+  const [showMonthly, setShowMonthly] = useState(true);
+  const [showYearly, setShowYearly] = useState(true);
+
   // Edit mode state — each card manages its own independently
   const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | 'yearly' | null>(null);
   const [editNonNeg, setEditNonNeg] = useState<RoutineTask[]>([]);
@@ -188,6 +194,21 @@ const RoutineScreen: React.FC = () => {
     const interval = setInterval(updateCountdowns, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Load routine preferences each time this tab gains focus
+  useFocusEffect(useCallback(() => {
+    const loadPrefs = async () => {
+      const [w, m, y] = await Promise.all([
+        AsyncStorage.getItem('routine_prefs_show_weekly'),
+        AsyncStorage.getItem('routine_prefs_show_monthly'),
+        AsyncStorage.getItem('routine_prefs_show_yearly'),
+      ]);
+      if (w !== null) setShowWeekly(w === 'true');
+      if (m !== null) setShowMonthly(m === 'true');
+      if (y !== null) setShowYearly(y === 'true');
+    };
+    loadPrefs();
+  }, []));
 
   // Load disliked quotes on mount
   useEffect(() => {
@@ -859,7 +880,7 @@ const RoutineScreen: React.FC = () => {
         </View>
 
         {/* Weekly Goals Card */}
-        <View style={styles.goalCard}>
+        {showWeekly && <View style={styles.goalCard}>
           <View style={styles.goalCardHeader}>
             <View style={styles.goalCardTitleRow}>
               <Text style={styles.goalCardTitle}>This week</Text>
@@ -895,10 +916,10 @@ const RoutineScreen: React.FC = () => {
                 )
               )
           }
-        </View>
+        </View>}
 
         {/* Monthly Goals Card */}
-        <View style={[styles.goalCard, styles.goalCardMonthly]}>
+        {showMonthly && <View style={[styles.goalCard, styles.goalCardMonthly]}>
           <View style={styles.goalCardHeader}>
             <View style={styles.goalCardTitleRow}>
               <Text style={styles.goalCardTitle}>This month</Text>
@@ -934,10 +955,10 @@ const RoutineScreen: React.FC = () => {
                 )
               )
           }
-        </View>
+        </View>}
 
         {/* Yearly Goals Card */}
-        <View style={[styles.goalCard, styles.goalCardYearly]}>
+        {showYearly && <View style={[styles.goalCard, styles.goalCardYearly]}>
           <View style={styles.goalCardHeader}>
             <Text style={styles.goalCardTitle}>This year</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -970,7 +991,7 @@ const RoutineScreen: React.FC = () => {
                 )
               )
           }
-        </View>
+        </View>}
       </ScrollView>
 
       {/* Add Task Modal */}
