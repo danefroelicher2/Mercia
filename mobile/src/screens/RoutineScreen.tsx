@@ -880,118 +880,124 @@ const RoutineScreen: React.FC = () => {
         </View>
 
         {/* Weekly Goals Card */}
-        {showWeekly && <View style={styles.goalCard}>
-          <View style={styles.goalCardHeader}>
-            <View style={styles.goalCardTitleRow}>
-              <Text style={styles.goalCardTitle}>This week</Text>
-              {weeklyCountdown.text ? (
-                <Text style={[styles.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
-                  {weeklyCountdown.text}
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {editingCard === 'weekly' ? (
-                <>
-                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+        {showWeekly && (
+          <View style={styles.goalCard}>
+            <View style={styles.goalCardHeader}>
+              <View style={styles.goalCardTitleRow}>
+                <Text style={styles.goalCardTitle}>This week</Text>
+                {weeklyCountdown.text ? (
+                  <Text style={[styles.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
+                    {weeklyCountdown.text}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {editingCard === 'weekly' ? (
+                  <>
+                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('weekly')}>
+                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('weekly')}>
-                    <Text style={styles.taskCardAddButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                </TouchableOpacity>
-              )}
+                )}
+              </View>
             </View>
-          </View>
-          {weeklyGoals.length === 0
-            ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'weekly' ? editWeekly : weeklyGoals).map((item, index, arr) =>
-                renderGoalItem(item, editingCard === 'weekly', index, arr.length,
-                  () => moveGoalItem('weekly', index, 'up'),
-                  () => moveGoalItem('weekly', index, 'down'),
+            {weeklyGoals.length === 0
+              ? <Text style={styles.emptyText}>Nothing here yet</Text>
+              : (editingCard === 'weekly' ? editWeekly : weeklyGoals).map((item, index, arr) =>
+                  renderGoalItem(item, editingCard === 'weekly', index, arr.length,
+                    () => moveGoalItem('weekly', index, 'up'),
+                    () => moveGoalItem('weekly', index, 'down'),
+                  )
                 )
-              )
-          }
-        </View>}
+            }
+          </View>
+        )}
 
         {/* Monthly Goals Card */}
-        {showMonthly && <View style={[styles.goalCard, styles.goalCardMonthly]}>
-          <View style={styles.goalCardHeader}>
-            <View style={styles.goalCardTitleRow}>
-              <Text style={styles.goalCardTitle}>This month</Text>
-              {monthlyCountdown.text ? (
-                <Text style={[styles.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
-                  {monthlyCountdown.text}
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {editingCard === 'monthly' ? (
-                <>
-                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+        {showMonthly && (
+          <View style={[styles.goalCard, styles.goalCardMonthly]}>
+            <View style={styles.goalCardHeader}>
+              <View style={styles.goalCardTitleRow}>
+                <Text style={styles.goalCardTitle}>This month</Text>
+                {monthlyCountdown.text ? (
+                  <Text style={[styles.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
+                    {monthlyCountdown.text}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {editingCard === 'monthly' ? (
+                  <>
+                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('monthly')}>
+                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('monthly')}>
-                    <Text style={styles.taskCardAddButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                </TouchableOpacity>
-              )}
+                )}
+              </View>
             </View>
-          </View>
-          {monthlyGoals.length === 0
-            ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'monthly' ? editMonthly : monthlyGoals).map((item, index, arr) =>
-                renderGoalItem(item, editingCard === 'monthly', index, arr.length,
-                  () => moveGoalItem('monthly', index, 'up'),
-                  () => moveGoalItem('monthly', index, 'down'),
+            {monthlyGoals.length === 0
+              ? <Text style={styles.emptyText}>Nothing here yet</Text>
+              : (editingCard === 'monthly' ? editMonthly : monthlyGoals).map((item, index, arr) =>
+                  renderGoalItem(item, editingCard === 'monthly', index, arr.length,
+                    () => moveGoalItem('monthly', index, 'up'),
+                    () => moveGoalItem('monthly', index, 'down'),
+                  )
                 )
-              )
-          }
-        </View>}
+            }
+          </View>
+        )}
 
         {/* Yearly Goals Card */}
-        {showYearly && <View style={[styles.goalCard, styles.goalCardYearly]}>
-          <View style={styles.goalCardHeader}>
-            <Text style={styles.goalCardTitle}>This year</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {editingCard === 'yearly' ? (
-                <>
-                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+        {showYearly && (
+          <View style={[styles.goalCard, styles.goalCardYearly]}>
+            <View style={styles.goalCardHeader}>
+              <Text style={styles.goalCardTitle}>This year</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {editingCard === 'yearly' ? (
+                  <>
+                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('yearly')}>
+                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('yearly')}>
-                    <Text style={styles.taskCardAddButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                </TouchableOpacity>
-              )}
+                )}
+              </View>
             </View>
-          </View>
-          <Text style={styles.yearlyProgressText}>Day {yearDay} / {yearTotal}</Text>
-          <View style={styles.yearlyProgressTrack}>
-            <View style={[styles.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
-          </View>
-          {yearlyGoals.length === 0
-            ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'yearly' ? editYearly : yearlyGoals).map((item, index, arr) =>
-                renderGoalItem(item, editingCard === 'yearly', index, arr.length,
-                  () => moveGoalItem('yearly', index, 'up'),
-                  () => moveGoalItem('yearly', index, 'down'),
+            <Text style={styles.yearlyProgressText}>Day {yearDay} / {yearTotal}</Text>
+            <View style={styles.yearlyProgressTrack}>
+              <View style={[styles.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
+            </View>
+            {yearlyGoals.length === 0
+              ? <Text style={styles.emptyText}>Nothing here yet</Text>
+              : (editingCard === 'yearly' ? editYearly : yearlyGoals).map((item, index, arr) =>
+                  renderGoalItem(item, editingCard === 'yearly', index, arr.length,
+                    () => moveGoalItem('yearly', index, 'up'),
+                    () => moveGoalItem('yearly', index, 'down'),
+                  )
                 )
-              )
-          }
-        </View>}
+            }
+          </View>
+        )}
       </ScrollView>
 
       {/* Add Task Modal */}
