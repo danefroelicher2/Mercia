@@ -853,9 +853,14 @@ const RoutineScreen: React.FC = () => {
         </View>
 
         {/* Goals Section */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionAccent} />
-          <Text style={styles.sectionTitle}>Goals</Text>
+        <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Goals</Text>
+          </View>
+          <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
+            <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Weekly Goals Card */}
@@ -880,14 +885,9 @@ const RoutineScreen: React.FC = () => {
                   </TouchableOpacity>
                 </>
               ) : (
-                <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
-                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -924,14 +924,9 @@ const RoutineScreen: React.FC = () => {
                   </TouchableOpacity>
                 </>
               ) : (
-                <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('monthly'); setGoalModalVisible(true); }}>
-                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -961,14 +956,9 @@ const RoutineScreen: React.FC = () => {
                   </TouchableOpacity>
                 </>
               ) : (
-                <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('yearly'); setGoalModalVisible(true); }}>
-                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                </TouchableOpacity>
               )}
             </View>
           </View>
