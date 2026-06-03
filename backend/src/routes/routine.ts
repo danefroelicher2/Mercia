@@ -5,6 +5,10 @@ import { validate } from '../middleware/validation';
 import { getStorage } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
 
+const notepadSchema = z.object({
+  content: z.string().max(10000),
+});
+
 const router = Router();
 
 // All routes require authentication
@@ -624,5 +628,60 @@ router.get('/quotes/:quoteId/user-interaction', async (req: Request, res: Respon
     });
   }
 });
+
+// ============================================
+// NOTEPAD ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/routine/notepad
+ * Fetch the user's persistent notepad content
+ */
+router.get('/notepad', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .schema('oasis')
+      .from('routine_notepad')
+      .select('content')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ success: true, data: { content: data?.content ?? '' } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/routine/notepad
+ * Upsert the user's notepad content
+ */
+router.put(
+  '/notepad',
+  validate(notepadSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { content } = req.body;
+      const supabase = getSupabase();
+
+      const { error } = await supabase
+        .schema('oasis')
+        .from('routine_notepad')
+        .upsert({ user_id: userId, content, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
 
 export default router;

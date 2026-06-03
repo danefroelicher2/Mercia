@@ -13,23 +13,27 @@ const KEYS = {
   weekly: 'routine_prefs_show_weekly',
   monthly: 'routine_prefs_show_monthly',
   yearly: 'routine_prefs_show_yearly',
+  notepad: 'routine_prefs_show_notepad',
 };
 
 const RoutinePreferencesScreen: React.FC = () => {
   const [showWeekly, setShowWeekly] = useState(true);
   const [showMonthly, setShowMonthly] = useState(true);
   const [showYearly, setShowYearly] = useState(true);
+  const [showNotepad, setShowNotepad] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [w, m, y] = await Promise.all([
+      const [w, m, y, n] = await Promise.all([
         AsyncStorage.getItem(KEYS.weekly),
         AsyncStorage.getItem(KEYS.monthly),
         AsyncStorage.getItem(KEYS.yearly),
+        AsyncStorage.getItem(KEYS.notepad),
       ]);
       if (w !== null) setShowWeekly(w === 'true');
       if (m !== null) setShowMonthly(m === 'true');
       if (y !== null) setShowYearly(y === 'true');
+      if (n !== null) setShowNotepad(n === 'true');
     };
     load();
   }, []);
@@ -38,7 +42,8 @@ const RoutinePreferencesScreen: React.FC = () => {
     const next = !current;
     if (key === 'weekly') setShowWeekly(next);
     else if (key === 'monthly') setShowMonthly(next);
-    else setShowYearly(next);
+    else if (key === 'yearly') setShowYearly(next);
+    else setShowNotepad(next);
     await AsyncStorage.setItem(KEYS[key], String(next));
   };
 
@@ -46,7 +51,7 @@ const RoutinePreferencesScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.description}>
-          Choose which goal sections appear in your Routine tab. Today's tasks are always shown. Toggle off any section you don't use to keep your view focused.
+          Choose which sections appear in your Routine tab. Today's tasks are always shown. Toggle off anything you don't use to keep your view focused.
         </Text>
 
         <View style={styles.group}>
@@ -70,11 +75,21 @@ const RoutinePreferencesScreen: React.FC = () => {
             />
           </View>
 
-          <View style={[styles.row, styles.rowLast]}>
+          <View style={styles.row}>
             <Text style={styles.rowLabel}>Yearly Goals</Text>
             <Switch
               value={showYearly}
               onValueChange={() => toggle('yearly', showYearly)}
+              trackColor={{ false: '#333333', true: '#1D9E75' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowLabel}>Notepad</Text>
+            <Switch
+              value={showNotepad}
+              onValueChange={() => toggle('notepad', showNotepad)}
               trackColor={{ false: '#333333', true: '#1D9E75' }}
               thumbColor="#FFFFFF"
             />

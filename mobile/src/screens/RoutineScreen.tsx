@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -150,7 +150,6 @@ const RoutineScreen: React.FC = () => {
   // Weekly summary state
   const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
   const [summaryModalVisible, setSummaryModalVisible] = useState(false);
-  const [tuesdayModalVisible, setTuesdayModalVisible] = useState(false);
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -159,6 +158,11 @@ const RoutineScreen: React.FC = () => {
   const [showWeekly, setShowWeekly] = useState(true);
   const [showMonthly, setShowMonthly] = useState(true);
   const [showYearly, setShowYearly] = useState(true);
+  const [showNotepad, setShowNotepad] = useState(true);
+
+  // Notepad
+  const [notepadContent, setNotepadContent] = useState('');
+  const notepadSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Edit mode state — each card manages its own independently
   const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | 'yearly' | null>(null);
@@ -195,19 +199,25 @@ const RoutineScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Load routine preferences each time this tab gains focus
+  // Load preferences and notepad content each time this tab gains focus
   useFocusEffect(useCallback(() => {
-    const loadPrefs = async () => {
-      const [w, m, y] = await Promise.all([
+    const loadOnFocus = async () => {
+      const [w, m, y, n] = await Promise.all([
         AsyncStorage.getItem('routine_prefs_show_weekly'),
         AsyncStorage.getItem('routine_prefs_show_monthly'),
         AsyncStorage.getItem('routine_prefs_show_yearly'),
+        AsyncStorage.getItem('routine_prefs_show_notepad'),
       ]);
       if (w !== null) setShowWeekly(w === 'true');
       if (m !== null) setShowMonthly(m === 'true');
       if (y !== null) setShowYearly(y === 'true');
+      if (n !== null) setShowNotepad(n === 'true');
+
+      api.get('/api/routine/notepad')
+        .then(res => { if (res.data.success) setNotepadContent(res.data.data.content); })
+        .catch(() => {});
     };
-    loadPrefs();
+    loadOnFocus();
   }, []));
 
   // Load disliked quotes on mount
@@ -232,6 +242,21 @@ const RoutineScreen: React.FC = () => {
     setSelectedDay(DAYS[dayIndex]);
   }, []);
 
+  // Cancel any pending notepad save on unmount
+  useEffect(() => {
+    return () => {
+      if (notepadSaveTimeout.current) clearTimeout(notepadSaveTimeout.current);
+    };
+  }, []);
+
+  const handleNotepadChange = (text: string) => {
+    setNotepadContent(text);
+    if (notepadSaveTimeout.current) clearTimeout(notepadSaveTimeout.current);
+    notepadSaveTimeout.current = setTimeout(() => {
+      api.put('/api/routine/notepad', { content: text }).catch(() => {});
+    }, 1000);
+  };
+
   // Load daily summary on mount and show last-chance modal for unsaved summaries
   useEffect(() => {
     // Fire-and-forget: delete old unsaved summaries from DB on each mount
@@ -249,7 +274,6 @@ const RoutineScreen: React.FC = () => {
           const todayStr = new Date().toISOString().split('T')[0];
           if (summary.week_end_date >= yesterdayStr && summary.week_end_date <= todayStr) {
             setCurrentSummary(summary);
-            await checkUnsavedSummaryModal(summary);
           }
         }
       } catch (error) {
@@ -258,44 +282,6 @@ const RoutineScreen: React.FC = () => {
     };
     loadSummary();
   }, []);
-
-  const checkUnsavedSummaryModal = async (summary: WeeklySummary) => {
-    if (summary.is_saved || !summary.has_complete_data) return;
-
-    // Only prompt for yesterday's summary
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    if (summary.week_end_date !== yesterdayStr) return;
-
-    // Show once per summary date — don't re-prompt if already dismissed
-    const key = `dismissed_summary_${summary.week_end_date}`;
-    const alreadyShown = await AsyncStorage.getItem(key);
-    if (alreadyShown) return;
-
-    await AsyncStorage.setItem(key, 'true');
-    setTuesdayModalVisible(true);
-    await cleanupOldSummaryKeys();
-  };
-
-  const cleanupOldSummaryKeys = async () => {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const summaryKeys = allKeys.filter(k => k.startsWith('dismissed_summary_'));
-      const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-      const keysToRemove = summaryKeys.filter(k => {
-        const dateStr = k.replace('dismissed_summary_', '');
-        const date = new Date(dateStr);
-        return !isNaN(date.getTime()) && date < twoWeeksAgo;
-      });
-      if (keysToRemove.length > 0) {
-        await AsyncStorage.multiRemove(keysToRemove);
-      }
-    } catch (error) {
-      console.error('[RoutineScreen] Error cleaning up summary keys:', error);
-    }
-  };
 
   // Load data when day changes
   useEffect(() => {
@@ -307,11 +293,6 @@ const RoutineScreen: React.FC = () => {
   const handleSaveSummary = async (summaryId: string) => {
     await api.patch(`/api/summaries/${summaryId}/save`);
     setCurrentSummary(prev => prev ? { ...prev, is_saved: true } : null);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const loadData = async () => {
@@ -868,6 +849,23 @@ const RoutineScreen: React.FC = () => {
           }
         </View>
 
+        {/* Notepad */}
+        {showNotepad && (
+          <View style={styles.notepadCard}>
+            <Text style={styles.notepadLabel}>Notepad</Text>
+            <TextInput
+              style={styles.notepadInput}
+              value={notepadContent}
+              onChangeText={handleNotepadChange}
+              placeholder="Write anything..."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              textAlignVertical="top"
+              maxLength={10000}
+            />
+          </View>
+        )}
+
         {/* Goals Section */}
         <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1213,46 +1211,6 @@ const RoutineScreen: React.FC = () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Tuesday Last Chance Modal */}
-      <Modal
-        visible={tuesdayModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTuesdayModalVisible(false)}
-      >
-        <View style={styles.tuesdayOverlay}>
-          <View style={styles.tuesdayCard}>
-            <TouchableOpacity
-              style={styles.tuesdayCloseButton}
-              onPress={() => setTuesdayModalVisible(false)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.tuesdayCloseText}>✕</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.tuesdayTitle}>Daily Summary Ready</Text>
-
-            {currentSummary && (
-              <Text style={styles.tuesdaySubtitle}>
-                Your daily summary from{'\n'}
-                {formatDate(currentSummary.week_end_date)}
-              </Text>
-            )}
-
-            <TouchableOpacity
-              style={styles.tuesdayViewButton}
-              onPress={() => {
-                setTuesdayModalVisible(false);
-                setSummaryModalVisible(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.tuesdayViewButtonText}>View Summary</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
           {/* Daily Summary Modal */}
           <WeeklySummaryModal
             visible={summaryModalVisible}
@@ -1425,6 +1383,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#5DCAA5',
     fontWeight: '500',
+  },
+
+  // Notepad
+  notepadCard: {
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#232323',
+  },
+  notepadLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: '#666',
+    marginBottom: 10,
+  },
+  notepadInput: {
+    fontSize: 14,
+    color: '#E8E8E8',
+    minHeight: 100,
+    paddingVertical: 4,
+    lineHeight: 22,
   },
 
   // Goal cards (This week / This month)
@@ -1634,59 +1617,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   saveButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
-
-  // Tuesday Last Chance Modal
-  tuesdayOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  tuesdayCard: {
-    backgroundColor: '#161616',
-    borderRadius: 16,
-    padding: 28,
-    width: '100%',
-    maxWidth: 360,
-    borderWidth: 1,
-    borderColor: '#232323',
-  },
-  tuesdayCloseButton: {
-    position: 'absolute',
-    top: 14,
-    right: 16,
-    padding: 4,
-  },
-  tuesdayCloseText: {
-    fontSize: 18,
-    color: '#888',
-    fontWeight: '400',
-  },
-  tuesdayTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#E8E8E8',
-    marginBottom: 12,
-    marginRight: 24,
-  },
-  tuesdaySubtitle: {
-    fontSize: 14,
-    color: '#888',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  tuesdayViewButton: {
-    backgroundColor: '#1D9E75',
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  tuesdayViewButtonText: {
     fontSize: 15,
     fontWeight: '500',
     color: '#FFFFFF',

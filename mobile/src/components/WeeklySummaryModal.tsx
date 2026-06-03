@@ -155,7 +155,6 @@ const WeeklySummaryModal: React.FC<Props> = ({
   const showPerf = summary.yesterday_overall_percentage != null && summary.yesterday_overall_percentage > 0;
 
   const missedTasks = summary.tasks_missed_frequently || [];
-  const weeklyMissedTasks = (summary.weekly_missed_tasks || []).filter(t => t.times_missed > 0);
   const gymDays = summary.gym_days_this_week ?? null;
   const gymPossible = summary.gym_days_possible ?? 1;
   const completedWeekly = summary.completed_weekly_goal_texts || [];
@@ -215,7 +214,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
       {/* ③ MISSED TODAY */}
       {missedTasks.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Missed Today</Text>
+          <Text style={styles.cardTitle}>Missed Yesterday</Text>
           {missedTasks.map((item, i) => (
             <View
               key={item.task_id ?? i}
@@ -228,26 +227,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
         </View>
       )}
 
-      {/* ④ MOST MISSED THIS WEEK */}
-      {weeklyMissedTasks.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Most Missed This Week</Text>
-          {weeklyMissedTasks.map((item, i) => (
-            <View
-              key={item.task_id}
-              style={[styles.missedRow, i < weeklyMissedTasks.length - 1 && styles.missedRowBorder]}
-            >
-              <View style={[styles.dot, { backgroundColor: C.red }]} />
-              <Text style={styles.missedText}>{item.task_name}</Text>
-              {item.times_missed > 1 && (
-                <Text style={styles.missedType}>×{item.times_missed}</Text>
-              )}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* ⑤ GYM THIS WEEK */}
+      {/* ④ GYM THIS WEEK */}
       {gymDays !== null && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Gym This Week</Text>
@@ -350,7 +330,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Daily Summary</Text>
+            <Text style={styles.headerTitle}>Yesterday's Summary</Text>
             <Text style={styles.headerDate}>{formatDate(summary.week_start_date)}</Text>
           </View>
 
@@ -555,13 +535,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D0D0D0',
   },
-  missedType: {
-    fontSize: 11,
-    color: C.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-
   // ── Gym ──
   gymRow: {
     flexDirection: 'row',
