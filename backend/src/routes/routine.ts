@@ -705,23 +705,45 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
     const fullWeekDates = getFullWeekDates(todayStr);       // Mon–Sun
     const datesUpToToday = getWeekDatesUpToToday(todayStr); // Mon–today
 
-    const [{ data: allTasks, error: tasksError }, { data: completions, error: compError }] =
-      await Promise.all([
-        supabase
-          .schema('oasis')
-          .from('routine_tasks')
-          .select('id, day_of_week')
-          .eq('user_id', userId)
-          .eq('type', 'non-negotiable'),
-        supabase
-          .schema('oasis')
-          .from('task_completion_history')
-          .select('task_id, snapshot_date')
-          .eq('user_id', userId)
-          .gte('snapshot_date', datesUpToToday[0])
-          .lte('snapshot_date', datesUpToToday[datesUpToToday.length - 1])
-          .eq('completed', true),
-      ]);
+    // Current month start (based on this week's Monday)
+    const thisMonday = new Date(fullWeekDates[0] + 'T12:00:00Z');
+    const currentMonthStart = `${thisMonday.getUTCFullYear()}-${String(thisMonday.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+    const [
+      { data: allTasks, error: tasksError },
+      { data: completions, error: compError },
+      { data: weeklyRows },
+      { data: monthlyRows },
+    ] = await Promise.all([
+      supabase
+        .schema('oasis')
+        .from('routine_tasks')
+        .select('id, day_of_week')
+        .eq('user_id', userId)
+        .eq('type', 'non-negotiable'),
+      supabase
+        .schema('oasis')
+        .from('task_completion_history')
+        .select('task_id, snapshot_date')
+        .eq('user_id', userId)
+        .gte('snapshot_date', datesUpToToday[0])
+        .lte('snapshot_date', datesUpToToday[datesUpToToday.length - 1])
+        .eq('completed', true),
+      supabase
+        .schema('oasis')
+        .from('weekly_routine_stats')
+        .select('week_start, week_end, total_possible, total_completed, percentage')
+        .eq('user_id', userId)
+        .gte('week_start', currentMonthStart)
+        .order('week_start', { ascending: false }),
+      supabase
+        .schema('oasis')
+        .from('monthly_routine_stats')
+        .select('year, month, total_possible, total_completed, percentage')
+        .eq('user_id', userId)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false }),
+    ]);
 
     if (tasksError) throw tasksError;
     if (compError) throw compError;
@@ -751,11 +773,15 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
     res.json({
       success: true,
       data: {
-        total_possible: totalPossible,
-        total_completed: totalCompleted,
-        percentage,
-        week_start: fullWeekDates[0],
-        week_end: fullWeekDates[fullWeekDates.length - 1],
+        current_week: {
+          total_possible: totalPossible,
+          total_completed: totalCompleted,
+          percentage,
+          week_start: fullWeekDates[0],
+          week_end: fullWeekDates[fullWeekDates.length - 1],
+        },
+        weeks: weeklyRows || [],
+        months: monthlyRows || [],
       },
     });
   } catch (error: any) {

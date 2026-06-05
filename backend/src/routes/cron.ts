@@ -4,6 +4,7 @@ import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
 import { runMemoryCondensationJob } from '../jobs/memoryCondensationJob';
 import { runInactivityCheck } from '../jobs/inactivityJob';
 import { runStreakRiskCheck } from '../jobs/streakRiskJob';
+import { runWeeklyRoutineSnapshot } from '../jobs/weeklyRoutineSnapshotJob';
 
 const router = Router();
 
@@ -38,6 +39,13 @@ router.post('/streak-risk', (_req: Request, res: Response): void => {
   res.json({ success: true, message: 'streak-risk check started' });
   runStreakRiskCheck().catch((err) =>
     console.error('[CRON-TRIGGER] streak-risk failed:', err)
+  );
+});
+
+router.post('/weekly-routine-snapshot', (_req: Request, res: Response): void => {
+  res.json({ success: true, message: 'weekly-routine-snapshot started' });
+  runWeeklyRoutineSnapshot().catch((err) =>
+    console.error('[CRON-TRIGGER] weekly-routine-snapshot failed:', err)
   );
 });
 
