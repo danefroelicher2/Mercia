@@ -31,7 +31,8 @@ const SummaryDataScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const response = await api.get('/api/routine/summary-data');
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await api.get('/api/routine/summary-data', { params: { timezone } });
       if (response.data.success) {
         setData(response.data.data);
       }

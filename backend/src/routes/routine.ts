@@ -700,7 +700,8 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
     const userId = req.user!.id;
     const supabase = getSupabase();
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+    const todayStr = getLocalDateString(timezone);
     const fullWeekDates = getFullWeekDates(todayStr);       // Mon–Sun
     const datesUpToToday = getWeekDatesUpToToday(todayStr); // Mon–today
 
@@ -717,7 +718,8 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
           .from('task_completion_history')
           .select('task_id, snapshot_date')
           .eq('user_id', userId)
-          .in('snapshot_date', datesUpToToday)
+          .gte('snapshot_date', datesUpToToday[0])
+          .lte('snapshot_date', datesUpToToday[datesUpToToday.length - 1])
           .eq('completed', true),
       ]);
 
