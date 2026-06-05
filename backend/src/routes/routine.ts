@@ -690,7 +690,9 @@ router.put(
 
 /**
  * GET /api/routine/summary-data
- * Returns the current week's (Mon → today) Today item completion stats.
+ * Returns the current week's Today item completion stats.
+ * total_possible = full Mon–Sun week (all 7 days).
+ * total_completed = completions recorded from Mon through today only.
  * "Today items" = non-negotiable tasks.
  */
 router.get('/summary-data', async (req: Request, res: Response): Promise<void> => {
@@ -699,7 +701,8 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
     const supabase = getSupabase();
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const weekDates = getWeekDatesUpToToday(todayStr);
+    const fullWeekDates = getFullWeekDates(todayStr);       // Mon–Sun
+    const datesUpToToday = getWeekDatesUpToToday(todayStr); // Mon–today
 
     const [{ data: allTasks, error: tasksError }, { data: completions, error: compError }] =
       await Promise.all([
@@ -714,7 +717,7 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
           .from('task_completion_history')
           .select('task_id, snapshot_date')
           .eq('user_id', userId)
-          .in('snapshot_date', weekDates)
+          .in('snapshot_date', datesUpToToday)
           .eq('completed', true),
       ]);
 
@@ -729,7 +732,7 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
     let totalPossible = 0;
     let totalCompleted = 0;
 
-    for (const dateStr of weekDates) {
+    for (const dateStr of fullWeekDates) {
       const d = new Date(dateStr + 'T12:00:00Z');
       const dowName = DAY_NAMES[d.getUTCDay()];
       const tasksForDay = (allTasks || []).filter((t: any) => t.day_of_week === dowName);
@@ -749,14 +752,30 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
         total_possible: totalPossible,
         total_completed: totalCompleted,
         percentage,
-        week_start: weekDates[0] ?? todayStr,
-        week_end: weekDates[weekDates.length - 1] ?? todayStr,
+        week_start: fullWeekDates[0],
+        week_end: fullWeekDates[fullWeekDates.length - 1],
       },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// Returns all 7 dates for the Mon–Sun week containing todayStr
+function getFullWeekDates(todayStr: string): string[] {
+  const ref = new Date(todayStr + 'T12:00:00Z');
+  const utcDay = ref.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysFromMonday = utcDay === 0 ? 6 : utcDay - 1;
+  const monday = new Date(ref);
+  monday.setUTCDate(ref.getUTCDate() - daysFromMonday);
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
 
 // Returns all dates from Monday of the current week through today (inclusive)
 function getWeekDatesUpToToday(todayStr: string): string[] {
