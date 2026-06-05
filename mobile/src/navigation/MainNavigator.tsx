@@ -11,6 +11,7 @@ import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
+import SummaryDataScreen from '../screens/SummaryDataScreen';
 import MerciaMemoryScreen from '../screens/MerciaMemoryScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
@@ -42,6 +43,7 @@ export type MainTabParamList = {
 export type ProfileStackParamList = {
   Profile: undefined;
   SummaryHistory: undefined;
+  SummaryData: undefined;
   MerciaMemory: undefined;
   GymMemory: undefined;
   NotificationSettings: undefined;
@@ -132,6 +134,18 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Gym Memory',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="SummaryData"
+        component={SummaryDataScreen}
+        options={{
+          headerShown: true,
+          title: 'Summary Data',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',

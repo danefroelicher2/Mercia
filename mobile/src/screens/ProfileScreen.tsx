@@ -229,6 +229,17 @@ const ProfileScreen: React.FC = () => {
 
           {isSubscribed && (
             <TouchableOpacity
+              style={styles.navRow}
+              onPress={() => navigation.navigate('SummaryData')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.navRowLabel}>Summary Data</Text>
+              <Text style={styles.navRowChevron}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {isSubscribed && (
+            <TouchableOpacity
               style={[styles.navRow, styles.navRowLast]}
               onPress={() => navigation.navigate('SummaryHistory')}
               activeOpacity={0.7}

@@ -684,4 +684,92 @@ router.put(
   }
 );
 
+// ============================================
+// SUMMARY DATA ENDPOINT
+// ============================================
+
+/**
+ * GET /api/routine/summary-data
+ * Returns the current week's (Mon → today) Today item completion stats.
+ * "Today items" = non-negotiable tasks.
+ */
+router.get('/summary-data', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const weekDates = getWeekDatesUpToToday(todayStr);
+
+    const [{ data: allTasks, error: tasksError }, { data: completions, error: compError }] =
+      await Promise.all([
+        supabase
+          .schema('oasis')
+          .from('routine_tasks')
+          .select('id, day_of_week')
+          .eq('user_id', userId)
+          .eq('type', 'non-negotiable'),
+        supabase
+          .schema('oasis')
+          .from('task_completion_history')
+          .select('task_id, snapshot_date')
+          .eq('user_id', userId)
+          .in('snapshot_date', weekDates)
+          .eq('completed', true),
+      ]);
+
+    if (tasksError) throw tasksError;
+    if (compError) throw compError;
+
+    const completedSet = new Set(
+      (completions || []).map((c: any) => `${c.task_id}::${c.snapshot_date}`)
+    );
+
+    const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    let totalPossible = 0;
+    let totalCompleted = 0;
+
+    for (const dateStr of weekDates) {
+      const d = new Date(dateStr + 'T12:00:00Z');
+      const dowName = DAY_NAMES[d.getUTCDay()];
+      const tasksForDay = (allTasks || []).filter((t: any) => t.day_of_week === dowName);
+      totalPossible += tasksForDay.length;
+      for (const task of tasksForDay as any[]) {
+        if (completedSet.has(`${task.id}::${dateStr}`)) {
+          totalCompleted++;
+        }
+      }
+    }
+
+    const percentage = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        total_possible: totalPossible,
+        total_completed: totalCompleted,
+        percentage,
+        week_start: weekDates[0] ?? todayStr,
+        week_end: weekDates[weekDates.length - 1] ?? todayStr,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Returns all dates from Monday of the current week through today (inclusive)
+function getWeekDatesUpToToday(todayStr: string): string[] {
+  const end = new Date(todayStr + 'T12:00:00Z');
+  const utcDay = end.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysFromMonday = utcDay === 0 ? 6 : utcDay - 1;
+  const dates: string[] = [];
+  for (let i = daysFromMonday; i >= 0; i--) {
+    const d = new Date(end);
+    d.setUTCDate(end.getUTCDate() - i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+
 export default router;
