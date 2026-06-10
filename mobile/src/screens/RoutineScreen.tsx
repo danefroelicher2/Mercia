@@ -1240,7 +1240,7 @@ const RoutineScreen: React.FC = () => {
               setSummaryModalVisible(false);
               setLiveSummary(null);
             }}
-            onSave={handleSaveSummary}
+            onSave={liveSummary?.id !== 'live' ? handleSaveSummary : undefined}
           />
         </>
       ) : (

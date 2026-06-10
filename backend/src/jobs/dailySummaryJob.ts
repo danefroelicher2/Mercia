@@ -6,7 +6,6 @@ import {
   computeSummaryStats,
   getYesterdayDateString,
   getDayOfWeekForDate,
-  getDatesFromMondayToDate,
 } from '../lib/summaryCompute';
 
 // ============================================
