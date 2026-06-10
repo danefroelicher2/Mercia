@@ -150,6 +150,8 @@ const RoutineScreen: React.FC = () => {
   // Weekly summary state
   const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
   const [summaryModalVisible, setSummaryModalVisible] = useState(false);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveSummary, setLiveSummary] = useState<WeeklySummary | null>(null);
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -289,6 +291,24 @@ const RoutineScreen: React.FC = () => {
       loadData();
     }
   }, [user, selectedDay]);
+
+  const handleOpenSummary = async () => {
+    setSummaryModalVisible(true);
+    setLiveLoading(true);
+    setLiveSummary(null);
+    try {
+      const res = await api.get('/api/summaries/live');
+      if (res.data.success) {
+        setLiveSummary(res.data.data);
+      } else {
+        setLiveSummary(currentSummary);
+      }
+    } catch {
+      setLiveSummary(currentSummary);
+    } finally {
+      setLiveLoading(false);
+    }
+  };
 
   const handleSaveSummary = async (summaryId: string) => {
     await api.patch(`/api/summaries/${summaryId}/save`);
@@ -792,7 +812,7 @@ const RoutineScreen: React.FC = () => {
           {/* Daily Summary Banner */}
           <WeeklySummaryBanner
             summary={currentSummary}
-            onPress={() => setSummaryModalVisible(true)}
+            onPress={handleOpenSummary}
           />
 
           {/* Quote Card */}
@@ -1214,8 +1234,12 @@ const RoutineScreen: React.FC = () => {
           {/* Daily Summary Modal */}
           <WeeklySummaryModal
             visible={summaryModalVisible}
-            summary={currentSummary}
-            onDismiss={() => setSummaryModalVisible(false)}
+            summary={liveSummary}
+            loading={liveLoading}
+            onDismiss={() => {
+              setSummaryModalVisible(false);
+              setLiveSummary(null);
+            }}
             onSave={handleSaveSummary}
           />
         </>
@@ -1559,10 +1583,11 @@ const styles = StyleSheet.create({
   typeButton: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     backgroundColor: '#1F1F1F',
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
@@ -1571,9 +1596,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(29, 158, 117, 0.4)',
   },
   typeButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#888',
+    textAlign: 'center',
   },
   typeButtonTextActive: {
     color: '#5DCAA5',
