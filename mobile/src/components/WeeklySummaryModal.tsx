@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { WeeklySummary } from '../types/summary';
@@ -34,6 +35,7 @@ interface Props {
   onSave?: (summaryId: string) => Promise<void>;
   onDelete?: (summaryId: string) => Promise<void>;
   readOnly?: boolean;
+  loading?: boolean;
 }
 
 function formatDate(dateStr: string): string {
@@ -98,6 +100,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
   onSave,
   onDelete,
   readOnly = false,
+  loading = false,
 }) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(summary?.is_saved || false);
@@ -107,7 +110,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
     setSaved(summary?.is_saved || false);
   }, [summary?.id]);
 
-  if (!summary) return null;
+  if (!summary && !loading) return null;
 
   const handleDelete = () => {
     if (!onDelete || !summary) return;
@@ -134,7 +137,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
   };
 
   const handleSave = async () => {
-    if (!onSave || saved) return;
+    if (!onSave || saved || !summary) return;
     setSaving(true);
     try {
       await onSave(summary.id);
@@ -148,20 +151,28 @@ const WeeklySummaryModal: React.FC<Props> = ({
   };
 
   // Overall: use stored value or fall back to computed
-  const overallPct = summary.overall_percentage ?? 0;
+  const overallPct = summary?.overall_percentage ?? 0;
 
-  const yesterdayPct = summary.yesterday_overall_percentage ?? 0;
+  const yesterdayPct = summary?.yesterday_overall_percentage ?? 0;
   const perfDelta = overallPct - yesterdayPct;
-  const showPerf = summary.yesterday_overall_percentage != null && summary.yesterday_overall_percentage > 0;
+  const showPerf = summary?.yesterday_overall_percentage != null && summary?.yesterday_overall_percentage > 0;
 
-  const missedTasks = summary.tasks_missed_frequently || [];
-  const gymDays = summary.gym_days_this_week ?? null;
-  const gymPossible = summary.gym_days_possible ?? 1;
-  const completedWeekly = summary.completed_weekly_goal_texts || [];
-  const completedMonthly = summary.completed_monthly_goal_texts || [];
+  const missedTasks = summary?.tasks_missed_frequently || [];
+  const gymDays = summary?.gym_days_this_week ?? null;
+  const gymPossible = summary?.gym_days_possible ?? 1;
+  const completedWeekly = summary?.completed_weekly_goal_texts || [];
+  const completedMonthly = summary?.completed_monthly_goal_texts || [];
 
-  const weeklyChange = summary.weekly_goals_change_today ?? 0;
-  const monthlyChange = summary.monthly_goals_change_today ?? 0;
+  const weeklyChange = summary?.weekly_goals_change_today ?? 0;
+  const monthlyChange = summary?.monthly_goals_change_today ?? 0;
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={C.teal} />
+      <Text style={styles.loadingTitle}>Aggregating latest metrics</Text>
+      <Text style={styles.loadingSubtitle}>Pulling your most recent data…</Text>
+    </View>
+  );
 
   const renderContent = () => (
     <>
@@ -169,7 +180,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
       <View style={styles.ringsRow}>
         <View style={styles.ringItem}>
           <ProgressRing
-            percentage={summary.nonnegotiables_percentage}
+            percentage={summary?.nonnegotiables_percentage ?? 0}
             color={C.primary}
             trackColor={C.trackOrange}
           />
@@ -250,7 +261,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Weekly Goals</Text>
-          <Text style={styles.cardPct}>{summary.weekly_goals_percentage ?? 0}%</Text>
+          <Text style={styles.cardPct}>{summary?.weekly_goals_percentage ?? 0}%</Text>
         </View>
         <Text style={styles.completedLabel}>Completed</Text>
         {completedWeekly.length > 0 ? (
@@ -279,7 +290,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Monthly Goals</Text>
-          <Text style={styles.cardPct}>{summary.monthly_goals_percentage ?? 0}%</Text>
+          <Text style={styles.cardPct}>{summary?.monthly_goals_percentage ?? 0}%</Text>
         </View>
         <Text style={styles.completedLabel}>Completed</Text>
         {completedMonthly.length > 0 ? (
@@ -331,7 +342,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Yesterday's Summary</Text>
-            <Text style={styles.headerDate}>{formatDate(summary.week_start_date)}</Text>
+            <Text style={styles.headerDate}>{summary ? formatDate(summary.week_start_date) : ''}</Text>
           </View>
 
           <ScrollView
@@ -339,7 +350,7 @@ const WeeklySummaryModal: React.FC<Props> = ({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {summary.has_complete_data ? renderContent() : renderNoData()}
+            {loading ? renderLoading() : summary?.has_complete_data ? renderContent() : renderNoData()}
           </ScrollView>
 
           {/* Buttons */}
@@ -644,6 +655,25 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
     textAlign: 'center',
     lineHeight: 21,
+  },
+
+  // ── Loading ──
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  loadingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: C.textPrimary,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  loadingSubtitle: {
+    fontSize: 13,
+    color: C.textSecondary,
+    textAlign: 'center',
   },
 
   // ── Buttons ──
