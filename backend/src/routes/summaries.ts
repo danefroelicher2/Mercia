@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getSupabase } from '../services/supabase';
 import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
+import { computeSummaryStats, getYesterdayDateString } from '../lib/summaryCompute';
 
 const router = Router();
 
@@ -35,6 +36,30 @@ router.get('/current', async (req: Request, res: Response): Promise<void> => {
     res.json({ success: true, data: data || null });
   } catch (error: any) {
     console.error('[Summaries] Error fetching current:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/summaries/live - Compute yesterday's stats live from current DB state (no save, no Groq)
+router.get('/live', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+    const yesterday = getYesterdayDateString();
+
+    const stats = await computeSummaryStats(userId, yesterday, supabase);
+
+    const liveSummary = {
+      id: 'live',
+      user_id: userId,
+      is_saved: false,
+      created_at: new Date().toISOString(),
+      ...stats,
+    };
+
+    res.json({ success: true, data: liveSummary });
+  } catch (error: any) {
+    console.error('[Summaries] Error computing live summary:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
