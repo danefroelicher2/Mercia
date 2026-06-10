@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import QuoteCard from '../components/QuoteCard';
@@ -62,6 +64,11 @@ function getISOWeek(date: Date): number {
   return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
 
+const getTodayDay = (): DayOfWeek => {
+  const d = new Date().getDay();
+  return DAYS[d === 0 ? 6 : d - 1];
+};
+
 const GymScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
@@ -71,7 +78,7 @@ const GymScreen: React.FC = () => {
     navigation.navigate('Profile');
     navigation.navigate('Profile', { screen: 'GymMemory' });
   };
-  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>(getTodayDay);
   const [workoutGroup, setWorkoutGroup] = useState('');
   const [notes, setNotes] = useState('');
   const [hasKeystroke, setHasKeystroke] = useState(false);
@@ -83,9 +90,10 @@ const GymScreen: React.FC = () => {
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const today = new Date().getDay();
-    const dayIndex = today === 0 ? 6 : today - 1;
-    setSelectedDay(DAYS[dayIndex]);
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') setSelectedDay(getTodayDay());
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
