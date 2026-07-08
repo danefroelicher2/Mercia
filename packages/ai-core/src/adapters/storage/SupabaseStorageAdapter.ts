@@ -734,36 +734,44 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     goalId: string,
     userId: string
   ): Promise<{ goal: RoutineGoal; becameCompleted: boolean }> {
-    const { data: existing, error: fetchError } = await this.client
-      .from('routine_goals')
-      .select('current_count, target_count, completed')
-      .eq('id', goalId)
-      .eq('user_id', userId)
-      .single();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { data: existing, error: fetchError } = await this.client
+        .from('routine_goals')
+        .select('current_count, target_count, completed')
+        .eq('id', goalId)
+        .eq('user_id', userId)
+        .single();
 
-    if (fetchError) {
-      throw new Error(`Failed to fetch goal for tick: ${fetchError.message}`);
+      if (fetchError) {
+        throw new Error(`Failed to fetch goal for tick: ${fetchError.message}`);
+      }
+
+      const wasCompleted = existing.completed;
+      const newCount = existing.current_count > 0
+        ? existing.current_count - 1
+        : Math.min(existing.current_count + 1, existing.target_count);
+      const newCompleted = newCount === 0;
+
+      const { data, error } = await this.client
+        .from('routine_goals')
+        .update({ current_count: newCount, completed: newCompleted })
+        .eq('id', goalId)
+        .eq('user_id', userId)
+        .eq('current_count', existing.current_count)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(`Failed to tick goal: ${error.message}`);
+      }
+
+      if (data) {
+        return { goal: data, becameCompleted: !wasCompleted && newCompleted };
+      }
+      // current_count changed between fetch and update (concurrent tick) — retry once
     }
 
-    const wasCompleted = existing.completed;
-    const newCount = existing.current_count > 0
-      ? existing.current_count - 1
-      : Math.min(existing.current_count + 1, existing.target_count);
-    const newCompleted = newCount === 0;
-
-    const { data, error } = await this.client
-      .from('routine_goals')
-      .update({ current_count: newCount, completed: newCompleted })
-      .eq('id', goalId)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to tick goal: ${error.message}`);
-    }
-
-    return { goal: data, becameCompleted: !wasCompleted && newCompleted };
+    throw new Error('Failed to tick goal: concurrent update conflict');
   }
 
   async deleteRoutineGoal(goalId: string, userId: string): Promise<void> {
