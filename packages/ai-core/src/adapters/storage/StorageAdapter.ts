@@ -215,9 +215,9 @@ export interface StorageAdapter {
   deleteRoutineTask(taskId: string, userId: string): Promise<void>;
 
   /**
-   * Create a routine goal (weekly or monthly)
+   * Create a routine goal (weekly, monthly, or yearly). targetCount defaults to 1.
    */
-  createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly' | 'yearly'): Promise<RoutineGoal>;
+  createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly' | 'yearly', targetCount?: number): Promise<RoutineGoal>;
 
   /**
    * Get current week's goals
@@ -235,9 +235,12 @@ export interface StorageAdapter {
   getYearlyGoals(userId: string): Promise<RoutineGoal[]>;
 
   /**
-   * Update goal completion status
+   * Tick a goal's progress by one step: decrements current_count toward 0
+   * (marking it completed when it reaches 0), or increments back toward
+   * target_count if already at 0 (undoing one step). Returns the updated
+   * goal plus whether this call caused the true -> completed transition.
    */
-  updateRoutineGoalCompletion(goalId: string, userId: string, completed: boolean): Promise<RoutineGoal>;
+  tickRoutineGoal(goalId: string, userId: string): Promise<{ goal: RoutineGoal; becameCompleted: boolean }>;
 
   /**
    * Delete a routine goal

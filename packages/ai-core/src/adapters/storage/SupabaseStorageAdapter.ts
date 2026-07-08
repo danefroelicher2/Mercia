@@ -634,10 +634,12 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async createRoutineGoal(
     userId: string,
     text: string,
-    type: 'weekly' | 'monthly' | 'yearly'
+    type: 'weekly' | 'monthly' | 'yearly',
+    targetCount: number = 1
   ): Promise<RoutineGoal> {
     const now = new Date();
     const year = now.getFullYear();
+    const clampedTargetCount = Math.min(999, Math.max(1, Math.trunc(targetCount)));
 
     let weekNumber = null;
     let month = null;
@@ -670,6 +672,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         year,
         completed: false,
         sort_order: nextSortOrder,
+        target_count: clampedTargetCount,
+        current_count: clampedTargetCount,
       })
       .select()
       .single();
@@ -726,24 +730,40 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return data || [];
   }
 
-  async updateRoutineGoalCompletion(
+  async tickRoutineGoal(
     goalId: string,
-    userId: string,
-    completed: boolean
-  ): Promise<RoutineGoal> {
+    userId: string
+  ): Promise<{ goal: RoutineGoal; becameCompleted: boolean }> {
+    const { data: existing, error: fetchError } = await this.client
+      .from('routine_goals')
+      .select('current_count, target_count, completed')
+      .eq('id', goalId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch goal for tick: ${fetchError.message}`);
+    }
+
+    const wasCompleted = existing.completed;
+    const newCount = existing.current_count > 0
+      ? existing.current_count - 1
+      : Math.min(existing.current_count + 1, existing.target_count);
+    const newCompleted = newCount === 0;
+
     const { data, error } = await this.client
       .from('routine_goals')
-      .update({ completed })
+      .update({ current_count: newCount, completed: newCompleted })
       .eq('id', goalId)
       .eq('user_id', userId)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to update goal completion: ${error.message}`);
+      throw new Error(`Failed to tick goal: ${error.message}`);
     }
 
-    return data;
+    return { goal: data, becameCompleted: !wasCompleted && newCompleted };
   }
 
   async deleteRoutineGoal(goalId: string, userId: string): Promise<void> {
@@ -797,28 +817,24 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
   async resetAllWeeklyGoalCompletions(): Promise<void> {
     const { error } = await this.client
-      .from('routine_goals')
-      .update({ completed: false })
-      .eq('type', 'weekly');
+      .rpc('reset_goal_progress', { goal_type: 'weekly' });
 
     if (error) {
       throw new Error(`Failed to reset weekly goal completions: ${error.message}`);
     }
 
-    console.log('[Reset] All weekly goal completions reset to false');
+    console.log('[Reset] All weekly goal completions and counts reset');
   }
 
   async resetAllMonthlyGoalCompletions(): Promise<void> {
     const { error } = await this.client
-      .from('routine_goals')
-      .update({ completed: false })
-      .eq('type', 'monthly');
+      .rpc('reset_goal_progress', { goal_type: 'monthly' });
 
     if (error) {
       throw new Error(`Failed to reset monthly goal completions: ${error.message}`);
     }
 
-    console.log('[Reset] All monthly goal completions reset to false');
+    console.log('[Reset] All monthly goal completions and counts reset');
   }
 
   async updateWeeklyGoalsToCurrentWeek(): Promise<void> {
