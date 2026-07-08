@@ -411,9 +411,22 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         : Math.min(existing.current_count + 1, existing.target_count);
       const newCompleted = newCount === 0;
 
+      // completed_at drives the home-tab rings' "already done before today"
+      // math — only touch it on an actual completion-state transition.
+      const updatePayload: {
+        current_count: number;
+        completed: boolean;
+        completed_at?: string | null;
+      } = { current_count: newCount, completed: newCompleted };
+      if (newCompleted && !wasCompleted) {
+        updatePayload.completed_at = new Date().toISOString();
+      } else if (!newCompleted && wasCompleted) {
+        updatePayload.completed_at = null;
+      }
+
       const { data, error } = await this.client
         .from('routine_goals')
-        .update({ current_count: newCount, completed: newCompleted })
+        .update(updatePayload)
         .eq('id', goalId)
         .eq('user_id', userId)
         .eq('current_count', existing.current_count)

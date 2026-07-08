@@ -1,20 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  View,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '../constants/theme';
 import { useSubscription } from '../context/SubscriptionContext';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { WeeklySummary } from '../types/summary';
 import { RoutineTask, RoutineGoal } from '../types/routine';
+import { CreateChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
+import DailyOutlookSheet from '../components/DailyOutlookSheet';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -24,17 +30,67 @@ function getTodayDayOfWeek(): string {
   return DAYS[index];
 }
 
-// Ring 2 ("Overall") category weights and floors — see
+// Ring 2 ("Overall") category weights — see
 // docs/superpowers/specs/2026-07-08-home-tab-rings-design.md for the full reasoning.
 const ROUTINE_WEIGHT = 30;
 const GYM_WEIGHT = 20;
 const WEEKLY_WEIGHT = 20;
-const WEEKLY_FLOOR = 5;
 const MONTHLY_WEIGHT = 30;
-const MONTHLY_FLOOR = 17;
 
 function ratio(completed: number, total: number): number {
   return total > 0 ? completed / total : 0;
+}
+
+function getLocalDateString(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+interface GoalCategoryResult {
+  score: number;
+  isActive: boolean;
+}
+
+// Weekly/monthly goals reset to 0% every day — completing something today
+// only counts against what's still left over from before today, so finishing
+// a whole list early in the period doesn't get "used up" and penalize the
+// days that follow, and a fresh item added mid-period just changes what's
+// left, not what was already earned.
+function computeGoalCategoryScore(
+  goals: RoutineGoal[],
+  weight: number,
+  todayDateStr: string,
+  timezone: string
+): GoalCategoryResult {
+  const total = goals.length;
+  if (total === 0) {
+    // No goals of this type at all — excluded from the calculation entirely,
+    // not just "0 points" (that would still dilute the denominator).
+    return { score: 0, isActive: false };
+  }
+
+  let alreadyDoneBeforeToday = 0;
+  let completedToday = 0;
+  for (const goal of goals) {
+    if (!goal.completed || !goal.completed_at) continue;
+    const completedDateStr = getLocalDateString(new Date(goal.completed_at), timezone);
+    if (completedDateStr < todayDateStr) {
+      alreadyDoneBeforeToday++;
+    } else if (completedDateStr === todayDateStr) {
+      completedToday++;
+    }
+  }
+
+  const remaining = total - alreadyDoneBeforeToday;
+  const score = remaining === 0
+    ? weight // nothing left — already finished, full credit, no penalty
+    : weight * (completedToday / remaining);
+
+  return { score, isActive: true };
 }
 
 const MerciaHomeScreen: React.FC = () => {
@@ -65,12 +121,22 @@ const MerciaHomeScreen: React.FC = () => {
   const [overallPercentage, setOverallPercentage] = useState(0);
 
   // ============================================
+  // DAILY OUTLOOK SHEET STATE
+  // ============================================
+  const outlookSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const [outlookChatId, setOutlookChatId] = useState<string | null>(null);
+  const [isOpeningOutlook, setIsOpeningOutlook] = useState(false);
+
+  // ============================================
   // EFFECTS
   // ============================================
 
   const loadRings = useCallback(async () => {
     try {
       const day = getTodayDayOfWeek();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const todayDateStr = getLocalDateString(new Date(), timezone);
+
       const [tasksRes, weeklyRes, monthlyRes, gymRes] = await Promise.all([
         api.get(`/api/routine/tasks/${day}`),
         api.get('/api/routine/goals/weekly'),
@@ -85,19 +151,40 @@ const MerciaHomeScreen: React.FC = () => {
       const todayRatio = ratio(todayCompleted, todayTasks.length);
       setTodayPercentage(Math.round(todayRatio * 100));
 
-      // Ring 2: weighted composite — routine + gym + weekly + monthly (no yearly)
+      // Ring 2: weighted composite — routine + gym + weekly + monthly (no yearly).
+      // Each category is either "active" (has data, counts toward the total)
+      // or excluded entirely (no goals of that type at all — doesn't dilute
+      // the percentage for someone who simply doesn't use that feature).
       const weeklyGoals: RoutineGoal[] = weeklyRes.data.success ? (weeklyRes.data.data || []) : [];
       const monthlyGoals: RoutineGoal[] = monthlyRes.data.success ? (monthlyRes.data.data || []) : [];
       const gymLoggedToday = gymRes.data.success && gymRes.data.data != null;
 
-      const routineScore = todayRatio * ROUTINE_WEIGHT;
-      const gymScore = gymLoggedToday ? GYM_WEIGHT : 0;
-      const weeklyRatio = ratio(weeklyGoals.filter(g => g.completed).length, weeklyGoals.length);
-      const weeklyScore = WEEKLY_FLOOR + (WEEKLY_WEIGHT - WEEKLY_FLOOR) * weeklyRatio;
-      const monthlyRatio = ratio(monthlyGoals.filter(g => g.completed).length, monthlyGoals.length);
-      const monthlyScore = MONTHLY_FLOOR + (MONTHLY_WEIGHT - MONTHLY_FLOOR) * monthlyRatio;
+      const routineActive = todayTasks.length > 0;
+      const routineScore = routineActive ? todayRatio * ROUTINE_WEIGHT : 0;
 
-      const overall = Math.round(routineScore + gymScore + weeklyScore + monthlyScore);
+      // Gym has no "total items" concept (it's a single daily yes/no), so unlike
+      // the other three it's always counted, never excluded.
+      const gymScore = gymLoggedToday ? GYM_WEIGHT : 0;
+
+      const weeklyResult = computeGoalCategoryScore(weeklyGoals, WEEKLY_WEIGHT, todayDateStr, timezone);
+      const monthlyResult = computeGoalCategoryScore(monthlyGoals, MONTHLY_WEIGHT, todayDateStr, timezone);
+
+      let activeWeight = GYM_WEIGHT;
+      let rawScore = gymScore;
+      if (routineActive) {
+        activeWeight += ROUTINE_WEIGHT;
+        rawScore += routineScore;
+      }
+      if (weeklyResult.isActive) {
+        activeWeight += WEEKLY_WEIGHT;
+        rawScore += weeklyResult.score;
+      }
+      if (monthlyResult.isActive) {
+        activeWeight += MONTHLY_WEIGHT;
+        rawScore += monthlyResult.score;
+      }
+
+      const overall = activeWeight > 0 ? Math.round((rawScore / activeWeight) * 100) : 0;
       setOverallPercentage(Math.min(100, Math.max(0, overall)));
     } catch (error) {
       console.error('[MerciaHomeScreen] Error loading rings:', error);
@@ -185,6 +272,24 @@ const MerciaHomeScreen: React.FC = () => {
     setIsRefreshing(false);
   };
 
+  const handleOpenDailyOutlook = async () => {
+    if (isOpeningOutlook) return;
+    setIsOpeningOutlook(true);
+    try {
+      const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
+        title: 'Daily Outlook',
+      });
+      if (response.data.success && response.data.data) {
+        setOutlookChatId(response.data.data.id);
+        outlookSheetRef.current?.present();
+      }
+    } catch (error) {
+      console.error('[MerciaHomeScreen] Error opening daily outlook:', error);
+    } finally {
+      setIsOpeningOutlook(false);
+    }
+  };
+
   // ============================================
   // MAIN RENDER
   // ============================================
@@ -209,6 +314,20 @@ const MerciaHomeScreen: React.FC = () => {
         {/* Rings */}
         <HomeRings todayPercentage={todayPercentage} overallPercentage={overallPercentage} />
 
+        {/* Daily Outlook */}
+        <TouchableOpacity
+          style={styles.outlookCard}
+          onPress={handleOpenDailyOutlook}
+          activeOpacity={0.8}
+          disabled={isOpeningOutlook}
+        >
+          <View style={styles.outlookTextContainer}>
+            <Text style={styles.outlookTitle}>Daily Outlook</Text>
+            <Text style={styles.outlookSubtitle}>Talk to Mercia about your day</Text>
+          </View>
+          <Text style={styles.outlookArrow}>›</Text>
+        </TouchableOpacity>
+
         {/* Daily Summary Banner */}
         <WeeklySummaryBanner
           summary={currentSummary}
@@ -227,6 +346,9 @@ const MerciaHomeScreen: React.FC = () => {
         }}
         onSave={liveSummary?.id !== 'live' ? handleSaveSummary : undefined}
       />
+
+      {/* Daily Outlook Sheet */}
+      <DailyOutlookSheet ref={outlookSheetRef} chatId={outlookChatId} />
     </SafeAreaView>
   );
 };
@@ -245,6 +367,39 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 16,
+  },
+  outlookCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161616',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#232323',
+    borderTopWidth: 3,
+    borderTopColor: '#7B9EFF',
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 12,
+    padding: 16,
+  },
+  outlookTextContainer: {
+    flex: 1,
+  },
+  outlookTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#E8E8E8',
+    marginBottom: 2,
+  },
+  outlookSubtitle: {
+    fontSize: 13,
+    color: '#888',
+  },
+  outlookArrow: {
+    fontSize: 22,
+    color: '#7B9EFF',
+    fontWeight: '300',
+    marginLeft: 8,
   },
 });
 

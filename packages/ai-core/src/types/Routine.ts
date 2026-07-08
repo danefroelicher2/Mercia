@@ -17,6 +17,7 @@ export interface RoutineGoal {
   month: number | null;
   year: number;
   completed: boolean;
+  completed_at: string | null;
   target_count: number;
   current_count: number;
   created_at: string;

@@ -2,6 +2,7 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import RootNavigator from './navigation/RootNavigator';
@@ -12,8 +13,10 @@ const App: React.FC = () => {
     <SafeAreaProvider>
       <AuthProvider>
         <SubscriptionProvider>
-          <StatusBar style="auto" />
-          <RootNavigator />
+          <BottomSheetModalProvider>
+            <StatusBar style="auto" />
+            <RootNavigator />
+          </BottomSheetModalProvider>
         </SubscriptionProvider>
       </AuthProvider>
     </SafeAreaProvider>
