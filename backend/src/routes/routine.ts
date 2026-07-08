@@ -39,6 +39,7 @@ const createTaskSchema = z.object({
 const createGoalSchema = z.object({
   text: z.string().min(1).max(500),
   type: z.enum(['weekly', 'monthly', 'yearly']),
+  targetCount: z.number().int().min(1).max(999).optional(),
 });
 
 const toggleCompletionSchema = z.object({
@@ -48,7 +49,6 @@ const toggleCompletionSchema = z.object({
 });
 
 const toggleGoalSchema = z.object({
-  completed: z.boolean(),
   timezone: z.string().optional(),
 });
 
@@ -322,10 +322,10 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id;
-      const { text, type } = req.body;
+      const { text, type, targetCount } = req.body;
 
       const storage = getStorage();
-      const goal = await storage.createRoutineGoal(userId, text, type);
+      const goal = await storage.createRoutineGoal(userId, text, type, targetCount);
 
       res.status(201).json({
         success: true,
@@ -434,13 +434,13 @@ router.patch(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { completed, timezone } = req.body;
+      const { timezone } = req.body;
 
       const storage = getStorage();
-      const goal = await storage.updateRoutineGoalCompletion(id, userId, completed);
+      const { goal, becameCompleted } = await storage.tickRoutineGoal(id, userId);
 
-      // Log activity for stats AND check achievements (only if marking as completed)
-      if (completed === true) {
+      // Log activity for stats AND check achievements (only on the false -> true transition)
+      if (becameCompleted) {
         try {
           const supabase = getSupabase();
 
