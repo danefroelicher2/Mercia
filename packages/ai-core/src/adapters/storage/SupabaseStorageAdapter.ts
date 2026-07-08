@@ -734,7 +734,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     goalId: string,
     userId: string
   ): Promise<{ goal: RoutineGoal; becameCompleted: boolean }> {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       const { data: existing, error: fetchError } = await this.client
         .from('routine_goals')
         .select('current_count, target_count, completed')
@@ -768,7 +768,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       if (data) {
         return { goal: data, becameCompleted: !wasCompleted && newCompleted };
       }
-      // current_count changed between fetch and update (concurrent tick) — retry once
+      // current_count changed between fetch and update (concurrent tick) — retry up to 4 times
     }
 
     throw new Error('Failed to tick goal: concurrent update conflict');

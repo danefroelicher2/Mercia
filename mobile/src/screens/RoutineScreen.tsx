@@ -166,6 +166,7 @@ const RoutineScreen: React.FC = () => {
   // Notepad
   const [notepadContent, setNotepadContent] = useState('');
   const notepadSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickingGoalIds = useRef<Set<string>>(new Set());
 
   // Edit mode state — each card manages its own independently
   const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | 'yearly' | null>(null);
@@ -523,6 +524,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   const handleToggleGoal = async (goalId: string, type: 'weekly' | 'monthly' | 'yearly') => {
+    if (tickingGoalIds.current.has(goalId)) return;
+    tickingGoalIds.current.add(goalId);
     try {
       const response = await api.patch(`/api/routine/goals/${goalId}`, {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -531,15 +534,17 @@ const RoutineScreen: React.FC = () => {
       if (response.data.success) {
         const updated: RoutineGoal = response.data.data;
         if (type === 'weekly') {
-          setWeeklyGoals(weeklyGoals.map(g => (g.id === goalId ? updated : g)));
+          setWeeklyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
         } else if (type === 'monthly') {
-          setMonthlyGoals(monthlyGoals.map(g => (g.id === goalId ? updated : g)));
+          setMonthlyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
         } else {
-          setYearlyGoals(yearlyGoals.map(g => (g.id === goalId ? updated : g)));
+          setYearlyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
         }
       }
     } catch (error) {
       console.error('[RoutineScreen] Error toggling goal:', error);
+    } finally {
+      tickingGoalIds.current.delete(goalId);
     }
   };
 
