@@ -20,10 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import QuoteCard from '../components/QuoteCard';
-import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
-import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import { QUOTES } from '../data/quotes';
-import { WeeklySummary } from '../types/summary';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
 import { Ionicons } from '@expo/vector-icons';
@@ -148,12 +145,6 @@ const RoutineScreen: React.FC = () => {
   const [weeklyCountdown, setWeeklyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
   const [monthlyCountdown, setMonthlyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
 
-  // Weekly summary state
-  const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
-  const [summaryModalVisible, setSummaryModalVisible] = useState(false);
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveSummary, setLiveSummary] = useState<WeeklySummary | null>(null);
-
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
@@ -203,6 +194,18 @@ const RoutineScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Recompute today's actual day-of-week every time this tab gains focus.
+  // Tab screens don't necessarily remount between app sessions (backgrounding,
+  // resuming, or just switching tabs and back can all leave this screen's
+  // state intact), so a mount-only calculation can go stale — e.g. opening
+  // the app on Wednesday after last using it the previous Monday would
+  // otherwise keep showing Monday's tasks under the "Today" card.
+  useFocusEffect(useCallback(() => {
+    const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const dayIndex = today === 0 ? 6 : today - 1; // Convert to Mon=0, Tue=1, ..., Sun=6
+    setSelectedDay(DAYS[dayIndex]);
+  }, []));
+
   // Load preferences and notepad content each time this tab gains focus
   useFocusEffect(useCallback(() => {
     const loadOnFocus = async () => {
@@ -239,13 +242,6 @@ const RoutineScreen: React.FC = () => {
     loadDisliked();
   }, []);
 
-  // Get today's day on mount
-  useEffect(() => {
-    const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const dayIndex = today === 0 ? 6 : today - 1; // Convert to Mon=0, Tue=1, ..., Sun=6
-    setSelectedDay(DAYS[dayIndex]);
-  }, []);
-
   // Cancel any pending notepad save on unmount
   useEffect(() => {
     return () => {
@@ -261,61 +257,12 @@ const RoutineScreen: React.FC = () => {
     }, 1000);
   };
 
-  // Load daily summary on mount and show last-chance modal for unsaved summaries
-  useEffect(() => {
-    // Fire-and-forget: delete old unsaved summaries from DB on each mount
-    api.delete('/api/summaries/cleanup-old').catch(() => {});
-
-    const loadSummary = async () => {
-      try {
-        const response = await api.get('/api/summaries/current');
-        if (response.data.success && response.data.data) {
-          const summary: WeeklySummary = response.data.data;
-          // Only show banner for summaries from yesterday or today — ignore stale records
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
-          const todayStr = new Date().toISOString().split('T')[0];
-          if (summary.week_end_date >= yesterdayStr && summary.week_end_date <= todayStr) {
-            setCurrentSummary(summary);
-          }
-        }
-      } catch (error) {
-        console.error('[RoutineScreen] Error loading summary:', error);
-      }
-    };
-    loadSummary();
-  }, []);
-
   // Load data when day changes
   useEffect(() => {
     if (user) {
       loadData();
     }
   }, [user, selectedDay]);
-
-  const handleOpenSummary = async () => {
-    setSummaryModalVisible(true);
-    setLiveLoading(true);
-    setLiveSummary(null);
-    try {
-      const res = await api.get('/api/summaries/live');
-      if (res.data.success) {
-        setLiveSummary(res.data.data);
-      } else {
-        setLiveSummary(currentSummary);
-      }
-    } catch {
-      setLiveSummary(currentSummary);
-    } finally {
-      setLiveLoading(false);
-    }
-  };
-
-  const handleSaveSummary = async (summaryId: string) => {
-    await api.patch(`/api/summaries/${summaryId}/save`);
-    setCurrentSummary(prev => prev ? { ...prev, is_saved: true } : null);
-  };
 
   const loadData = async () => {
     try {
@@ -819,12 +766,6 @@ const RoutineScreen: React.FC = () => {
 
       {activeSection === 'routine' ? (
         <>
-          {/* Daily Summary Banner */}
-          <WeeklySummaryBanner
-            summary={currentSummary}
-            onPress={handleOpenSummary}
-          />
-
           {/* Quote Card */}
           <QuoteCard quote={currentQuote} />
 
@@ -1257,18 +1198,6 @@ const RoutineScreen: React.FC = () => {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
-
-          {/* Daily Summary Modal */}
-          <WeeklySummaryModal
-            visible={summaryModalVisible}
-            summary={liveSummary}
-            loading={liveLoading}
-            onDismiss={() => {
-              setSummaryModalVisible(false);
-              setLiveSummary(null);
-            }}
-            onSave={liveSummary?.id !== 'live' ? handleSaveSummary : undefined}
-          />
         </>
       ) : (
         <GymScreen />

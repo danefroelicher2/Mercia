@@ -9,8 +9,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 import { WeeklySummary } from '../types/summary';
+import ProgressRing from './ProgressRing';
 
 const C = {
   bg: '#2A2A2A',
@@ -41,54 +41,6 @@ interface Props {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-// ── Progress Ring ────────────────────────────────────────────────────────────
-
-interface RingProps {
-  percentage: number;
-  color: string;
-  trackColor: string;
-  size?: number;
-  stroke?: number;
-}
-
-function ProgressRing({ percentage, color, trackColor, size = 86, stroke = 8 }: RingProps) {
-  const r = (size - stroke) / 2;
-  const cx = size / 2;
-  const circumference = 2 * Math.PI * r;
-  const filled = circumference * (Math.min(Math.max(percentage, 0), 100) / 100);
-
-  return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size}>
-        {/* track */}
-        <Circle
-          cx={cx} cy={cx} r={r}
-          fill="none"
-          stroke={trackColor}
-          strokeWidth={stroke}
-        />
-        {/* progress */}
-        <Circle
-          cx={cx} cy={cx} r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeDasharray={[filled, circumference - filled]}
-          strokeLinecap="round"
-          rotation={-90}
-          originX={cx}
-          originY={cx}
-        />
-      </Svg>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <View style={styles.ringInner}>
-          <Text style={styles.ringPct}>{percentage}%</Text>
-        </View>
-      </View>
-    </View>
-  );
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -447,16 +399,6 @@ const styles = StyleSheet.create({
   ringItem: {
     alignItems: 'center',
     gap: 8,
-  },
-  ringInner: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringPct: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.textPrimary,
   },
   ringLabel: {
     fontSize: 10,
