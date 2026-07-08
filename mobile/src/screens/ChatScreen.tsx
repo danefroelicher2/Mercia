@@ -13,7 +13,6 @@ import {
   Animated,
   RefreshControl,
   Keyboard,
-  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -38,16 +37,13 @@ const ChatScreen: React.FC = () => {
   // ============================================
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<ChatScreenNavigationProp>();
-  const { chatId, chat, isFromQuestion, questionContext } = route.params;
+  const { chatId, chat } = route.params;
 
   // ============================================
   // REFS
   // ============================================
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const hasInitializedFromQuestion = useRef(false);
-  const hasSummarized = useRef<boolean>(false);
-  const totalMessageCount = useRef<number>(0);
 
   // ============================================
   // STATE
@@ -60,7 +56,6 @@ const ChatScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [pendingMessageText, setPendingMessageText] = useState<string | null>(null);
   const [isPinned, setIsPinned] = useState(chat.pinned || false);
-  const [isQuestionInitInProgress, setIsQuestionInitInProgress] = useState(false);
 
   // Animation for thinking indicator
   const [thinkingDot1] = useState(new Animated.Value(0.3));
@@ -124,8 +119,6 @@ const ChatScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Prevent triggerSummarize from firing when beforeRemove fires after deletion
-              hasSummarized.current = true;
               const response = await api.delete(`/api/chat/${chatId}`);
               if (response.data.success) {
                 console.log('[ChatScreen] Chat deleted');
@@ -238,7 +231,7 @@ const ChatScreen: React.FC = () => {
     }
   }, [chatId]);
 
-  const sendMessage = async (content: string, isQuestionInit = false) => {
+  const sendMessage = async (content: string) => {
     if (!content.trim()) return;
 
     const trimmedContent = content.trim();
@@ -246,7 +239,6 @@ const ChatScreen: React.FC = () => {
 
     try {
       setIsSendingMessage(true);
-      if (isQuestionInit) setIsQuestionInitInProgress(true);
       setError(null);
       Keyboard.dismiss();
 
@@ -254,58 +246,36 @@ const ChatScreen: React.FC = () => {
       setInputText('');
       setPendingMessageText(trimmedContent);
 
-      // Optimistic update - add user message for regular chats only
-      if (!isQuestionInit) {
-        const optimisticMessage: DisplayMessage = {
-          id: tempId,
-          chat_id: chatId,
-          user_id: 'current-user',
-          role: 'user',
-          content: trimmedContent,
-          created_at: new Date().toISOString(),
-          isOptimistic: true,
-        };
-        setMessages(prev => [...prev, optimisticMessage]);
-        setTimeout(() => scrollToBottom(), 50);
-      }
+      // Optimistic update - add user message
+      const optimisticMessage: DisplayMessage = {
+        id: tempId,
+        chat_id: chatId,
+        user_id: 'current-user',
+        role: 'user',
+        content: trimmedContent,
+        created_at: new Date().toISOString(),
+        isOptimistic: true,
+      };
+      setMessages(prev => [...prev, optimisticMessage]);
+      setTimeout(() => scrollToBottom(), 50);
 
       console.log('[ChatScreen] Sending message:', trimmedContent.substring(0, 50));
 
-      // Build request body
-      const requestBody: any = {
+      const response = await api.post<SendMessageApiResponse>('/api/chat/message', {
         chatId,
         content: trimmedContent,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      };
-
-      // Include question context if this is from a question
-      if (isQuestionInit && questionContext) {
-        console.log('[ChatScreen] Initializing from question');
-        requestBody.questionContext = {
-          questionId: questionContext.questionId,
-          questionText: questionContext.questionText,
-          userAnswer: questionContext.userAnswer,
-        };
-      }
-
-      const response = await api.post<SendMessageApiResponse>('/api/chat/message', requestBody);
+      });
 
       if (response.data.success && response.data.data) {
         console.log('[ChatScreen] Received AI response');
         const { userMessage, assistantMessage } = response.data.data;
 
-        if (isQuestionInit) {
-          // Question init: only show Mercia's opening message, no user bubble
-          setMessages([assistantMessage]);
-        } else {
-          // Regular chat: replace optimistic message with confirmed messages
-          setMessages(prev => {
-            const filtered = prev.filter(m => m.id !== tempId);
-            return [...filtered, userMessage, assistantMessage];
-          });
-        }
-
-        totalMessageCount.current += 2;
+        // Replace optimistic message with confirmed messages
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.id !== tempId);
+          return [...filtered, userMessage, assistantMessage];
+        });
 
         setPendingMessageText(null);
         setTimeout(() => scrollToBottom(), 100);
@@ -318,33 +288,16 @@ const ChatScreen: React.FC = () => {
         || err.message
         || 'Failed to send message. Please try again.';
 
-      if (!isQuestionInit) {
-        // Remove optimistic message and restore input for regular chats only
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        setInputText(trimmedContent);
-      }
+      // Remove optimistic message and restore input
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setInputText(trimmedContent);
       setPendingMessageText(null);
 
       Alert.alert('Error', errorMessage);
     } finally {
       setIsSendingMessage(false);
-      setIsQuestionInitInProgress(false);
     }
   };
-
-  // Fire-once summarize call when the chat goes idle (navigate away, background, unmount).
-  const triggerSummarize = useCallback(() => {
-    if (hasSummarized.current) return;
-    if (totalMessageCount.current < 2) return;
-    hasSummarized.current = true;
-    api.post(`/api/chat/${chatId}/summarize`)
-      .then(response => {
-        console.log('[ChatScreen] Summarize result:', response.data);
-      })
-      .catch(() => {
-        // Silent — never surfaces to the user
-      });
-  }, [chatId]);
 
   // ============================================
   // EFFECTS
@@ -373,44 +326,6 @@ const ChatScreen: React.FC = () => {
     fetchMessages();
   }, [fetchMessages]);
 
-  // Handle question-based initialization
-  useEffect(() => {
-    if (isFromQuestion && questionContext && !hasInitializedFromQuestion.current && !isLoadingMessages) {
-      hasInitializedFromQuestion.current = true;
-      setIsQuestionInitInProgress(true);
-      console.log('[ChatScreen] Auto-sending question answer to start conversation');
-      // Small delay to ensure messages are loaded first
-      setTimeout(() => {
-        sendMessage(questionContext.userAnswer, true);
-      }, 500);
-    }
-  }, [isFromQuestion, questionContext, isLoadingMessages]);
-
-  // Trigger 1: App backgrounding
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'background') {
-        triggerSummarize();
-      }
-    });
-    return () => subscription.remove();
-  }, [triggerSummarize]);
-
-  // Trigger 2: User navigates back (screen removed from stack)
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', () => {
-      triggerSummarize();
-    });
-    return unsubscribe;
-  }, [navigation, triggerSummarize]);
-
-  // Trigger 3: Component unmount — safety net for cases not covered above
-  useEffect(() => {
-    return () => {
-      triggerSummarize();
-    };
-  }, [triggerSummarize]);
-
   // ============================================
   // HANDLERS
   // ============================================
@@ -438,7 +353,7 @@ const ChatScreen: React.FC = () => {
   const charCount = inputText.length;
   const showCharCounter = charCount > CHAR_WARNING_THRESHOLD;
   const isOverLimit = charCount > MAX_INPUT_CHARS;
-  const canSend = inputText.trim().length > 0 && !isSendingMessage && !isOverLimit && !isQuestionInitInProgress;
+  const canSend = inputText.trim().length > 0 && !isSendingMessage && !isOverLimit;
 
   // ============================================
   // RENDER HELPERS
@@ -523,15 +438,8 @@ const ChatScreen: React.FC = () => {
     </View>
   );
 
-  const renderQuestionInitLoading = () => (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#1D9E75" />
-      <Text style={styles.loadingText}>Mercia is gathering your context...</Text>
-    </View>
-  );
-
   const renderListFooter = () => {
-    if (isSendingMessage && !isQuestionInitInProgress) {
+    if (isSendingMessage) {
       return renderThinkingIndicator();
     }
     return null;
@@ -552,8 +460,6 @@ const ChatScreen: React.FC = () => {
         <View style={styles.messagesContainer}>
           {isLoadingMessages && !isRefreshing ? (
             renderLoading()
-          ) : isQuestionInitInProgress ? (
-            renderQuestionInitLoading()
           ) : error && messages.length === 0 ? (
             renderError()
           ) : messages.length === 0 && !isSendingMessage ? (
@@ -596,7 +502,7 @@ const ChatScreen: React.FC = () => {
               onChangeText={setInputText}
               multiline
               maxLength={MAX_INPUT_CHARS + 100} // Allow typing slightly over to show error
-              editable={!isSendingMessage && !isQuestionInitInProgress}
+              editable={!isSendingMessage}
               returnKeyType="default"
             />
             {showCharCounter && (

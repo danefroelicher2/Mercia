@@ -27,7 +27,7 @@ function getLocalDateString(timezone?: string): string {
 
 // Validation schemas
 const logActivitySchema = z.object({
-  activityType: z.enum(['question_answered', 'ai_chat_sent', 'task_completed', 'goal_completed']),
+  activityType: z.enum(['ai_chat_sent', 'task_completed', 'goal_completed']),
   timezone: z.string().optional(),
 });
 
@@ -274,7 +274,6 @@ async function calculateProgress(
 ): Promise<Record<string, number>> {
   const [
     streakResult,
-    questionCountResult,
     chatCountResult,
     taskCountResult,
     taskStreakResult,
@@ -286,8 +285,6 @@ async function calculateProgress(
   ] = await Promise.all([
     // Current streak
     supabase.rpc('get_current_streak', { p_user_id: userId }),
-    // Total questions answered
-    supabase.schema('oasis').from('user_question_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
     // Total distinct chats where user sent a message
     supabase.schema('oasis').from('chat_messages').select('chat_id', { count: 'exact', head: true }).eq('user_id', userId).eq('role', 'user'),
     // Total tasks + goals completed
@@ -340,7 +337,6 @@ async function calculateProgress(
 
   return {
     streak: streakResult.data ?? 0,
-    question_total: questionCountResult.count ?? 0,
     chat_total: chatCountResult.count ?? 0,
     task_total: taskCountResult.count ?? 0,
     task_streak: taskStreakResult.data ?? 0,

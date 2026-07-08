@@ -8,16 +8,12 @@ const PUSH_TOKEN_KEY = 'mercia_push_token';
 const NOTIFICATION_PREFS_KEY = 'mercia_notification_prefs';
 
 export interface NotificationPrefs {
-  dailyQuestionReminder: boolean;
-  dailyQuestionTime: { hour: number; minute: number };
   weeklySummaryReady: boolean;
   inactivityReminder: boolean;
   streakAtRisk: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
-  dailyQuestionReminder: true,
-  dailyQuestionTime: { hour: 9, minute: 0 },
   weeklySummaryReady: true,
   inactivityReminder: true,
   streakAtRisk: true,
@@ -95,21 +91,6 @@ export async function cancelAllNotifications(): Promise<void> {
 export async function applyNotificationPreferences(prefs: NotificationPrefs): Promise<void> {
   await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(prefs));
 
-  // Daily question reminder
-  await cancelNotification('daily-question');
-  if (prefs.dailyQuestionReminder) {
-    await scheduleLocalNotification(
-      'daily-question',
-      'Daily Question',
-      "Your daily reflection question is ready. Take a moment to answer it.",
-      {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: prefs.dailyQuestionTime.hour,
-        minute: prefs.dailyQuestionTime.minute,
-      }
-    );
-  }
-
   // Weekly summary
   await cancelNotification('weekly-summary');
   if (prefs.weeklySummaryReady) {
@@ -129,8 +110,6 @@ export async function applyNotificationPreferences(prefs: NotificationPrefs): Pr
   // Sync all preferences (including server-side ones) to backend
   try {
     await api.put('/api/notifications/preferences', {
-      dailyQuestionEnabled: prefs.dailyQuestionReminder,
-      dailyQuestionTime: `${String(prefs.dailyQuestionTime.hour).padStart(2, '0')}:${String(prefs.dailyQuestionTime.minute).padStart(2, '0')}`,
       weeklySummaryEnabled: prefs.weeklySummaryReady,
       inactivityReminderEnabled: prefs.inactivityReminder,
       streakAtRiskEnabled: prefs.streakAtRisk,

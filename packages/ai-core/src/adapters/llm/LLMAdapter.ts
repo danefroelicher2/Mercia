@@ -20,12 +20,6 @@ export interface LLMAdapter {
   chat(messages: LLMChatMessage[], options?: ChatOptions): Promise<string>;
 
   /**
-   * Extract structured insights from question response
-   * Used to build memory profile
-   */
-  extractInsights(questionText: string, userResponse: string): Promise<any>;
-
-  /**
    * Get provider name (for logging/debugging)
    */
   getProvider(): string;

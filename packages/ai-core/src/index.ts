@@ -1,11 +1,8 @@
-// @mercia/ai-core - Portable AI memory engine
+// @mercia/ai-core - Portable AI chat/context engine
 // Entry point for the package
 
 // Core Engines
-export { QuestionEngine } from './core/QuestionEngine';
-export { MemoryManager } from './core/MemoryManager';
 export { ContextBuilder } from './core/ContextBuilder';
-export { ChatExtractor } from './core/ChatExtractor';
 
 // Adapters
 export * from './adapters/storage';
@@ -13,9 +10,6 @@ export * from './adapters/llm';
 
 // Types
 export * from './types';
-
-// Constants
-export * from './constants/memory';
 
 // Version
 export const VERSION = '0.1.0';

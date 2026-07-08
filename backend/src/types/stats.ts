@@ -1,7 +1,7 @@
 export interface ActivityLog {
   id: string;
   user_id: string;
-  activity_type: 'question_answered' | 'ai_chat_sent' | 'task_completed' | 'goal_completed';
+  activity_type: 'ai_chat_sent' | 'task_completed' | 'goal_completed';
   activity_date: string;  // YYYY-MM-DD
   created_at: string;
 }
@@ -10,7 +10,7 @@ export interface Achievement {
   id: string;
   title: string;
   description: string;
-  requirement_type: 'streak' | 'question_total' | 'chat_total' | 'routine_weekly_completion' | 'task_total';
+  requirement_type: 'streak' | 'chat_total' | 'routine_weekly_completion' | 'task_total';
   requirement_value: number;
   icon?: string;
   display_order: number;

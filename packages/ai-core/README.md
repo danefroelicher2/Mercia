@@ -1,6 +1,6 @@
 # @mercia/ai-core
 
-Portable AI memory engine. Platform-agnostic, cost-optimized.
+Portable AI chat/context engine. Platform-agnostic, cost-optimized.
 
 ## Philosophy
 
@@ -13,20 +13,12 @@ This package contains ZERO platform-specific code. It can run:
 
 ## Core Components
 
-- **QuestionEngine** - Daily question rotation with skip tracking
-- **MemoryManager** - Builds user profiles from structured data
-- **ContextBuilder** - Smart context selection for LLM (keeps costs low)
+- **ContextBuilder** - Builds chat context (system prompt + conversation history) for the LLM
 
 ## Usage
 ```typescript
-import { QuestionEngine, SupabaseAdapter } from '@mercia/ai-core';
+import { ContextBuilder, SupabaseStorageAdapter } from '@mercia/ai-core';
 
-const storage = new SupabaseAdapter(supabaseUrl, supabaseKey);
-const engine = new QuestionEngine(storage);
-
-// Get today's question
-const question = await engine.getDailyQuestion(userId);
-
-// Submit answer
-await engine.submitAnswer(userId, questionId, responseText);
+const storage = new SupabaseStorageAdapter(supabaseUrl, supabaseKey);
+const contextBuilder = new ContextBuilder(storage);
 ```

@@ -44,19 +44,6 @@ const NotificationSettingsScreen: React.FC = () => {
     setPrefs(prev => ({ ...prev, [key]: value }));
   };
 
-  const updateTime = (field: 'hour' | 'minute', delta: number) => {
-    setPrefs(prev => {
-      const current = prev.dailyQuestionTime[field];
-      let next: number;
-      if (field === 'hour') {
-        next = (current + delta + 24) % 24;
-      } else {
-        next = (current + delta + 60) % 60;
-      }
-      return { ...prev, dailyQuestionTime: { ...prev.dailyQuestionTime, [field]: next } };
-    });
-  };
-
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -71,8 +58,6 @@ const NotificationSettingsScreen: React.FC = () => {
     }
   };
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView
@@ -80,52 +65,7 @@ const NotificationSettingsScreen: React.FC = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Row 1: Daily Question Reminder */}
-        <View style={styles.card}>
-          <View style={styles.rowTop}>
-            <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Daily Question Reminder</Text>
-              <Text style={styles.rowDesc}>Get reminded to answer your daily question</Text>
-            </View>
-            <Switch
-              value={prefs.dailyQuestionReminder}
-              onValueChange={val => updatePref('dailyQuestionReminder', val)}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.textPrimary}
-            />
-          </View>
-
-          {prefs.dailyQuestionReminder && (
-            <View style={styles.timePicker}>
-              <Text style={styles.timeLabel}>Remind me at</Text>
-              <View style={styles.timeControls}>
-                {/* Hour */}
-                <View style={styles.timeUnit}>
-                  <TouchableOpacity onPress={() => updateTime('hour', 1)} style={styles.timeBtn}>
-                    <Text style={styles.timeBtnText}>+</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.timeValue}>{pad(prefs.dailyQuestionTime.hour)}</Text>
-                  <TouchableOpacity onPress={() => updateTime('hour', -1)} style={styles.timeBtn}>
-                    <Text style={styles.timeBtnText}>−</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.timeSeparator}>:</Text>
-                {/* Minute */}
-                <View style={styles.timeUnit}>
-                  <TouchableOpacity onPress={() => updateTime('minute', 5)} style={styles.timeBtn}>
-                    <Text style={styles.timeBtnText}>+</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.timeValue}>{pad(prefs.dailyQuestionTime.minute)}</Text>
-                  <TouchableOpacity onPress={() => updateTime('minute', -5)} style={styles.timeBtn}>
-                    <Text style={styles.timeBtnText}>−</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Row 2: Weekly Summary Ready */}
+        {/* Row 1: Weekly Summary Ready */}
         <View style={styles.card}>
           <View style={styles.rowTop}>
             <View style={styles.rowText}>
@@ -228,55 +168,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 18,
-  },
-  timePicker: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  timeLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  timeControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeUnit: {
-    alignItems: 'center',
-  },
-  timeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.inputBg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timeBtnText: {
-    fontSize: 18,
-    color: colors.primary,
-    fontWeight: '600',
-    lineHeight: 22,
-  },
-  timeValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginVertical: 6,
-    minWidth: 36,
-    textAlign: 'center',
-  },
-  timeSeparator: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginHorizontal: 6,
   },
   footer: {
     padding: spacing.screenPadding,

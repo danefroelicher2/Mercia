@@ -54,7 +54,7 @@ const ProfileScreen: React.FC = () => {
     // Toggling ON — require full disclosure acknowledgement first
     Alert.alert(
       'AI Data Consent',
-      'Mercia sends your conversation messages and question responses to Groq, a third-party AI service, to generate responses. Groq does not use your data to train AI models. Do you consent to this data processing?',
+      'Mercia sends your conversation messages to Groq, a third-party AI service, to generate responses. Groq does not use your data to train AI models. Do you consent to this data processing?',
       [
         { text: 'Decline', style: 'cancel' },
         {
@@ -106,7 +106,7 @@ const ProfileScreen: React.FC = () => {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This will permanently delete all your data including questions, chats, routines, and stats. This cannot be undone.\n\nAre you absolutely sure?',
+      'This will permanently delete all your data including chats, routines, and stats. This cannot be undone.\n\nAre you absolutely sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -204,17 +204,6 @@ const ProfileScreen: React.FC = () => {
             <Text style={styles.navRowLabel}>Change Password</Text>
             <Text style={styles.navRowChevron}>›</Text>
           </TouchableOpacity>
-
-          {isSubscribed && (
-            <TouchableOpacity
-              style={styles.navRow}
-              onPress={() => navigation.navigate('MerciaMemory')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.navRowLabel}>Mercia Memory</Text>
-              <Text style={styles.navRowChevron}>›</Text>
-            </TouchableOpacity>
-          )}
 
           {isSubscribed && (
             <TouchableOpacity

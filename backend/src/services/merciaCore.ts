@@ -1,6 +1,4 @@
 import {
-  QuestionEngine,
-  MemoryManager,
   ContextBuilder,
   SupabaseStorageAdapter,
   GroqLLMAdapter,
@@ -10,8 +8,6 @@ import {
 
 let storage: StorageAdapter;
 let llm: LLMAdapter;
-let questionEngine: QuestionEngine;
-let memoryManager: MemoryManager;
 let contextBuilder: ContextBuilder;
 
 /**
@@ -36,19 +32,16 @@ export function initializeMerciaCore(): void {
     llm = new GroqLLMAdapter(groqApiKey);
     console.log('  LLM adapter initialized (Groq)');
   } else {
-    console.warn('  GROQ_API_KEY not set - insight extraction disabled');
-    // Create a dummy LLM adapter that returns empty insights
+    console.warn('  GROQ_API_KEY not set - chat disabled');
+    // Create a dummy LLM adapter that returns empty responses
     llm = {
       chat: async () => 'LLM not configured',
-      extractInsights: async () => ({}),
       getProvider: () => 'None',
     };
   }
 
   // Initialize engines
-  questionEngine = new QuestionEngine(storage);
-  memoryManager = new MemoryManager(storage, llm);
-  contextBuilder = new ContextBuilder(storage, memoryManager);
+  contextBuilder = new ContextBuilder(storage);
 
   console.log('  Mercia Core initialized');
 }
@@ -56,20 +49,6 @@ export function initializeMerciaCore(): void {
 /**
  * Get initialized engines
  */
-export function getQuestionEngine(): QuestionEngine {
-  if (!questionEngine) {
-    throw new Error('Mercia Core not initialized');
-  }
-  return questionEngine;
-}
-
-export function getMemoryManager(): MemoryManager {
-  if (!memoryManager) {
-    throw new Error('Mercia Core not initialized');
-  }
-  return memoryManager;
-}
-
 export function getContextBuilder(): ContextBuilder {
   if (!contextBuilder) {
     throw new Error('Mercia Core not initialized');

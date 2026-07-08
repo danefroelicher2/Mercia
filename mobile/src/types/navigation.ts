@@ -3,21 +3,12 @@
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { Chat } from './chat';
 
-// Question context for chats initiated from question answers
-export interface QuestionContext {
-  questionId: string;
-  questionText: string;
-  userAnswer: string;
-}
-
 // Mercia tab stack navigation
 export type MerciaStackParamList = {
   MerciaHome: undefined;
   ChatScreen: {
     chatId: string;
     chat: Chat;
-    isFromQuestion?: boolean;
-    questionContext?: QuestionContext;
   };
 };
 

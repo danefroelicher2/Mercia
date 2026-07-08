@@ -12,7 +12,6 @@ import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import SummaryDataScreen from '../screens/SummaryDataScreen';
-import MerciaMemoryScreen from '../screens/MerciaMemoryScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
@@ -44,7 +43,6 @@ export type ProfileStackParamList = {
   Profile: undefined;
   SummaryHistory: undefined;
   SummaryData: undefined;
-  MerciaMemory: undefined;
   GymMemory: undefined;
   NotificationSettings: undefined;
   YearlyGoals: undefined;
@@ -114,18 +112,6 @@ const ProfileStackNavigator: React.FC = () => {
             fontWeight: '600',
             fontSize: 17,
           },
-        }}
-      />
-      <ProfileStack.Screen
-        name="MerciaMemory"
-        component={MerciaMemoryScreen}
-        options={{
-          headerShown: true,
-          title: 'Mercia Memory',
-          headerBackTitle: 'Back',
-          headerStyle: { backgroundColor: '#1A1A1A' },
-          headerTintColor: '#FFFFFF',
-          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
       />
       <ProfileStack.Screen

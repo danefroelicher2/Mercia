@@ -160,8 +160,7 @@ export async function computeSummaryStats(
   const completedMonthlyGoalTexts = monthlyGoals.filter((g: any) => g.completed).map((g: any) => g.text as string);
 
   const gymLogged = (gymRows || []).length > 0;
-  const questionAnswered = false;
-  const hasData = nonnegCompleted > 0 || gymLogged || questionAnswered;
+  const hasData = nonnegCompleted > 0 || gymLogged;
 
   const seenIds = new Set<string>();
   const tasksMissedFrequently = allTasks

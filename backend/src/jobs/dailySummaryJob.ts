@@ -111,7 +111,6 @@ async function generateSummaryForUser(
         tasksMissed: stats.tasks_missed_frequently.map((t: any) => t.task_name),
         gymLogged: gymLoggedToday,
         gymGroup,
-        questionAnswered: false,
       });
 
       narrative = await llm.chat(
@@ -239,7 +238,6 @@ function buildNarrativePrompt(data: {
   tasksMissed: string[];
   gymLogged: boolean;
   gymGroup: string | null;
-  questionAnswered: boolean;
 }): string {
   const lines: string[] = [];
   lines.push(`Day: ${data.dayOfWeek}`);
@@ -248,7 +246,6 @@ function buildNarrativePrompt(data: {
     lines.push(`Missed: ${data.tasksMissed.slice(0, 3).join(', ')}`);
   }
   lines.push(`Gym: ${data.gymLogged ? `yes — ${data.gymGroup}` : 'no'}`);
-  lines.push(`Daily question answered: ${data.questionAnswered ? 'yes' : 'no'}`);
   lines.push('');
   lines.push(
     'Write exactly 2 sentences. Sentence 1: what stood out about this day (be specific about the numbers or the gym). ' +

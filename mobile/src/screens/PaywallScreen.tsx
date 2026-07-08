@@ -16,7 +16,6 @@ import { getOfferings, purchasePackage } from '../services/purchases';
 import { useSubscription } from '../context/SubscriptionContext';
 
 const BENEFITS = [
-  'Daily questions that learn who you are',
   'AI memory that grows with every conversation',
   'Full access to your Mercia',
 ];

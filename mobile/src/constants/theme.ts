@@ -42,12 +42,6 @@ export const typography = {
     color: colors.textSecondary,
     textTransform: 'uppercase' as const,
   },
-  questionText: {
-    fontSize: 17,
-    fontWeight: '400' as const,
-    lineHeight: 24,
-    color: colors.textPrimary,
-  },
   bodyText: {
     fontSize: 15,
     fontWeight: '400' as const,

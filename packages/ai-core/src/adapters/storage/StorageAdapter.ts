@@ -1,11 +1,6 @@
 import {
-  DailyQuestion,
-  DailyQuestionForUser,
-  QuestionResponse,
-  MemoryProfile,
   Chat,
   ChatMessage,
-  UserProgress,
   RoutineTask,
   RoutineGoal,
 } from '../../types';
@@ -58,65 +53,6 @@ export interface GymPRGroup {
  */
 export interface StorageAdapter {
   // ============================================
-  // QUESTION OPERATIONS
-  // ============================================
-
-  /**
-   * Get today's unanswered question for a user
-   * Returns null if all questions answered or no questions available
-   */
-  getDailyQuestionForUser(userId: string): Promise<DailyQuestionForUser | null>;
-
-  /**
-   * Save user's answer to a question
-   */
-  saveQuestionResponse(
-    userId: string,
-    questionId: string,
-    responseText: string
-  ): Promise<QuestionResponse>;
-
-  /**
-   * Skip a question.
-   * After 2 lifetime skips on the same question, permanently excludes it from the pool.
-   * Returns can_get_new: true if the user has skipped fewer than 2 questions today.
-   */
-  skipQuestion(userId: string, questionId: string, date: Date): Promise<{ can_get_new: boolean }>;
-
-  /**
-   * Get user's question answering statistics
-   */
-  getUserQuestionStats(userId: string): Promise<UserProgress>;
-
-  /**
-   * Get user's question history (answered questions)
-   */
-  getQuestionHistory(userId: string, limit?: number): Promise<QuestionResponse[]>;
-
-  /**
-   * Get a single question by ID
-   */
-  getQuestionById(questionId: string): Promise<DailyQuestion | null>;
-
-  // ============================================
-  // MEMORY PROFILE OPERATIONS
-  // ============================================
-
-  /**
-   * Get user's memory profile
-   * Returns null if profile doesn't exist yet
-   */
-  getMemoryProfile(userId: string): Promise<MemoryProfile | null>;
-
-  /**
-   * Update or create user's memory profile
-   */
-  updateMemoryProfile(
-    userId: string,
-    updates: Partial<MemoryProfile>
-  ): Promise<MemoryProfile>;
-
-  // ============================================
   // CHAT OPERATIONS
   // ============================================
 
@@ -124,15 +60,8 @@ export interface StorageAdapter {
    * Create a new chat
    * @param userId - User creating the chat
    * @param title - Chat title (optional)
-   * @param chatType - 'question' for question-based chats, 'general' for free-form (default)
-   * @param linkedQuestionId - UUID of the linked question (for question-based chats)
    */
-  createChat(
-    userId: string,
-    title?: string,
-    chatType?: 'question' | 'general',
-    linkedQuestionId?: string | null
-  ): Promise<Chat>;
+  createChat(userId: string, title?: string): Promise<Chat>;
 
   /**
    * Get user's chats
@@ -179,11 +108,6 @@ export interface StorageAdapter {
    * Returns null if not found
    */
   getChat(chatId: string): Promise<Chat | null>;
-
-  /**
-   * Mark a chat as summarized so the summarize endpoint never re-processes it
-   */
-  markChatSummarized(chatId: string): Promise<void>;
 
   // ============================================
   // ROUTINE OPERATIONS

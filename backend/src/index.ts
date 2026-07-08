@@ -6,10 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 
 // Import routes
 import authRoutes from './routes/auth';
-import questionRoutes from './routes/questions';
-import memoryRoutes from './routes/memory';
 import chatRoutes from './routes/chat';
-import extractionRoutes from './routes/extraction';
 import routineRoutes from './routes/routine';
 import statsRoutes from './routes/stats';
 import summaryRoutes from './routes/summaries';
@@ -44,10 +41,7 @@ app.get('/api', (req: Request, res: Response) => {
     version: '0.1.0',
     endpoints: {
       auth: '/api/auth/*',
-      questions: '/api/questions/*',
-      memory: '/api/memory/*',
       chat: '/api/chat/*',
-      extraction: '/api/extraction/*',
       routine: '/api/routine/*',
       stats: '/api/stats/*',
     },
@@ -56,10 +50,7 @@ app.get('/api', (req: Request, res: Response) => {
 
 // Register routes
 app.use('/api/auth', authRoutes);
-app.use('/api/questions', questionRoutes);
-app.use('/api/memory', memoryRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api/extraction', extractionRoutes);
 app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/summaries', summaryRoutes);
@@ -87,20 +78,10 @@ async function startServer() {
       console.log(`   POST /api/auth/register`);
       console.log(`   POST /api/auth/login`);
       console.log(`   POST /api/auth/refresh`);
-      console.log(`   GET  /api/questions/daily`);
-      console.log(`   POST /api/questions/answer`);
-      console.log(`   POST /api/questions/skip`);
-      console.log(`   GET  /api/questions/progress`);
-      console.log(`   GET  /api/questions/history`);
-      console.log(`   GET  /api/memory/profile`);
-      console.log(`   GET  /api/memory/summary`);
-      console.log(`   POST /api/memory/feedback`);
       console.log(`   POST /api/chat/new`);
       console.log(`   GET  /api/chat/list`);
       console.log(`   GET  /api/chat/:chatId/messages`);
       console.log(`   POST /api/chat/message`);
-      console.log(`   POST /api/chat/:chatId/summarize`);
-      console.log(`   POST /api/extraction/trigger`);
       console.log(`   POST /api/routine/tasks`);
       console.log(`   GET  /api/routine/tasks/:day`);
       console.log(`   PATCH /api/routine/tasks/:id`);

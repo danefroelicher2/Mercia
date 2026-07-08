@@ -53,8 +53,6 @@ router.post(
 // Upserts the caller's notification preferences.
 // ============================================================
 const prefsSchema = z.object({
-  dailyQuestionEnabled: z.boolean().optional(),
-  dailyQuestionTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM
   weeklySummaryEnabled: z.boolean().optional(),
   inactivityReminderEnabled: z.boolean().optional(),
   streakAtRiskEnabled: z.boolean().optional(),
@@ -74,8 +72,6 @@ router.put(
       .upsert(
         {
           user_id: userId,
-          ...(body.dailyQuestionEnabled     !== undefined && { daily_question_enabled:      body.dailyQuestionEnabled }),
-          ...(body.dailyQuestionTime        !== undefined && { daily_question_time:          body.dailyQuestionTime }),
           ...(body.weeklySummaryEnabled     !== undefined && { weekly_summary_enabled:       body.weeklySummaryEnabled }),
           ...(body.inactivityReminderEnabled !== undefined && { inactivity_reminder_enabled: body.inactivityReminderEnabled }),
           ...(body.streakAtRiskEnabled      !== undefined && { streak_at_risk_enabled:       body.streakAtRiskEnabled }),
