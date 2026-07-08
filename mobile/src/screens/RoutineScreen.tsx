@@ -134,6 +134,7 @@ const RoutineScreen: React.FC = () => {
 
   const [newTaskText, setNewTaskText] = useState('');
   const [newGoalText, setNewGoalText] = useState('');
+  const [newGoalCount, setNewGoalCount] = useState('1');
 
   const [goalType, setGoalType] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
 
@@ -493,10 +494,14 @@ const RoutineScreen: React.FC = () => {
   const handleAddGoal = async () => {
     if (!newGoalText.trim()) return;
 
+    const parsedCount = parseInt(newGoalCount, 10);
+    const targetCount = Number.isFinite(parsedCount) ? Math.min(999, Math.max(1, parsedCount)) : 1;
+
     try {
       const response = await api.post('/api/routine/goals', {
         text: newGoalText.trim(),
         type: goalType,
+        targetCount,
       });
 
       if (response.data.success) {
@@ -508,6 +513,7 @@ const RoutineScreen: React.FC = () => {
           setYearlyGoals([...yearlyGoals, response.data.data]);
         }
         setNewGoalText('');
+        setNewGoalCount('1');
         setGoalModalVisible(false);
       }
     } catch (error) {
@@ -516,26 +522,20 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const handleToggleGoal = async (goalId: string, currentStatus: boolean, type: 'weekly' | 'monthly' | 'yearly') => {
+  const handleToggleGoal = async (goalId: string, type: 'weekly' | 'monthly' | 'yearly') => {
     try {
       const response = await api.patch(`/api/routine/goals/${goalId}`, {
-        completed: !currentStatus,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       if (response.data.success) {
+        const updated: RoutineGoal = response.data.data;
         if (type === 'weekly') {
-          setWeeklyGoals(weeklyGoals.map(g =>
-            g.id === goalId ? { ...g, completed: !currentStatus } : g
-          ));
+          setWeeklyGoals(weeklyGoals.map(g => (g.id === goalId ? updated : g)));
         } else if (type === 'monthly') {
-          setMonthlyGoals(monthlyGoals.map(g =>
-            g.id === goalId ? { ...g, completed: !currentStatus } : g
-          ));
+          setMonthlyGoals(monthlyGoals.map(g => (g.id === goalId ? updated : g)));
         } else {
-          setYearlyGoals(yearlyGoals.map(g =>
-            g.id === goalId ? { ...g, completed: !currentStatus } : g
-          ));
+          setYearlyGoals(yearlyGoals.map(g => (g.id === goalId ? updated : g)));
         }
       }
     } catch (error) {
@@ -751,7 +751,7 @@ const RoutineScreen: React.FC = () => {
   ) => (
     <TouchableOpacity
       key={item.id}
-      onPress={isEditing ? undefined : () => handleToggleGoal(item.id, item.completed, item.type)}
+      onPress={isEditing ? undefined : () => handleToggleGoal(item.id, item.type)}
       style={[styles.taskItem, { width: '100%' }]}
       activeOpacity={isEditing ? 1 : 0.7}
     >
@@ -761,6 +761,11 @@ const RoutineScreen: React.FC = () => {
       <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
         {item.text}
       </Text>
+      {item.target_count > 1 && (
+        <View style={styles.goalCountBadge}>
+          <Text style={styles.goalCountBadgeText}>{item.current_count}</Text>
+        </View>
+      )}
       {isEditing ? (
         <View style={styles.reorderButtons}>
           <TouchableOpacity
@@ -1146,7 +1151,7 @@ const RoutineScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
-            onPress={() => { setGoalModalVisible(false); setNewGoalText(''); }}
+            onPress={() => { setGoalModalVisible(false); setNewGoalText(''); setNewGoalCount('1'); }}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Goal</Text>
@@ -1208,12 +1213,29 @@ const RoutineScreen: React.FC = () => {
               multiline
             />
 
+            <View style={styles.goalCountRow}>
+              <Text style={styles.goalCountLabel}>How many times?</Text>
+              <TextInput
+                style={styles.goalCountInput}
+                keyboardType="number-pad"
+                value={newGoalCount}
+                onChangeText={(text) => setNewGoalCount(text.replace(/[^0-9]/g, ''))}
+                onBlur={() => {
+                  const parsed = parseInt(newGoalCount, 10);
+                  const clamped = Number.isFinite(parsed) ? Math.min(999, Math.max(1, parsed)) : 1;
+                  setNewGoalCount(String(clamped));
+                }}
+                maxLength={3}
+              />
+            </View>
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
                   setGoalModalVisible(false);
                   setNewGoalText('');
+                  setNewGoalCount('1');
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -1547,6 +1569,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  goalCountBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  goalCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5DCAA5',
+  },
+  goalCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  goalCountLabel: {
+    fontSize: 14,
+    color: '#888',
+    fontWeight: '500',
+  },
+  goalCountInput: {
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#E8E8E8',
+    backgroundColor: '#1F1F1F',
+    minWidth: 60,
+    textAlign: 'center',
   },
 
   // Modal
