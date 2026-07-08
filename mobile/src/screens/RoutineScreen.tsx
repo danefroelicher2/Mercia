@@ -766,7 +766,7 @@ const RoutineScreen: React.FC = () => {
       <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
         {item.text}
       </Text>
-      {item.target_count > 1 && (
+      {item.target_count > 1 && item.current_count > 0 && (
         <View style={styles.goalCountBadge}>
           <Text style={styles.goalCountBadgeText}>{item.current_count}</Text>
         </View>
