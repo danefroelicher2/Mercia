@@ -85,6 +85,20 @@ const formatCompletionDate = (isoDate: string | null): string => {
   return `${month}/${day}/${year}`;
 };
 
+// "Since March 2026" — reuses MONTH_NAMES (defined above) instead of
+// toLocaleDateString, so this doesn't depend on device locale/ICU data.
+const formatJoinedCaption = (isoDate: string): string => {
+  const date = new Date(isoDate);
+  return `Since ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+};
+
+// "1847" -> "1,847". A manual thousands separator instead of
+// Number.prototype.toLocaleString(), which has inconsistent ICU/locale
+// data support across Hermes versions/platforms.
+const formatCount = (n: number): string => {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
 const StatsScreen: React.FC = () => {
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [loadingStreak, setLoadingStreak] = useState(true);
@@ -353,6 +367,54 @@ const StatsScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Lifetime */}
+        <View style={styles.lifetimeContainer}>
+          <View style={styles.lifetimeHeader}>
+            <View style={styles.lifetimeAccent} />
+            <Text style={styles.sectionTitle}>Lifetime</Text>
+          </View>
+          {lifetimeStats && (
+            <Text style={styles.lifetimeCaption}>
+              {formatJoinedCaption(lifetimeStats.joinedDate)}
+            </Text>
+          )}
+
+          {loadingLifetime ? (
+            <ActivityIndicator color={colors.primary} style={styles.loadingIndicator} />
+          ) : (
+            <>
+              <View style={styles.lifetimeHeroCard}>
+                <Text style={styles.lifetimeHeroNumber}>
+                  {formatCount(lifetimeStats?.lifetimeActions ?? 0)}
+                </Text>
+                <Text style={styles.lifetimeHeroLabel}>Lifetime Actions</Text>
+              </View>
+
+              <View style={styles.lifetimeRow}>
+                <View style={styles.lifetimeCard}>
+                  <Text style={styles.lifetimeNumber}>
+                    {formatCount(lifetimeStats?.todayItemsCheckedOff ?? 0)}
+                  </Text>
+                  <Text style={styles.lifetimeLabel}>Today Items{'\n'}Checked Off</Text>
+                </View>
+                <View style={styles.lifetimeCard}>
+                  <Text style={styles.lifetimeNumber}>
+                    {formatCount(lifetimeStats?.gymDaysLogged ?? 0)}
+                  </Text>
+                  <Text style={styles.lifetimeLabel}>Gym Days{'\n'}Logged</Text>
+                </View>
+              </View>
+
+              <View style={styles.lifetimeFullCard}>
+                <Text style={styles.lifetimeNumber}>
+                  {lifetimeStats?.consistencyRatePercent ?? 0}%
+                </Text>
+                <Text style={styles.lifetimeLabel}>Consistency Rate</Text>
+              </View>
+            </>
+          )}
+        </View>
+
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
           <View style={styles.achievementsHeader}>
@@ -534,6 +596,83 @@ const styles = StyleSheet.create({
   },
   loadingIndicator: {
     marginVertical: 12,
+  },
+
+  // Lifetime
+  lifetimeContainer: {
+    marginBottom: 24,
+  },
+  lifetimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  lifetimeAccent: {
+    width: 3,
+    height: 14,
+    backgroundColor: '#1D9E75',
+    borderRadius: 2,
+  },
+  lifetimeCaption: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 12,
+    marginLeft: 11,
+  },
+  lifetimeHeroCard: {
+    backgroundColor: 'rgba(29, 158, 117, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(29, 158, 117, 0.3)',
+    borderRadius: 14,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  lifetimeHeroNumber: {
+    fontSize: 40,
+    fontWeight: '600',
+    color: '#5DCAA5',
+  },
+  lifetimeHeroLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    color: '#777',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  lifetimeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  lifetimeCard: {
+    flex: 1,
+    backgroundColor: '#161616',
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+  },
+  lifetimeFullCard: {
+    backgroundColor: '#161616',
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+  },
+  lifetimeNumber: {
+    fontSize: 26,
+    fontWeight: '500',
+    color: '#E8E8E8',
+  },
+  lifetimeLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: '#777',
+    fontWeight: '500',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
   // Achievements
