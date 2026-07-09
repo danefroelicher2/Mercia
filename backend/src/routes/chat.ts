@@ -122,10 +122,13 @@ router.post('/daily-outlook', async (req: Request, res: Response): Promise<void>
 
 /**
  * POST /api/chat/day-in-review
- * Returns today's "Day in Review" chat, a retrospective focused on yesterday.
- * Same persist-through-the-day / reset-at-midnight behavior as /daily-outlook
- * (keyed off when the chat was opened, not the day it reviews) — see that
- * route's comment for details.
+ * Always creates a fresh "Day in Review" chat — a retrospective focused on
+ * yesterday, regenerated every time it's opened rather than cached through
+ * the day. Unlike /daily-outlook, this deliberately does not persist: the
+ * Routine tab lets the user edit a past day's task completions (e.g. cross
+ * something off for yesterday), which changes the numbers this reads, so a
+ * cached review could go stale mid-day. Recalculating every open guarantees
+ * it always reflects the latest data.
  */
 router.post('/day-in-review', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -144,6 +147,7 @@ router.post('/day-in-review', async (req: Request, res: Response): Promise<void>
       storage: getStorage(),
       llm: getLLM(),
       getLocalDateString,
+      alwaysCreateNew: true,
       buildSystemPrompt: async () => {
         const yesterdayLog = await buildYesterdayLog({ userId, yesterdayDateStr, supabase });
         return (
