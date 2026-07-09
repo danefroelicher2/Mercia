@@ -52,6 +52,7 @@
           }
         }
       ],
+      "./plugins/withGlobalModularHeaders",
       "./plugins/withFollyPatch"
     ],
     "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
