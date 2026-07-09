@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useCallback, useMemo } from 'react';
+import React, { forwardRef, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import {
   BottomSheetModal,
-  BottomSheetView,
   BottomSheetFlatList,
   BottomSheetTextInput,
   BottomSheetFooter,
@@ -18,12 +17,13 @@ import {
 import api from '../services/api';
 import { ChatMessage, ChatMessagesApiResponse, SendMessageApiResponse } from '../types/chat';
 
-interface DailyOutlookSheetProps {
+interface DailyChatSheetProps {
   chatId: string | null;
+  isGenerating: boolean;
 }
 
-const DailyOutlookSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, DailyOutlookSheetProps>(
-  ({ chatId }, ref) => {
+const DailyChatSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, DailyChatSheetProps>(
+  ({ chatId, isGenerating }, ref) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -39,17 +39,21 @@ const DailyOutlookSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, 
           setMessages(response.data.data || []);
         }
       } catch (error) {
-        console.error('[DailyOutlookSheet] Error loading messages:', error);
+        console.error('[DailyChatSheet] Error loading messages:', error);
       } finally {
         setIsLoadingMessages(false);
       }
     }, []);
 
-    // Fresh chatId means the sheet was just opened for a new session — load its (empty) history.
-    const handleSheetChange = useCallback((index: number) => {
-      if (index >= 0 && chatId) {
-        setMessages([]);
+    // The sheet opens before the chat exists — chatId arrives once the backend
+    // finishes creating the chat and generating the opening message. Load its
+    // messages as soon as that happens; a null chatId means a fresh session
+    // that hasn't come back from the server yet, so clear any stale history.
+    useEffect(() => {
+      if (chatId) {
         loadMessages(chatId);
+      } else {
+        setMessages([]);
       }
     }, [chatId, loadMessages]);
 
@@ -70,7 +74,7 @@ const DailyOutlookSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, 
           setMessages(prev => [...prev, userMessage, assistantMessage]);
         }
       } catch (error) {
-        console.error('[DailyOutlookSheet] Error sending message:', error);
+        console.error('[DailyChatSheet] Error sending message:', error);
         setInputText(content);
       } finally {
         setIsSending(false);
@@ -108,13 +112,14 @@ const DailyOutlookSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, 
       </BottomSheetFooter>
     ), [inputText, isSending, chatId]);
 
+    const isAwaitingOpener = messages.length === 0 && (isGenerating || isLoadingMessages);
+
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
         enableDynamicSizing={false}
         enablePanDownToClose
-        onChange={handleSheetChange}
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
@@ -122,13 +127,14 @@ const DailyOutlookSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, 
         handleIndicatorStyle={styles.handleIndicator}
         footerComponent={renderFooter}
       >
-        <BottomSheetView style={styles.header}>
-          <Text style={styles.headerTitle}>Daily Outlook</Text>
-        </BottomSheetView>
-
-        {isLoadingMessages ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#00D9A0" />
+        {isAwaitingOpener ? (
+          <View style={styles.messagesList}>
+            <View style={[styles.messageRow, styles.messageRowAI]}>
+              <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble]}>
+                <ActivityIndicator size="small" color="#00D9A0" style={styles.loadingBubbleSpinner} />
+                <Text style={styles.aiMessageText}>Mercia is aggregating your latest data…</Text>
+              </View>
+            </View>
           </View>
         ) : messages.length === 0 ? (
           <View style={styles.centerContainer}>
@@ -172,18 +178,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#555',
     width: 36,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#232323',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#E8E8E8',
-  },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
@@ -197,7 +191,7 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 90,
   },
   messageRow: {
@@ -222,6 +216,13 @@ const styles = StyleSheet.create({
   aiBubble: {
     backgroundColor: '#232323',
     borderBottomLeftRadius: 4,
+  },
+  loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingBubbleSpinner: {
+    marginRight: 8,
   },
   messageText: {
     fontSize: 15,
@@ -273,4 +274,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DailyOutlookSheet;
+export default DailyChatSheet;

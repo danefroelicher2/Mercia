@@ -54,3 +54,47 @@ export async function buildMonthLog({ userId, todayDateStr, supabase }: MonthLog
 
   return [...historyLines, todayLine].join('\n');
 }
+
+// Same day-arithmetic trick used in summaryCompute.ts's getDayOfWeekForDate —
+// anchoring at noon UTC avoids DST/date-line edge cases when stepping a
+// YYYY-MM-DD string back by one calendar day.
+export function getPreviousDateString(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+interface YesterdayLogParams {
+  userId: string;
+  yesterdayDateStr: string; // YYYY-MM-DD, user-local
+  supabase: SupabaseClient<any>;
+}
+
+// Assembles a single-day, retrospective log for "Day in Review" — yesterday's
+// numbers only, reconstructed live via computeSummaryStats (works for any past
+// date, not just "today") rather than read from weekly_summaries, so it's
+// correct even before dailySummaryJob's 6am cron has written that day's row.
+export async function buildYesterdayLog({ userId, yesterdayDateStr, supabase }: YesterdayLogParams): Promise<string> {
+  const [stats, { data: gymRows }] = await Promise.all([
+    computeSummaryStats(userId, yesterdayDateStr, supabase),
+    supabase
+      .schema('oasis')
+      .from('gym_workout_log')
+      .select('workout_group')
+      .eq('user_id', userId)
+      .eq('logged_date', yesterdayDateStr),
+  ]);
+
+  const gymRowList = (gymRows || []) as any[];
+  const gymLogged = gymRowList.length > 0;
+  const gymGroup = gymLogged ? gymRowList[0].workout_group : null;
+  const missedTasks = stats.tasks_missed_frequently.map((t) => t.task_name);
+
+  return (
+    `${yesterdayDateStr}: today-tasks ${stats.today_completed}/${stats.today_total}, ` +
+    `overall ${stats.overall_percentage}%, weekly goals ${stats.weekly_goals_completed}/${stats.weekly_goals_total}, ` +
+    `monthly goals ${stats.monthly_goals_completed}/${stats.monthly_goals_total}, ` +
+    `gym: ${gymLogged ? `yes — ${gymGroup ?? 'logged'}` : 'no'}, ` +
+    `missed: ${missedTasks.length > 0 ? missedTasks.join(', ') : 'none'}`
+  );
+}
