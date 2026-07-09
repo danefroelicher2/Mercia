@@ -6,7 +6,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,11 +16,11 @@ import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { WeeklySummary } from '../types/summary';
 import { RoutineTask, RoutineGoal } from '../types/routine';
-import { CreateDailyOutlookApiResponse } from '../types/chat';
+import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
-import DailyOutlookSheet from '../components/DailyOutlookSheet';
+import DailyChatSheet from '../components/DailyChatSheet';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -122,11 +121,15 @@ const MerciaHomeScreen: React.FC = () => {
   const [overallPercentage, setOverallPercentage] = useState(0);
 
   // ============================================
-  // DAILY OUTLOOK SHEET STATE
+  // DAILY OUTLOOK / DAY IN REVIEW SHEET STATE
   // ============================================
   const outlookSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
   const [outlookChatId, setOutlookChatId] = useState<string | null>(null);
   const [isOpeningOutlook, setIsOpeningOutlook] = useState(false);
+
+  const reviewSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const [reviewChatId, setReviewChatId] = useState<string | null>(null);
+  const [isOpeningReview, setIsOpeningReview] = useState(false);
 
   // ============================================
   // EFFECTS
@@ -270,23 +273,44 @@ const MerciaHomeScreen: React.FC = () => {
     setIsRefreshing(false);
   };
 
-  const handleOpenDailyOutlook = async () => {
-    if (isOpeningOutlook) return;
-    setIsOpeningOutlook(true);
-    try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const response = await api.post<CreateDailyOutlookApiResponse>('/api/chat/daily-outlook', {
-        timezone,
-      });
-      if (response.data.success && response.data.data) {
-        setOutlookChatId(response.data.data.chat.id);
-        outlookSheetRef.current?.present();
+  // Shared by both cards: open the sheet immediately (it shows its own
+  // "aggregating" loading bubble), then find-or-create today's chat for this
+  // endpoint in the background. A chat persists across app backgrounding/tab
+  // switches for the rest of the day and resets at midnight — see
+  // /api/chat/daily-outlook and /api/chat/day-in-review on the backend.
+  const openDailyChat = (
+    endpoint: '/api/chat/daily-outlook' | '/api/chat/day-in-review',
+    sheetRef: React.RefObject<React.ElementRef<typeof BottomSheetModal> | null>,
+    setChatId: (id: string | null) => void,
+    setIsOpening: (value: boolean) => void
+  ) => {
+    setIsOpening(true);
+    setChatId(null);
+    sheetRef.current?.present();
+
+    (async () => {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const response = await api.post<CreateDailyChatApiResponse>(endpoint, { timezone });
+        if (response.data.success && response.data.data) {
+          setChatId(response.data.data.chat.id);
+        }
+      } catch (error) {
+        console.error(`[MerciaHomeScreen] Error opening ${endpoint}:`, error);
+      } finally {
+        setIsOpening(false);
       }
-    } catch (error) {
-      console.error('[MerciaHomeScreen] Error opening daily outlook:', error);
-    } finally {
-      setIsOpeningOutlook(false);
-    }
+    })();
+  };
+
+  const handleOpenDailyOutlook = () => {
+    if (isOpeningOutlook) return;
+    openDailyChat('/api/chat/daily-outlook', outlookSheetRef, setOutlookChatId, setIsOpeningOutlook);
+  };
+
+  const handleOpenDayInReview = () => {
+    if (isOpeningReview) return;
+    openDailyChat('/api/chat/day-in-review', reviewSheetRef, setReviewChatId, setIsOpeningReview);
   };
 
   // ============================================
@@ -313,6 +337,20 @@ const MerciaHomeScreen: React.FC = () => {
         {/* Rings */}
         <HomeRings todayPercentage={todayPercentage} overallPercentage={overallPercentage} />
 
+        {/* Day in Review */}
+        <TouchableOpacity
+          style={styles.outlookCard}
+          onPress={handleOpenDayInReview}
+          activeOpacity={0.8}
+          disabled={isOpeningReview}
+        >
+          <View style={styles.outlookTextContainer}>
+            <Text style={styles.outlookTitle}>Day in Review</Text>
+            <Text style={styles.outlookSubtitle}>Look back at yesterday with Mercia</Text>
+          </View>
+          <Text style={styles.outlookArrow}>›</Text>
+        </TouchableOpacity>
+
         {/* Daily Outlook */}
         <TouchableOpacity
           style={styles.outlookCard}
@@ -322,15 +360,9 @@ const MerciaHomeScreen: React.FC = () => {
         >
           <View style={styles.outlookTextContainer}>
             <Text style={styles.outlookTitle}>Daily Outlook</Text>
-            <Text style={styles.outlookSubtitle}>
-              {isOpeningOutlook ? 'Mercia is aggregating your latest data…' : 'Talk to Mercia about your day'}
-            </Text>
+            <Text style={styles.outlookSubtitle}>Talk to Mercia about your day</Text>
           </View>
-          {isOpeningOutlook ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.outlookArrow}>›</Text>
-          )}
+          <Text style={styles.outlookArrow}>›</Text>
         </TouchableOpacity>
 
         {/* Daily Summary Banner */}
@@ -352,8 +384,11 @@ const MerciaHomeScreen: React.FC = () => {
         onSave={liveSummary?.id !== 'live' ? handleSaveSummary : undefined}
       />
 
+      {/* Day in Review Sheet */}
+      <DailyChatSheet ref={reviewSheetRef} chatId={reviewChatId} isGenerating={isOpeningReview} />
+
       {/* Daily Outlook Sheet */}
-      <DailyOutlookSheet ref={outlookSheetRef} chatId={outlookChatId} />
+      <DailyChatSheet ref={outlookSheetRef} chatId={outlookChatId} isGenerating={isOpeningOutlook} />
     </SafeAreaView>
   );
 };

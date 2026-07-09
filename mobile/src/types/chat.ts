@@ -29,11 +29,13 @@ export interface CreateChatApiResponse {
   data: Chat;
 }
 
-export interface CreateDailyOutlookApiResponse {
+// Shared response shape for /api/chat/daily-outlook and /api/chat/day-in-review —
+// both find-or-create a chat scoped to "today" and return it; the opening
+// message (if newly generated) is fetched separately via the messages endpoint.
+export interface CreateDailyChatApiResponse {
   success: boolean;
   data: {
     chat: Chat;
-    assistantMessage: ChatMessage;
   };
 }
 

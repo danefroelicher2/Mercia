@@ -8,25 +8,25 @@ import {
   getContextBuilder,
 } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
-import { buildMonthLog } from '../lib/dailyOutlookContext';
+import { buildMonthLog, buildYesterdayLog, getPreviousDateString } from '../lib/dailyChatContext';
+import { getOrCreateDailyChat } from '../lib/dailyChatSession';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
 
-function getLocalDateString(timezone?: string): string {
-  const now = new Date();
-  if (!timezone) return now.toISOString().split('T')[0];
+function getLocalDateString(timezone?: string, date: Date = new Date()): string {
+  if (!timezone) return date.toISOString().split('T')[0];
   try {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).format(now);
+    }).format(date);
   } catch {
-    return now.toISOString().split('T')[0];
+    return date.toISOString().split('T')[0];
   }
 }
 
@@ -73,48 +73,93 @@ router.post(
 
 /**
  * POST /api/chat/daily-outlook
- * Create a new "Daily Outlook" chat and have Mercia open it with a message
- * generated from the user's this-month day-by-day log plus today's live stats,
- * instead of opening to an empty chat box.
+ * Returns today's "Daily Outlook" chat, forward-looking and about today.
+ * If one was already opened today, returns it as-is (no new LLM call) so the
+ * conversation persists across app backgrounding/tab switches. Otherwise
+ * creates it and has Mercia open with a message generated from the user's
+ * this-month day-by-day log plus today's live stats. Resets at midnight —
+ * tomorrow, no match is found and a fresh one is created.
  */
 router.post('/daily-outlook', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const timezone = typeof req.body?.timezone === 'string' ? req.body.timezone : undefined;
     const todayDateStr = getLocalDateString(timezone);
-
-    const storage = getStorage();
-    const llm = getLLM();
     const supabase = getSupabase();
 
-    const chat = await storage.createChat(userId, 'Daily Outlook');
-    const monthLog = await buildMonthLog({ userId, todayDateStr, supabase });
-
-    const systemPrompt =
-      'You are Mercia, a direct personal AI coach opening a "Daily Outlook" conversation with the user. ' +
-      "Below is the user's day-by-day log for this month so far (oldest first), ending with today's live numbers:\n\n" +
-      `${monthLog}\n\n` +
-      'Write a short opening message: 3-5 sentences. Call out what stands out this month so far ' +
-      '(a streak, a slump, a specific weak category), state where today stands right now, and end with ' +
-      'one direct, specific thing to focus on today. Be concrete with numbers. No greeting, no filler, ' +
-      'no generic encouragement, never use the word "navigate".';
-
-    const openingMessage = await llm.chat(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: 'Open the conversation now.' },
-      ],
-      { temperature: 0.65, maxTokens: 200 }
-    );
-
-    const assistantMessage = await storage.saveChatMessage(chat.id, userId, 'assistant', openingMessage);
-
-    res.status(201).json({
-      success: true,
-      data: { chat, assistantMessage },
+    const { chat } = await getOrCreateDailyChat({
+      userId,
+      title: 'Daily Outlook',
+      todayDateStr,
+      timezone,
+      supabase,
+      storage: getStorage(),
+      llm: getLLM(),
+      getLocalDateString,
+      buildSystemPrompt: async () => {
+        const monthLog = await buildMonthLog({ userId, todayDateStr, supabase });
+        return (
+          'You are Mercia, a direct personal AI coach opening a "Daily Outlook" conversation with the user. ' +
+          "Below is the user's day-by-day log for this month so far (oldest first), ending with today's live numbers:\n\n" +
+          `${monthLog}\n\n` +
+          'Write a short opening message: 3-5 sentences. Call out what stands out this month so far ' +
+          '(a streak, a slump, a specific weak category), state where today stands right now, and end with ' +
+          'one direct, specific thing to focus on today. Be concrete with numbers. No greeting, no filler, ' +
+          'no generic encouragement, never use the word "navigate".'
+        );
+      },
     });
+
+    res.status(201).json({ success: true, data: { chat } });
   } catch (error: any) {
     console.error('[Chat] Error creating daily outlook:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/chat/day-in-review
+ * Returns today's "Day in Review" chat, a retrospective focused on yesterday.
+ * Same persist-through-the-day / reset-at-midnight behavior as /daily-outlook
+ * (keyed off when the chat was opened, not the day it reviews) — see that
+ * route's comment for details.
+ */
+router.post('/day-in-review', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const timezone = typeof req.body?.timezone === 'string' ? req.body.timezone : undefined;
+    const todayDateStr = getLocalDateString(timezone);
+    const yesterdayDateStr = getPreviousDateString(todayDateStr);
+    const supabase = getSupabase();
+
+    const { chat } = await getOrCreateDailyChat({
+      userId,
+      title: 'Day in Review',
+      todayDateStr,
+      timezone,
+      supabase,
+      storage: getStorage(),
+      llm: getLLM(),
+      getLocalDateString,
+      buildSystemPrompt: async () => {
+        const yesterdayLog = await buildYesterdayLog({ userId, yesterdayDateStr, supabase });
+        return (
+          'You are Mercia, a direct personal AI coach opening a "Day in Review" conversation with the user, ' +
+          "looking back at yesterday specifically. Here's yesterday's numbers:\n\n" +
+          `${yesterdayLog}\n\n` +
+          'Write a short review: 3-5 sentences. Call out what went well and what fell short, be specific ' +
+          'with the numbers, and note anything worth carrying into today. No greeting, no filler, ' +
+          'no generic encouragement, never use the word "navigate".'
+        );
+      },
+    });
+
+    res.status(201).json({ success: true, data: { chat } });
+  } catch (error: any) {
+    console.error('[Chat] Error creating day in review:', error);
     res.status(500).json({
       success: false,
       error: error.message,
