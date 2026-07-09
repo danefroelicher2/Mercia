@@ -121,6 +121,8 @@ const RoutineScreen: React.FC = () => {
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
+  const selectedDayRef = useRef(selectedDay);
+  useEffect(() => { selectedDayRef.current = selectedDay; }, [selectedDay]);
   const [tasks, setTasks] = useState<RoutineTask[]>([]);
   const [weeklyGoals, setWeeklyGoals] = useState<RoutineGoal[]>([]);
   const [monthlyGoals, setMonthlyGoals] = useState<RoutineGoal[]>([]);
@@ -278,9 +280,18 @@ const RoutineScreen: React.FC = () => {
   };
 
   const loadTasks = async () => {
+    // On mount, this can fire once for the hardcoded initial 'monday' (if `user`
+    // is already available) and again moments later for the real current day
+    // once the focus effect below corrects `selectedDay` — two in-flight
+    // requests racing. Without this guard, whichever response lands last wins,
+    // so a slower stale 'monday' response can overwrite the correct day's tasks
+    // even though the day selector itself already shows the right day. Capture
+    // the day this request is for and only apply it if it's still current when
+    // the response arrives.
+    const requestedDay = selectedDay;
     try {
-      const response = await api.get(`/api/routine/tasks/${selectedDay}`);
-      if (response.data.success) {
+      const response = await api.get(`/api/routine/tasks/${requestedDay}`);
+      if (response.data.success && selectedDayRef.current === requestedDay) {
         setTasks(response.data.data);
       }
     } catch (error) {
