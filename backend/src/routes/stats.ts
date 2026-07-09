@@ -224,6 +224,87 @@ router.get('/achievements', async (req: Request, res: Response): Promise<void> =
 });
 
 // ============================================
+// GET /api/stats/lifetime
+// ============================================
+router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+
+    const [
+      creationResult,
+      taskCountResult,
+      goalCountResult,
+      chatCountResult,
+      gymCountResult,
+      activityDatesResult,
+    ] = await Promise.all([
+      supabase.rpc('get_account_creation_date', { p_user_id: userId }),
+      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).eq('activity_type', 'task_completed'),
+      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).eq('activity_type', 'goal_completed'),
+      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).eq('activity_type', 'ai_chat_sent'),
+      // Only rows with an actual workout_group count as a "logged" gym day —
+      // matches the filter used in summaryCompute.ts for the same table.
+      supabase.schema('oasis').from('gym_workout_log').select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).not('workout_group', 'is', null).neq('workout_group', ''),
+      supabase.schema('oasis').from('user_activity_log').select('activity_date').eq('user_id', userId),
+    ]);
+
+    if (creationResult.error) throw creationResult.error;
+    if (taskCountResult.error) throw taskCountResult.error;
+    if (goalCountResult.error) throw goalCountResult.error;
+    if (chatCountResult.error) throw chatCountResult.error;
+    if (gymCountResult.error) throw gymCountResult.error;
+    if (activityDatesResult.error) throw activityDatesResult.error;
+
+    const joinedDate = creationResult.data;
+    const todayItemsCheckedOff = taskCountResult.count ?? 0;
+    const goalsCompleted = goalCountResult.count ?? 0;
+    const chatMessagesSent = chatCountResult.count ?? 0;
+    const gymDaysLogged = gymCountResult.count ?? 0;
+
+    const lifetimeActions = todayItemsCheckedOff + goalsCompleted + chatMessagesSent + gymDaysLogged;
+
+    const distinctActiveDays = new Set(
+      (activityDatesResult.data ?? []).map((row: any) => row.activity_date as string)
+    ).size;
+
+    const accountCreated = new Date(joinedDate);
+    const now = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysSinceJoining = Math.max(
+      1,
+      Math.floor((now.getTime() - accountCreated.getTime()) / msPerDay) + 1
+    );
+
+    const consistencyRatePercent = Math.min(
+      100,
+      Math.round((distinctActiveDays / daysSinceJoining) * 100)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        joinedDate,
+        lifetimeActions,
+        todayItemsCheckedOff,
+        gymDaysLogged,
+        consistencyRatePercent,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Stats Lifetime] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ============================================
 // POST /api/stats/log-activity
 // ============================================
 router.post(
