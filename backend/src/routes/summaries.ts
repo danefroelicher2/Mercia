@@ -87,31 +87,12 @@ router.get('/history', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// DELETE /api/summaries/cleanup-old - Delete unsaved summaries older than 14 days
-router.delete('/cleanup-old', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const supabase = getSupabase();
-
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
-
-    const { error } = await supabase
-      .schema('oasis')
-      .from('weekly_summaries')
-      .delete()
-      .eq('user_id', userId)
-      .eq('is_saved', false)
-      .lt('week_start_date', cutoff);
-
-    if (error) throw error;
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('[Summaries] Error cleaning up old summaries:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+// DELETE /api/summaries/cleanup-old - No-op. Daily summary history is retained
+// indefinitely so the LLM can build month/year context from it. Kept as a route
+// (rather than removed) only so older installed app builds that still call it
+// on mount don't hit a 404; it performs no deletion.
+router.delete('/cleanup-old', async (_req: Request, res: Response): Promise<void> => {
+  res.json({ success: true });
 });
 
 // PATCH /api/summaries/:id/save - Mark a summary as saved

@@ -32,7 +32,7 @@ function getLocalDateString(timezone?: string): string {
 // Validation schemas
 const createTaskSchema = z.object({
   text: z.string().min(1).max(500),
-  type: z.enum(['non-negotiable', 'nice-to-have']),
+  type: z.enum(['today']),
   dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
 });
 
@@ -693,7 +693,7 @@ router.put(
  * Returns the current week's Today item completion stats.
  * total_possible = full Mon–Sun week (all 7 days).
  * total_completed = completions recorded from Mon through today only.
- * "Today items" = non-negotiable tasks.
+ * "Today items" = tasks with type 'today'.
  */
 router.get('/summary-data', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -720,7 +720,7 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
         .from('routine_tasks')
         .select('id, day_of_week')
         .eq('user_id', userId)
-        .eq('type', 'non-negotiable'),
+        .eq('type', 'today'),
       supabase
         .schema('oasis')
         .from('task_completion_history')

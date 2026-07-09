@@ -29,6 +29,14 @@ export interface CreateChatApiResponse {
   data: Chat;
 }
 
+export interface CreateDailyOutlookApiResponse {
+  success: boolean;
+  data: {
+    chat: Chat;
+    assistantMessage: ChatMessage;
+  };
+}
+
 export interface ChatMessagesApiResponse {
   success: boolean;
   data: ChatMessage[];

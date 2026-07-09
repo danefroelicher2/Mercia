@@ -6,6 +6,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,7 +17,7 @@ import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { WeeklySummary } from '../types/summary';
 import { RoutineTask, RoutineGoal } from '../types/routine';
-import { CreateChatApiResponse } from '../types/chat';
+import { CreateDailyOutlookApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
 import WeeklySummaryModal from '../components/WeeklySummaryModal';
@@ -146,7 +147,7 @@ const MerciaHomeScreen: React.FC = () => {
 
       // Ring 1: today's routine completion %
       const tasks: RoutineTask[] = tasksRes.data.success ? (tasksRes.data.data || []) : [];
-      const todayTasks = tasks.filter(t => t.type === 'non-negotiable');
+      const todayTasks = tasks.filter(t => t.type === 'today');
       const todayCompleted = todayTasks.filter(t => t.completed).length;
       const todayRatio = ratio(todayCompleted, todayTasks.length);
       setTodayPercentage(Math.round(todayRatio * 100));
@@ -215,9 +216,6 @@ const MerciaHomeScreen: React.FC = () => {
 
   // Load daily summary on mount and show last-chance modal for unsaved summaries
   useEffect(() => {
-    // Fire-and-forget: delete old unsaved summaries from DB on each mount
-    api.delete('/api/summaries/cleanup-old').catch(() => {});
-
     const loadSummary = async () => {
       try {
         const response = await api.get('/api/summaries/current');
@@ -276,11 +274,12 @@ const MerciaHomeScreen: React.FC = () => {
     if (isOpeningOutlook) return;
     setIsOpeningOutlook(true);
     try {
-      const response = await api.post<CreateChatApiResponse>('/api/chat/new', {
-        title: 'Daily Outlook',
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await api.post<CreateDailyOutlookApiResponse>('/api/chat/daily-outlook', {
+        timezone,
       });
       if (response.data.success && response.data.data) {
-        setOutlookChatId(response.data.data.id);
+        setOutlookChatId(response.data.data.chat.id);
         outlookSheetRef.current?.present();
       }
     } catch (error) {
@@ -323,9 +322,15 @@ const MerciaHomeScreen: React.FC = () => {
         >
           <View style={styles.outlookTextContainer}>
             <Text style={styles.outlookTitle}>Daily Outlook</Text>
-            <Text style={styles.outlookSubtitle}>Talk to Mercia about your day</Text>
+            <Text style={styles.outlookSubtitle}>
+              {isOpeningOutlook ? 'Mercia is aggregating your latest data…' : 'Talk to Mercia about your day'}
+            </Text>
           </View>
-          <Text style={styles.outlookArrow}>›</Text>
+          {isOpeningOutlook ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={styles.outlookArrow}>›</Text>
+          )}
         </TouchableOpacity>
 
         {/* Daily Summary Banner */}

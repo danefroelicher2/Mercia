@@ -3,9 +3,9 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export interface SummaryStats {
   week_start_date: string;
   week_end_date: string;
-  nonnegotiables_completed: number;
-  nonnegotiables_total: number;
-  nonnegotiables_percentage: number;
+  today_completed: number;
+  today_total: number;
+  today_percentage: number;
   tasks_missed_frequently: { task_id: string; task_name: string }[];
   weekly_missed_tasks: { task_id: string; task_name: string; times_missed: number }[];
   overall_percentage: number;
@@ -54,6 +54,54 @@ export function getDatesFromMondayToDate(dateStr: string): string[] {
   return dates;
 }
 
+// Ring weights — MUST stay in sync with mobile/src/screens/MerciaHomeScreen.tsx's
+// ROUTINE_WEIGHT/GYM_WEIGHT/WEEKLY_WEIGHT/MONTHLY_WEIGHT and computeGoalCategoryScore.
+// See docs/superpowers/specs/2026-07-08-home-tab-rings-design.md for the full formula
+// reasoning. Duplicated rather than shared as a package because the mobile app isn't
+// currently wired to import from @mercia/ai-core — if that changes, extract this.
+const ROUTINE_WEIGHT = 30;
+const GYM_WEIGHT = 20;
+const WEEKLY_WEIGHT = 20;
+const MONTHLY_WEIGHT = 30;
+
+interface GoalForScoring {
+  completed: boolean;
+  completed_at: string | null;
+}
+
+// Same "remaining pool" formula as the Overall ring, generalized to any target date
+// (not just literal today) so the identical math produces a day's archived score
+// whether it's being computed live or reconstructed for history.
+function computeCategoryScore(
+  goals: GoalForScoring[],
+  weight: number,
+  targetDateStr: string
+): { score: number; isActive: boolean } {
+  const total = goals.length;
+  if (total === 0) {
+    return { score: 0, isActive: false };
+  }
+
+  let alreadyDoneBeforeTarget = 0;
+  let completedOnTarget = 0;
+  for (const goal of goals) {
+    if (!goal.completed || !goal.completed_at) continue;
+    const completedDateStr = goal.completed_at.split('T')[0];
+    if (completedDateStr < targetDateStr) {
+      alreadyDoneBeforeTarget++;
+    } else if (completedDateStr === targetDateStr) {
+      completedOnTarget++;
+    }
+  }
+
+  const remaining = total - alreadyDoneBeforeTarget;
+  const score = remaining === 0
+    ? weight
+    : weight * (completedOnTarget / remaining);
+
+  return { score, isActive: true };
+}
+
 export async function computeSummaryStats(
   userId: string,
   date: string,
@@ -70,7 +118,7 @@ export async function computeSummaryStats(
     { data: weeklyGoalRows },
     { data: monthlyGoalRows },
     { data: prevRow },
-    { data: allNonNegRows },
+    { data: allTodayRows },
     { data: weekCompletionRows },
     { data: gymWeekRows },
   ] = await Promise.all([
@@ -96,13 +144,13 @@ export async function computeSummaryStats(
     supabase
       .schema('oasis')
       .from('routine_goals')
-      .select('id, text, completed')
+      .select('id, text, completed, completed_at')
       .eq('user_id', userId)
       .eq('type', 'weekly'),
     supabase
       .schema('oasis')
       .from('routine_goals')
-      .select('id, text, completed')
+      .select('id, text, completed, completed_at')
       .eq('user_id', userId)
       .eq('type', 'monthly'),
     supabase
@@ -119,7 +167,7 @@ export async function computeSummaryStats(
       .from('routine_tasks')
       .select('id, text, day_of_week')
       .eq('user_id', userId)
-      .eq('type', 'non-negotiable'),
+      .eq('type', 'today'),
     supabase
       .schema('oasis')
       .from('task_completion_history')
@@ -142,10 +190,10 @@ export async function computeSummaryStats(
   const allTasks = allTaskRows || [];
   const completedIds = new Set(completedTasks.map((t: any) => t.task_id));
 
-  const nonNegTasks = allTasks.filter((t: any) => t.type === 'non-negotiable');
-  const nonnegTotal = nonNegTasks.length;
-  const nonnegCompleted = nonNegTasks.filter((t: any) => completedIds.has(t.id)).length;
-  const nonnegPct = nonnegTotal > 0 ? Math.round((nonnegCompleted / nonnegTotal) * 100) : 0;
+  const todayTasks = allTasks.filter((t: any) => t.type === 'today');
+  const todayTotal = todayTasks.length;
+  const todayCompleted = todayTasks.filter((t: any) => completedIds.has(t.id)).length;
+  const todayPct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
 
   const weeklyGoals = weeklyGoalRows || [];
   const weeklyGoalsTotal = weeklyGoals.length;
@@ -160,7 +208,7 @@ export async function computeSummaryStats(
   const completedMonthlyGoalTexts = monthlyGoals.filter((g: any) => g.completed).map((g: any) => g.text as string);
 
   const gymLogged = (gymRows || []).length > 0;
-  const hasData = nonnegCompleted > 0 || gymLogged;
+  const hasData = todayCompleted > 0 || gymLogged;
 
   const seenIds = new Set<string>();
   const tasksMissedFrequently = allTasks
@@ -171,18 +219,40 @@ export async function computeSummaryStats(
     })
     .map((t: any) => ({ task_id: t.id, task_name: t.text }));
 
-  const activePctSources = [
-    ...(nonnegTotal > 0 ? [nonnegPct] : []),
-    ...(weeklyGoalsTotal > 0 ? [weeklyGoalsPct] : []),
-  ];
-  const overallPct = activePctSources.length > 0
-    ? Math.round(activePctSources.reduce((a, b) => a + b, 0) / activePctSources.length)
+  // Overall % — same weighted, remaining-pool-aware formula as the Home tab's
+  // Overall ring (see computeCategoryScore above). Routine and Weekly/Monthly are
+  // excluded from the calculation entirely (not just scored 0) when the user has
+  // no items of that type at all; Gym is always counted.
+  const routineActive = todayTotal > 0;
+  const routineScore = routineActive ? (todayPct / 100) * ROUTINE_WEIGHT : 0;
+  const gymScore = gymLogged ? GYM_WEIGHT : 0;
+  const weeklyResult = computeCategoryScore(weeklyGoals as GoalForScoring[], WEEKLY_WEIGHT, date);
+  const monthlyResult = computeCategoryScore(monthlyGoals as GoalForScoring[], MONTHLY_WEIGHT, date);
+
+  let activeWeight = GYM_WEIGHT;
+  let rawScore = gymScore;
+  if (routineActive) {
+    activeWeight += ROUTINE_WEIGHT;
+    rawScore += routineScore;
+  }
+  if (weeklyResult.isActive) {
+    activeWeight += WEEKLY_WEIGHT;
+    rawScore += weeklyResult.score;
+  }
+  if (monthlyResult.isActive) {
+    activeWeight += MONTHLY_WEIGHT;
+    rawScore += monthlyResult.score;
+  }
+
+  const hasAnyActiveCategory = routineActive || weeklyResult.isActive || monthlyResult.isActive || gymLogged;
+  const overallPct = activeWeight > 0
+    ? Math.min(100, Math.max(0, Math.round((rawScore / activeWeight) * 100)))
     : 0;
 
   const yesterdayOverallPct = prevRow ? Number(prevRow.overall_percentage || 0) : 0;
   let improvementPct = 0;
   let isImprovement = false;
-  if (prevRow && activePctSources.length > 0) {
+  if (prevRow && hasAnyActiveCategory) {
     const diff = overallPct - yesterdayOverallPct;
     improvementPct = Math.abs(Math.round(diff));
     isImprovement = diff >= 0;
@@ -199,7 +269,7 @@ export async function computeSummaryStats(
   const weekMissedMap = new Map<string, { task_id: string; task_name: string; times_missed: number }>();
   for (const d of weekDates) {
     const dow = getDayOfWeekForDate(d);
-    const tasksForDay = (allNonNegRows || []).filter((t: any) => t.day_of_week === dow);
+    const tasksForDay = (allTodayRows || []).filter((t: any) => t.day_of_week === dow);
     for (const task of tasksForDay as any[]) {
       if (!weekCompletedSet.has(`${task.id}::${d}`)) {
         const existing = weekMissedMap.get(task.id);
@@ -221,9 +291,9 @@ export async function computeSummaryStats(
   return {
     week_start_date: weekStart,
     week_end_date: date,
-    nonnegotiables_completed: nonnegCompleted,
-    nonnegotiables_total: nonnegTotal,
-    nonnegotiables_percentage: nonnegPct,
+    today_completed: todayCompleted,
+    today_total: todayTotal,
+    today_percentage: todayPct,
     tasks_missed_frequently: tasksMissedFrequently,
     weekly_missed_tasks: weeklyMissedTasks,
     overall_percentage: overallPct,

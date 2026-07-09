@@ -132,11 +132,11 @@ const WeeklySummaryModal: React.FC<Props> = ({
       <View style={styles.ringsRow}>
         <View style={styles.ringItem}>
           <ProgressRing
-            percentage={summary?.nonnegotiables_percentage ?? 0}
+            percentage={summary?.today_percentage ?? 0}
             color={C.primary}
             trackColor={C.trackOrange}
           />
-          <Text style={[styles.ringLabel, { color: C.primary }]}>Required</Text>
+          <Text style={[styles.ringLabel, { color: C.primary }]}>Today</Text>
         </View>
 
         <View style={styles.ringItem}>

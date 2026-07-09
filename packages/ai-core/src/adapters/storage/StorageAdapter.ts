@@ -119,7 +119,7 @@ export interface StorageAdapter {
   createRoutineTask(
     userId: string,
     text: string,
-    type: 'non-negotiable' | 'nice-to-have',
+    type: 'today',
     dayOfWeek: string
   ): Promise<RoutineTask>;
 

@@ -106,8 +106,8 @@ async function generateSummaryForUser(
       const llm = getLLM();
       const prompt = buildNarrativePrompt({
         dayOfWeek,
-        nonnegCompleted: stats.nonnegotiables_completed,
-        nonnegTotal: stats.nonnegotiables_total,
+        todayCompleted: stats.today_completed,
+        todayTotal: stats.today_total,
         tasksMissed: stats.tasks_missed_frequently.map((t: any) => t.task_name),
         gymLogged: gymLoggedToday,
         gymGroup,
@@ -140,9 +140,9 @@ async function generateSummaryForUser(
         user_id: userId,
         week_start_date: stats.week_start_date,
         week_end_date: date,
-        nonnegotiables_completed: stats.nonnegotiables_completed,
-        nonnegotiables_total: stats.nonnegotiables_total,
-        nonnegotiables_percentage: stats.nonnegotiables_percentage,
+        today_completed: stats.today_completed,
+        today_total: stats.today_total,
+        today_percentage: stats.today_percentage,
         best_day_combined: '—',
         most_consistent_day: '—',
         tasks_missed_frequently: stats.tasks_missed_frequently,
@@ -175,7 +175,7 @@ async function generateSummaryForUser(
   }
 
   console.log(
-    `[DAILY-SUMMARY] Saved — user ${userId} | score: ${stats.nonnegotiables_percentage}% non-neg | ` +
+    `[DAILY-SUMMARY] Saved — user ${userId} | score: ${stats.today_percentage}% today | ` +
     `gym: ${gymLoggedToday} | narrative: ${!!narrative}`
   );
 
@@ -194,8 +194,8 @@ async function generateSummaryForUser(
     try {
       const llm = getLLM();
       const pushPrompt = buildPushPrompt({
-        nonnegCompleted: stats.nonnegotiables_completed,
-        nonnegTotal: stats.nonnegotiables_total,
+        todayCompleted: stats.today_completed,
+        todayTotal: stats.today_total,
         gymLogged: gymLoggedToday,
         gymGroup,
         overallPct: stats.overall_percentage,
@@ -233,15 +233,15 @@ async function generateSummaryForUser(
 
 function buildNarrativePrompt(data: {
   dayOfWeek: string;
-  nonnegCompleted: number;
-  nonnegTotal: number;
+  todayCompleted: number;
+  todayTotal: number;
   tasksMissed: string[];
   gymLogged: boolean;
   gymGroup: string | null;
 }): string {
   const lines: string[] = [];
   lines.push(`Day: ${data.dayOfWeek}`);
-  lines.push(`Non-negotiables: ${data.nonnegCompleted}/${data.nonnegTotal} completed`);
+  lines.push(`Today: ${data.todayCompleted}/${data.todayTotal} completed`);
   if (data.tasksMissed.length > 0) {
     lines.push(`Missed: ${data.tasksMissed.slice(0, 3).join(', ')}`);
   }
@@ -256,8 +256,8 @@ function buildNarrativePrompt(data: {
 }
 
 function buildPushPrompt(data: {
-  nonnegCompleted: number;
-  nonnegTotal: number;
+  todayCompleted: number;
+  todayTotal: number;
   gymLogged: boolean;
   gymGroup: string | null;
   overallPct: number;
@@ -266,7 +266,7 @@ function buildPushPrompt(data: {
   narrative: string | null;
 }): string {
   const lines: string[] = [];
-  lines.push(`Non-negotiables: ${data.nonnegCompleted}/${data.nonnegTotal}`);
+  lines.push(`Today: ${data.todayCompleted}/${data.todayTotal}`);
   if (data.gymLogged) lines.push(`Gym: ${data.gymGroup ?? 'yes'}`);
   lines.push(`Overall score: ${data.overallPct}%`);
   if (data.improvementPct > 0) {

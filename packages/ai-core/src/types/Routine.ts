@@ -2,7 +2,7 @@ export interface RoutineTask {
   id: string;
   user_id: string;
   text: string;
-  type: 'non-negotiable' | 'nice-to-have';
+  type: 'today';
   day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
   completed: boolean;
   created_at: string;

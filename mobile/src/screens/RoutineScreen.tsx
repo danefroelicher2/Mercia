@@ -160,8 +160,8 @@ const RoutineScreen: React.FC = () => {
   const tickingGoalIds = useRef<Set<string>>(new Set());
 
   // Edit mode state — each card manages its own independently
-  const [editingCard, setEditingCard] = useState<'non-negotiable' | 'weekly' | 'monthly' | 'yearly' | null>(null);
-  const [editNonNeg, setEditNonNeg] = useState<RoutineTask[]>([]);
+  const [editingCard, setEditingCard] = useState<'today' | 'weekly' | 'monthly' | 'yearly' | null>(null);
+  const [editToday, setEditToday] = useState<RoutineTask[]>([]);
   const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
   const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
   const [editYearly, setEditYearly] = useState<RoutineGoal[]>([]);
@@ -334,7 +334,7 @@ const RoutineScreen: React.FC = () => {
     try {
       const response = await api.post('/api/routine/tasks', {
         text: newTaskText.trim(),
-        type: 'non-negotiable',
+        type: 'today',
         dayOfWeek: selectedDay,
       });
 
@@ -407,7 +407,7 @@ const RoutineScreen: React.FC = () => {
       const response = await api.get(`/api/routine/tasks/${sourceDay}`);
       if (response.data.success) {
         const allSourceTasks: RoutineTask[] = response.data.data;
-        const filtered = allSourceTasks.filter(t => t.type === 'non-negotiable');
+        const filtered = allSourceTasks.filter(t => t.type === 'today');
         if (filtered.length === 0) {
           const dayLabel = sourceDay.charAt(0).toUpperCase() + sourceDay.slice(1);
           setCopyNoTasksMessage(`No Required tasks on ${dayLabel}`);
@@ -419,7 +419,7 @@ const RoutineScreen: React.FC = () => {
           try {
             await api.post('/api/routine/tasks', {
               text: task.text,
-              type: 'non-negotiable',
+              type: 'today',
               dayOfWeek: selectedDay,
             });
           } catch (err) {
@@ -525,11 +525,11 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Filter tasks by type
-  const nonNegotiables = tasks.filter(t => t.type === 'non-negotiable');
+  const todayTasks = tasks.filter(t => t.type === 'today');
 
   // Reorder handlers
   const handleReorder = async (newData: RoutineTask[]) => {
-    setTasks([...newData, ...tasks.filter(t => t.type !== 'non-negotiable')]);
+    setTasks([...newData, ...tasks.filter(t => t.type !== 'today')]);
     try {
       await api.patch('/api/routine/tasks/reorder', { ids: newData.map(t => t.id) });
     } catch (error) {
@@ -552,8 +552,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Edit mode handlers
-  const handleEnterEdit = (card: 'non-negotiable' | 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'non-negotiable') setEditNonNeg(nonNegotiables.slice());
+  const handleEnterEdit = (card: 'today' | 'weekly' | 'monthly' | 'yearly') => {
+    if (card === 'today') setEditToday(todayTasks.slice());
     else if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
     else if (card === 'monthly') setEditMonthly(monthlyGoals.slice());
     else setEditYearly(yearlyGoals.slice());
@@ -564,8 +564,8 @@ const RoutineScreen: React.FC = () => {
     setEditingCard(null);
   };
 
-  const handleSaveEdit = (card: 'non-negotiable' | 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'non-negotiable') handleReorder(editNonNeg);
+  const handleSaveEdit = (card: 'today' | 'weekly' | 'monthly' | 'yearly') => {
+    if (card === 'today') handleReorder(editToday);
     else if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
     else if (card === 'monthly') handleReorderGoal(editMonthly, 'monthly');
     else handleReorderGoal(editYearly, 'yearly');
@@ -574,10 +574,10 @@ const RoutineScreen: React.FC = () => {
 
   const moveTaskItem = (index: number, direction: 'up' | 'down') => {
     const target = direction === 'up' ? index - 1 : index + 1;
-    const arr = editNonNeg.slice();
+    const arr = editToday.slice();
     if (target < 0 || target >= arr.length) return;
     [arr[index], arr[target]] = [arr[target], arr[index]];
-    setEditNonNeg(arr);
+    setEditToday(arr);
   };
 
   const moveGoalItem = (card: 'weekly' | 'monthly' | 'yearly', index: number, direction: 'up' | 'down') => {
@@ -788,18 +788,18 @@ const RoutineScreen: React.FC = () => {
             <View style={{ flex: 1 }} />
             <Text style={styles.taskCardTitle}>Today</Text>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-              {editingCard === 'non-negotiable' ? (
+              {editingCard === 'today' ? (
                 <>
                   <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Text style={styles.taskCardAddButtonText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('non-negotiable')}>
+                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('today')}>
                     <Text style={styles.taskCardAddButtonText}>Save</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('non-negotiable')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <TouchableOpacity onPress={() => handleEnterEdit('today')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.taskCardAddButton} onPress={() => setTaskModalVisible(true)}>
@@ -809,10 +809,10 @@ const RoutineScreen: React.FC = () => {
               )}
             </View>
           </View>
-          {nonNegotiables.length === 0
+          {todayTasks.length === 0
             ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'non-negotiable' ? editNonNeg : nonNegotiables).map((item, index, arr) =>
-                renderTaskItem(item, editingCard === 'non-negotiable', index, arr.length,
+            : (editingCard === 'today' ? editToday : todayTasks).map((item, index, arr) =>
+                renderTaskItem(item, editingCard === 'today', index, arr.length,
                   () => moveTaskItem(index, 'up'),
                   () => moveTaskItem(index, 'down'),
                 )

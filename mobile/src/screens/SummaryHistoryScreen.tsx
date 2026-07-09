@@ -82,8 +82,8 @@ const SummaryHistoryScreen: React.FC = () => {
             <Text style={styles.cardStatLabel}>Goals</Text>
           </View>
           <View style={styles.cardStat}>
-            <Text style={styles.cardStatValue}>{item.nonnegotiables_percentage}%</Text>
-            <Text style={styles.cardStatLabel}>Required</Text>
+            <Text style={styles.cardStatValue}>{item.today_percentage}%</Text>
+            <Text style={styles.cardStatLabel}>Today</Text>
           </View>
         </View>
       </TouchableOpacity>

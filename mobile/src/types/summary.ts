@@ -5,9 +5,9 @@ export interface WeeklySummary {
   week_end_date: string;
 
   // Task completion
-  nonnegotiables_completed: number;
-  nonnegotiables_total: number;
-  nonnegotiables_percentage: number;
+  today_completed: number;
+  today_total: number;
+  today_percentage: number;
 
   // Today's tasks that weren't crossed off
   tasks_missed_frequently: { task_id?: string; task_name: string }[];

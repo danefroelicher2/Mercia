@@ -8,6 +8,7 @@ import {
   getContextBuilder,
 } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
+import { buildMonthLog } from '../lib/dailyOutlookContext';
 
 const router = Router();
 
@@ -69,6 +70,57 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/chat/daily-outlook
+ * Create a new "Daily Outlook" chat and have Mercia open it with a message
+ * generated from the user's this-month day-by-day log plus today's live stats,
+ * instead of opening to an empty chat box.
+ */
+router.post('/daily-outlook', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const timezone = typeof req.body?.timezone === 'string' ? req.body.timezone : undefined;
+    const todayDateStr = getLocalDateString(timezone);
+
+    const storage = getStorage();
+    const llm = getLLM();
+    const supabase = getSupabase();
+
+    const chat = await storage.createChat(userId, 'Daily Outlook');
+    const monthLog = await buildMonthLog({ userId, todayDateStr, supabase });
+
+    const systemPrompt =
+      'You are Mercia, a direct personal AI coach opening a "Daily Outlook" conversation with the user. ' +
+      "Below is the user's day-by-day log for this month so far (oldest first), ending with today's live numbers:\n\n" +
+      `${monthLog}\n\n` +
+      'Write a short opening message: 3-5 sentences. Call out what stands out this month so far ' +
+      '(a streak, a slump, a specific weak category), state where today stands right now, and end with ' +
+      'one direct, specific thing to focus on today. Be concrete with numbers. No greeting, no filler, ' +
+      'no generic encouragement, never use the word "navigate".';
+
+    const openingMessage = await llm.chat(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Open the conversation now.' },
+      ],
+      { temperature: 0.65, maxTokens: 200 }
+    );
+
+    const assistantMessage = await storage.saveChatMessage(chat.id, userId, 'assistant', openingMessage);
+
+    res.status(201).json({
+      success: true,
+      data: { chat, assistantMessage },
+    });
+  } catch (error: any) {
+    console.error('[Chat] Error creating daily outlook:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 /**
  * GET /api/chat/list
