@@ -60,6 +60,14 @@ interface Achievement {
   requirement: number;
 }
 
+interface LifetimeStats {
+  joinedDate: string;
+  lifetimeActions: number;
+  todayItemsCheckedOff: number;
+  gymDaysLogged: number;
+  consistencyRatePercent: number;
+}
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -88,6 +96,9 @@ const StatsScreen: React.FC = () => {
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loadingAchievements, setLoadingAchievements] = useState(true);
+
+  const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null);
+  const [loadingLifetime, setLoadingLifetime] = useState(true);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -137,6 +148,7 @@ const StatsScreen: React.FC = () => {
       fetchStreakData();
       fetchHeatmapData();
       fetchAchievements();
+      fetchLifetimeStats();
     }, [currentYear, currentMonth])
   );
 
@@ -151,6 +163,7 @@ const StatsScreen: React.FC = () => {
       fetchStreakData(),
       fetchHeatmapData(),
       fetchAchievements(),
+      fetchLifetimeStats(),
     ]);
     setIsRefreshing(false);
   };
@@ -190,6 +203,18 @@ const StatsScreen: React.FC = () => {
       console.error('Failed to fetch achievements:', error);
     } finally {
       setLoadingAchievements(false);
+    }
+  };
+
+  const fetchLifetimeStats = async () => {
+    try {
+      setLoadingLifetime(true);
+      const response = await api.get('/api/stats/lifetime');
+      setLifetimeStats(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch lifetime stats:', error);
+    } finally {
+      setLoadingLifetime(false);
     }
   };
 
