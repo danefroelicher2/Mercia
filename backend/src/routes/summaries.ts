@@ -1,146 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
-import { getSupabase } from '../services/supabase';
 import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
-import { computeSummaryStats, getYesterdayDateString } from '../lib/summaryCompute';
 
 const router = Router();
 
-// POST /api/summaries/trigger - Manually trigger daily summary generation (no auth — used by pg_cron pre-warm)
+// POST /api/summaries/trigger - Manually trigger daily summary generation
+// (no auth — used by pg_cron pre-warm). This is the only route left in this
+// file: the old "Yesterday's Summary" banner/modal/history UI that used to
+// live here was removed in favor of the Home tab's Daily Outlook/Day in
+// Review. runDailySummaryGeneration() itself — and the weekly_summaries table
+// it writes to — stays, since Daily Outlook and Day in Review both read from
+// it (see backend/src/lib/dailyChatContext.ts).
 router.post('/trigger', async (req: Request, res: Response): Promise<void> => {
   res.json({ success: true, message: 'Daily summary generation started' });
   runDailySummaryGeneration()
     .then(result => console.log('[Summaries] Trigger result:', result))
     .catch(err => console.error('[Summaries] Trigger error:', err));
-});
-
-router.use(authenticateToken);
-
-// GET /api/summaries/current - Returns the most recent weekly summary
-router.get('/current', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const supabase = getSupabase();
-
-    const { data, error } = await supabase
-      .schema('oasis')
-      .from('weekly_summaries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('week_end_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    res.json({ success: true, data: data || null });
-  } catch (error: any) {
-    console.error('[Summaries] Error fetching current:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/summaries/live - Compute yesterday's stats live from current DB state (no save, no Groq)
-router.get('/live', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const supabase = getSupabase();
-    const yesterday = getYesterdayDateString();
-
-    const stats = await computeSummaryStats(userId, yesterday, supabase);
-
-    const liveSummary = {
-      id: 'live',
-      user_id: userId,
-      is_saved: false,
-      created_at: new Date().toISOString(),
-      ...stats,
-    };
-
-    res.json({ success: true, data: liveSummary });
-  } catch (error: any) {
-    console.error('[Summaries] Error computing live summary:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/summaries/history - Returns all saved summaries
-router.get('/history', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const supabase = getSupabase();
-
-    const { data, error } = await supabase
-      .schema('oasis')
-      .from('weekly_summaries')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_saved', true)
-      .order('week_end_date', { ascending: false });
-
-    if (error) throw error;
-
-    res.json({ success: true, data: data || [] });
-  } catch (error: any) {
-    console.error('[Summaries] Error fetching history:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// DELETE /api/summaries/cleanup-old - No-op. Daily summary history is retained
-// indefinitely so the LLM can build month/year context from it. Kept as a route
-// (rather than removed) only so older installed app builds that still call it
-// on mount don't hit a 404; it performs no deletion.
-router.delete('/cleanup-old', async (_req: Request, res: Response): Promise<void> => {
-  res.json({ success: true });
-});
-
-// PATCH /api/summaries/:id/save - Mark a summary as saved
-router.patch('/:id/save', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-    const supabase = getSupabase();
-
-    const { data, error } = await supabase
-      .schema('oasis')
-      .from('weekly_summaries')
-      .update({ is_saved: true })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.json({ success: true, data });
-  } catch (error: any) {
-    console.error('[Summaries] Error saving:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// DELETE /api/summaries/:id - Delete a saved summary
-router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-    const supabase = getSupabase();
-
-    const { error } = await supabase
-      .schema('oasis')
-      .from('weekly_summaries')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    if (error) throw error;
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('[Summaries] Error deleting:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
 });
 
 export default router;

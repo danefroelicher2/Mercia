@@ -10,7 +10,6 @@ import ChatScreen from '../screens/ChatScreen';
 import RoutineScreen from '../screens/RoutineScreen';
 import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import SummaryHistoryScreen from '../screens/SummaryHistoryScreen';
 import SummaryDataScreen from '../screens/SummaryDataScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
@@ -41,7 +40,6 @@ export type MainTabParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
-  SummaryHistory: undefined;
   SummaryData: undefined;
   GymMemory: undefined;
   NotificationSettings: undefined;
@@ -97,23 +95,6 @@ const ProfileStackNavigator: React.FC = () => {
       }}
     >
       <ProfileStack.Screen name="Profile" component={ProfileScreen} />
-      <ProfileStack.Screen
-        name="SummaryHistory"
-        component={SummaryHistoryScreen}
-        options={{
-          headerShown: true,
-          title: 'Summary History',
-          headerBackTitle: 'Back',
-          headerStyle: {
-            backgroundColor: '#1A1A1A',
-          },
-          headerTintColor: '#FFFFFF',
-          headerTitleStyle: {
-            fontWeight: '600',
-            fontSize: 17,
-          },
-        }}
-      />
       <ProfileStack.Screen
         name="GymMemory"
         component={GymMemoryScreen}

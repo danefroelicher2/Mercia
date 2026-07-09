@@ -14,12 +14,9 @@ import { colors } from '../constants/theme';
 import { useSubscription } from '../context/SubscriptionContext';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
-import { WeeklySummary } from '../types/summary';
 import { RoutineTask, RoutineGoal } from '../types/routine';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
-import WeeklySummaryBanner from '../components/WeeklySummaryBanner';
-import WeeklySummaryModal from '../components/WeeklySummaryModal';
 import DailyChatSheet from '../components/DailyChatSheet';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -105,14 +102,6 @@ const MerciaHomeScreen: React.FC = () => {
   // SHARED STATE
   // ============================================
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-
-  // ============================================
-  // DAILY SUMMARY STATE
-  // ============================================
-  const [currentSummary, setCurrentSummary] = useState<WeeklySummary | null>(null);
-  const [summaryModalVisible, setSummaryModalVisible] = useState(false);
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveSummary, setLiveSummary] = useState<WeeklySummary | null>(null);
 
   // ============================================
   // RINGS STATE
@@ -217,55 +206,9 @@ const MerciaHomeScreen: React.FC = () => {
     console.log('[MerciaHomeScreen] subscription state — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent);
   }, [isSubscribed, isLoadingSubscription, hasConsent, isLoadingConsent]);
 
-  // Load daily summary on mount and show last-chance modal for unsaved summaries
-  useEffect(() => {
-    const loadSummary = async () => {
-      try {
-        const response = await api.get('/api/summaries/current');
-        if (response.data.success && response.data.data) {
-          const summary: WeeklySummary = response.data.data;
-          // Only show banner for summaries from yesterday or today — ignore stale records
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
-          const todayStr = new Date().toISOString().split('T')[0];
-          if (summary.week_end_date >= yesterdayStr && summary.week_end_date <= todayStr) {
-            setCurrentSummary(summary);
-          }
-        }
-      } catch (error) {
-        console.error('[MerciaHomeScreen] Error loading summary:', error);
-      }
-    };
-    loadSummary();
-  }, []);
-
   // ============================================
   // HANDLERS
   // ============================================
-
-  const handleOpenSummary = async () => {
-    setSummaryModalVisible(true);
-    setLiveLoading(true);
-    setLiveSummary(null);
-    try {
-      const res = await api.get('/api/summaries/live');
-      if (res.data.success) {
-        setLiveSummary(res.data.data);
-      } else {
-        setLiveSummary(currentSummary);
-      }
-    } catch {
-      setLiveSummary(currentSummary);
-    } finally {
-      setLiveLoading(false);
-    }
-  };
-
-  const handleSaveSummary = async (summaryId: string) => {
-    await api.patch(`/api/summaries/${summaryId}/save`);
-    setCurrentSummary(prev => prev ? { ...prev, is_saved: true } : null);
-  };
 
   const onRefresh = async () => {
     setIsRefreshing(true);
@@ -365,24 +308,7 @@ const MerciaHomeScreen: React.FC = () => {
           <Text style={styles.outlookArrow}>›</Text>
         </TouchableOpacity>
 
-        {/* Daily Summary Banner */}
-        <WeeklySummaryBanner
-          summary={currentSummary}
-          onPress={handleOpenSummary}
-        />
       </ScrollView>
-
-      {/* Daily Summary Modal */}
-      <WeeklySummaryModal
-        visible={summaryModalVisible}
-        summary={liveSummary}
-        loading={liveLoading}
-        onDismiss={() => {
-          setSummaryModalVisible(false);
-          setLiveSummary(null);
-        }}
-        onSave={liveSummary?.id !== 'live' ? handleSaveSummary : undefined}
-      />
 
       {/* Day in Review Sheet */}
       <DailyChatSheet ref={reviewSheetRef} chatId={reviewChatId} isGenerating={isOpeningReview} />

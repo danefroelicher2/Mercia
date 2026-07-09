@@ -1,7 +1,5 @@
 import { CronJob } from 'cron';
-import { getLLM } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
-import { sendPush } from '../services/pushNotifications';
 import {
   computeSummaryStats,
   getYesterdayDateString,
@@ -10,11 +8,12 @@ import {
 
 // ============================================
 // DAILY SUMMARY JOB
-// Runs at 6:00 AM EST every day.
-// Reads task_completion_history for yesterday,
-// computes stats, calls Groq for a short narrative,
-// and upserts into weekly_summaries (same table/schema
-// as before — only the cadence and data source change).
+// Runs at 6:00 AM EST every day. Reads task_completion_history for yesterday,
+// computes stats, and upserts into weekly_summaries. This is purely a data
+// pipeline now — the old push notification and narrative generation it used
+// to also do were removed along with the "Yesterday's Summary" UI they fed;
+// Daily Outlook and Day in Review (backend/src/lib/dailyChatContext.ts) read
+// straight from weekly_summaries/task_completion_history instead.
 // ============================================
 
 export function startDailySummaryJob(): CronJob {
@@ -86,52 +85,9 @@ async function generateSummaryForUser(
 
   // ── 1–7. Compute all stats via shared helper ──────────────────────────────
   const stats = await computeSummaryStats(userId, date, supabase);
-
-  // Re-derive gymGroup for the narrative prompt (one lightweight query)
-  const { data: gymRows } = await supabase
-    .schema('oasis')
-    .from('gym_workout_log')
-    .select('workout_group')
-    .eq('user_id', userId)
-    .eq('logged_date', date);
-  const gymGroup = (gymRows && gymRows.length > 0) ? (gymRows[0] as any).workout_group : null;
-  const gymLoggedToday = (gymRows || []).length > 0;
-
   const hasData = stats.has_complete_data;
 
-  // ── 8. Groq narrative (skip if no data) ───────────────────────────────────
-  let narrative: string | null = null;
-  if (hasData) {
-    try {
-      const llm = getLLM();
-      const prompt = buildNarrativePrompt({
-        dayOfWeek,
-        todayCompleted: stats.today_completed,
-        todayTotal: stats.today_total,
-        tasksMissed: stats.tasks_missed_frequently.map((t: any) => t.task_name),
-        gymLogged: gymLoggedToday,
-        gymGroup,
-      });
-
-      narrative = await llm.chat(
-        [
-          {
-            role: 'system',
-            content:
-              'You are Mercia, a personal AI coach. Write short, direct daily summaries. ' +
-              'Be specific and honest. Never use generic filler. Never use the word "navigate".',
-          },
-          { role: 'user', content: prompt },
-        ],
-        { temperature: 0.65, maxTokens: 120 }
-      );
-      console.log(`[DAILY-SUMMARY] Narrative generated for user ${userId}`);
-    } catch (err) {
-      console.error(`[DAILY-SUMMARY] Groq call failed for user ${userId}:`, err);
-    }
-  }
-
-  // ── 9. Upsert into weekly_summaries ───────────────────────────────────────
+  // ── 8. Upsert into weekly_summaries ───────────────────────────────────────
   const { error: upsertError } = await supabase
     .schema('oasis')
     .from('weekly_summaries')
@@ -175,105 +131,6 @@ async function generateSummaryForUser(
   }
 
   console.log(
-    `[DAILY-SUMMARY] Saved — user ${userId} | score: ${stats.today_percentage}% today | ` +
-    `gym: ${gymLoggedToday} | narrative: ${!!narrative}`
+    `[DAILY-SUMMARY] Saved — user ${userId} | score: ${stats.today_percentage}% today`
   );
-
-  // ── 10. Push notification ─────────────────────────────────────────────────
-  const { data: prefRow } = await supabase
-    .schema('oasis')
-    .from('notification_preferences')
-    .select('weekly_summary_enabled')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const summaryEnabled = prefRow ? prefRow.weekly_summary_enabled : true;
-
-  if (summaryEnabled && hasData) {
-    let pushBody = 'Your daily summary is ready.';
-    try {
-      const llm = getLLM();
-      const pushPrompt = buildPushPrompt({
-        todayCompleted: stats.today_completed,
-        todayTotal: stats.today_total,
-        gymLogged: gymLoggedToday,
-        gymGroup,
-        overallPct: stats.overall_percentage,
-        isImprovement: stats.is_improvement,
-        improvementPct: stats.improvement_percentage,
-        narrative,
-      });
-      const rawPush = await llm.chat(
-        [
-          {
-            role: 'system',
-            content:
-              'You are Mercia. Write one punchy push notification line — under 60 characters. ' +
-              'Be specific, direct, and personal. No quotes. No period at the end. No filler.',
-          },
-          { role: 'user', content: pushPrompt },
-        ],
-        { temperature: 0.7, maxTokens: 30 }
-      );
-      if (rawPush && rawPush.trim().length > 0) {
-        pushBody = rawPush.trim().replace(/^["']|["']$/g, '');
-      }
-    } catch (err) {
-      console.error(`[DAILY-SUMMARY] Push body generation failed for user ${userId}:`, err);
-    }
-
-    await sendPush(userId, 'Daily Summary Ready', pushBody, { screen: 'SummaryHistory' });
-    console.log(`[DAILY-SUMMARY] Push sent to user ${userId}: "${pushBody}"`);
-  }
 }
-
-// ============================================
-// NARRATIVE PROMPT
-// ============================================
-
-function buildNarrativePrompt(data: {
-  dayOfWeek: string;
-  todayCompleted: number;
-  todayTotal: number;
-  tasksMissed: string[];
-  gymLogged: boolean;
-  gymGroup: string | null;
-}): string {
-  const lines: string[] = [];
-  lines.push(`Day: ${data.dayOfWeek}`);
-  lines.push(`Today: ${data.todayCompleted}/${data.todayTotal} completed`);
-  if (data.tasksMissed.length > 0) {
-    lines.push(`Missed: ${data.tasksMissed.slice(0, 3).join(', ')}`);
-  }
-  lines.push(`Gym: ${data.gymLogged ? `yes — ${data.gymGroup}` : 'no'}`);
-  lines.push('');
-  lines.push(
-    'Write exactly 2 sentences. Sentence 1: what stood out about this day (be specific about the numbers or the gym). ' +
-    'Sentence 2: one direct, actionable callout — either reinforce what worked or name what to fix tomorrow. ' +
-    'Under 55 words total.'
-  );
-  return lines.join('\n');
-}
-
-function buildPushPrompt(data: {
-  todayCompleted: number;
-  todayTotal: number;
-  gymLogged: boolean;
-  gymGroup: string | null;
-  overallPct: number;
-  isImprovement: boolean;
-  improvementPct: number;
-  narrative: string | null;
-}): string {
-  const lines: string[] = [];
-  lines.push(`Today: ${data.todayCompleted}/${data.todayTotal}`);
-  if (data.gymLogged) lines.push(`Gym: ${data.gymGroup ?? 'yes'}`);
-  lines.push(`Overall score: ${data.overallPct}%`);
-  if (data.improvementPct > 0) {
-    lines.push(`${data.isImprovement ? '+' : '-'}${data.improvementPct}% vs yesterday`);
-  }
-  if (data.narrative) lines.push(`Summary: ${data.narrative}`);
-  lines.push('Write one notification line that makes them want to open the app.');
-  return lines.join('\n');
-}
-
