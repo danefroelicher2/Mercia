@@ -28,6 +28,62 @@ function getTodayDayOfWeek(): string {
   return DAYS[index];
 }
 
+// The daily check-in card changes identity with the user's local time of day.
+// new Date().getHours() is already device-local (= the user's timezone), and
+// the request separately sends the IANA timezone so the backend computes
+// "today"/"yesterday" against the user's calendar day, not the server's.
+type DayPhase = 'morning' | 'midday' | 'evening' | 'lateNight';
+
+function getDayPhase(now: Date = new Date()): DayPhase {
+  const hour = now.getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'midday';
+  if (hour >= 18) return 'evening';
+  // Midnight–4:59am: the calendar day has flipped but the user is still
+  // living "yesterday" — the close-out must review the day they just lived,
+  // not the brand-new (empty) calendar day.
+  return 'lateNight';
+}
+
+interface CheckInCardConfig {
+  title: string;
+  subtitle: string;
+  endpoint: '/api/chat/daily-outlook' | '/api/chat/day-in-review';
+  body: Record<string, unknown>;
+}
+
+// Morning and midday share the same persistent daily-outlook chat (the
+// morning opener bakes in yesterday's recap server-side); evening opens a
+// fresh close-out of today via the review endpoint's scope param.
+const CHECK_IN_CARDS: Record<DayPhase, CheckInCardConfig> = {
+  morning: {
+    title: 'Morning Outlook',
+    subtitle: "Yesterday's recap and today's plan",
+    endpoint: '/api/chat/daily-outlook',
+    body: {},
+  },
+  midday: {
+    title: 'Midday Check-In',
+    subtitle: "How today's tracking so far",
+    endpoint: '/api/chat/daily-outlook',
+    body: {},
+  },
+  evening: {
+    title: 'Close Out Today',
+    subtitle: 'Wrap up today with Mercia',
+    endpoint: '/api/chat/day-in-review',
+    body: { scope: 'today' },
+  },
+  // Same card identity as evening, but past local midnight "the day you just
+  // lived" is calendar-yesterday — so it reviews yesterday's numbers.
+  lateNight: {
+    title: 'Close Out Today',
+    subtitle: 'Wrap up your day with Mercia',
+    endpoint: '/api/chat/day-in-review',
+    body: { scope: 'yesterday' },
+  },
+};
+
 // Ring 2 ("Overall") category weights — see
 // docs/superpowers/specs/2026-07-08-home-tab-rings-design.md for the full reasoning.
 const ROUTINE_WEIGHT = 30;
@@ -139,15 +195,12 @@ const MerciaHomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
   // ============================================
-  // DAILY OUTLOOK / DAY IN REVIEW SHEET STATE
+  // DAILY CHECK-IN SHEET STATE (time-of-day adaptive)
   // ============================================
-  const outlookSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
-  const [outlookChatId, setOutlookChatId] = useState<string | null>(null);
-  const [isOpeningOutlook, setIsOpeningOutlook] = useState(false);
-
-  const reviewSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
-  const [reviewChatId, setReviewChatId] = useState<string | null>(null);
-  const [isOpeningReview, setIsOpeningReview] = useState(false);
+  const checkInSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const [checkInChatId, setCheckInChatId] = useState<string | null>(null);
+  const [isOpeningCheckIn, setIsOpeningCheckIn] = useState(false);
+  const [dayPhase, setDayPhase] = useState<DayPhase>(getDayPhase);
 
   // ============================================
   // EFFECTS
@@ -269,12 +322,22 @@ const MerciaHomeScreen: React.FC = () => {
 
   // Recompute both rings every time this tab gains focus, so crossing items
   // off (or undoing them) anywhere — Routine tasks, goals, gym log — is
-  // always reflected accurately when the user comes back here.
+  // always reflected accurately when the user comes back here. The check-in
+  // card's phase is re-derived at the same time so a stale card never
+  // survives a tab switch.
   useFocusEffect(
     useCallback(() => {
       loadRings();
+      setDayPhase(getDayPhase());
     }, [loadRings])
   );
+
+  // Keep the phase current while the screen stays open across a boundary
+  // (e.g. sitting on Home at 11:59am) — cheap once-a-minute local check.
+  useEffect(() => {
+    const interval = setInterval(() => setDayPhase(getDayPhase()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Load consent state once on mount
   useEffect(() => {
@@ -299,44 +362,36 @@ const MerciaHomeScreen: React.FC = () => {
     setIsRefreshing(false);
   };
 
-  // Shared by both cards: open the sheet immediately (it shows its own
-  // "aggregating" loading bubble), then find-or-create today's chat for this
-  // endpoint in the background. A chat persists across app backgrounding/tab
-  // switches for the rest of the day and resets at midnight — see
-  // /api/chat/daily-outlook and /api/chat/day-in-review on the backend.
-  const openDailyChat = (
-    endpoint: '/api/chat/daily-outlook' | '/api/chat/day-in-review',
-    sheetRef: React.RefObject<React.ElementRef<typeof BottomSheetModal> | null>,
-    setChatId: (id: string | null) => void,
-    setIsOpening: (value: boolean) => void
-  ) => {
-    setIsOpening(true);
-    setChatId(null);
-    sheetRef.current?.present();
+  // Open the sheet immediately (it shows its own "aggregating" loading
+  // bubble), then find-or-create the chat for the current phase's endpoint in
+  // the background. Morning/midday share the persistent daily-outlook chat
+  // (resets at the user's local midnight); evening always regenerates a fresh
+  // close-out of today. The IANA timezone is sent so the backend computes
+  // dates against the user's calendar day, not the server's.
+  const handleOpenCheckIn = () => {
+    if (isOpeningCheckIn) return;
+    const config = CHECK_IN_CARDS[dayPhase];
+
+    setIsOpeningCheckIn(true);
+    setCheckInChatId(null);
+    checkInSheetRef.current?.present();
 
     (async () => {
       try {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const response = await api.post<CreateDailyChatApiResponse>(endpoint, { timezone });
+        const response = await api.post<CreateDailyChatApiResponse>(config.endpoint, {
+          timezone,
+          ...config.body,
+        });
         if (response.data.success && response.data.data) {
-          setChatId(response.data.data.chat.id);
+          setCheckInChatId(response.data.data.chat.id);
         }
       } catch (error) {
-        console.error(`[MerciaHomeScreen] Error opening ${endpoint}:`, error);
+        console.error(`[MerciaHomeScreen] Error opening ${config.endpoint}:`, error);
       } finally {
-        setIsOpening(false);
+        setIsOpeningCheckIn(false);
       }
     })();
-  };
-
-  const handleOpenDailyOutlook = () => {
-    if (isOpeningOutlook) return;
-    openDailyChat('/api/chat/daily-outlook', outlookSheetRef, setOutlookChatId, setIsOpeningOutlook);
-  };
-
-  const handleOpenDayInReview = () => {
-    if (isOpeningReview) return;
-    openDailyChat('/api/chat/day-in-review', reviewSheetRef, setReviewChatId, setIsOpeningReview);
   };
 
   const handleOpenTodayRing = () => {
@@ -396,41 +451,24 @@ const MerciaHomeScreen: React.FC = () => {
           onPressMomentum={handleOpenMomentumRing}
         />
 
-        {/* Day in Review */}
+        {/* Daily check-in — one card whose identity follows the time of day */}
         <TouchableOpacity
           style={styles.outlookCard}
-          onPress={handleOpenDayInReview}
+          onPress={handleOpenCheckIn}
           activeOpacity={0.8}
-          disabled={isOpeningReview}
+          disabled={isOpeningCheckIn}
         >
           <View style={styles.outlookTextContainer}>
-            <Text style={styles.outlookTitle}>Day in Review</Text>
-            <Text style={styles.outlookSubtitle}>Look back at yesterday with Mercia</Text>
-          </View>
-          <Text style={styles.outlookArrow}>›</Text>
-        </TouchableOpacity>
-
-        {/* Daily Outlook */}
-        <TouchableOpacity
-          style={styles.outlookCard}
-          onPress={handleOpenDailyOutlook}
-          activeOpacity={0.8}
-          disabled={isOpeningOutlook}
-        >
-          <View style={styles.outlookTextContainer}>
-            <Text style={styles.outlookTitle}>Daily Outlook</Text>
-            <Text style={styles.outlookSubtitle}>Talk to Mercia about your day</Text>
+            <Text style={styles.outlookTitle}>{CHECK_IN_CARDS[dayPhase].title}</Text>
+            <Text style={styles.outlookSubtitle}>{CHECK_IN_CARDS[dayPhase].subtitle}</Text>
           </View>
           <Text style={styles.outlookArrow}>›</Text>
         </TouchableOpacity>
 
       </ScrollView>
 
-      {/* Day in Review Sheet */}
-      <DailyChatSheet ref={reviewSheetRef} chatId={reviewChatId} isGenerating={isOpeningReview} />
-
-      {/* Daily Outlook Sheet */}
-      <DailyChatSheet ref={outlookSheetRef} chatId={outlookChatId} isGenerating={isOpeningOutlook} />
+      {/* Daily check-in sheet */}
+      <DailyChatSheet ref={checkInSheetRef} chatId={checkInChatId} isGenerating={isOpeningCheckIn} />
 
       {/* Ring detail sheets */}
       <TodayRingSheet

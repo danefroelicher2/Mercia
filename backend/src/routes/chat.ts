@@ -97,12 +97,21 @@ router.post('/daily-outlook', async (req: Request, res: Response): Promise<void>
       llm: getLLM(),
       getLocalDateString,
       buildSystemPrompt: async () => {
-        const monthLog = await buildMonthLog({ userId, todayDateStr, supabase });
+        // Yesterday is baked into the opener itself (no separate review chat in
+        // the morning) — recap first, then pivot to today.
+        const yesterdayDateStr = getPreviousDateString(todayDateStr);
+        const [monthLog, yesterdayLog] = await Promise.all([
+          buildMonthLog({ userId, todayDateStr, supabase }),
+          buildYesterdayLog({ userId, yesterdayDateStr, supabase }),
+        ]);
         return (
           'You are Mercia, a direct personal AI coach opening a "Daily Outlook" conversation with the user. ' +
           "Below is the user's day-by-day log for this month so far (oldest first), ending with today's live numbers:\n\n" +
           `${monthLog}\n\n` +
-          'Write a short opening message: 3-5 sentences. Call out what stands out this month so far ' +
+          "Yesterday specifically:\n" +
+          `${yesterdayLog}\n\n` +
+          'Write a short opening message: 4-6 sentences. Start with a one-sentence recap of yesterday — ' +
+          'what went well or fell short, using its numbers. Then call out what stands out this month so far ' +
           '(a streak, a slump, a specific weak category), state where today stands right now, and end with ' +
           'one direct, specific thing to focus on today. Be concrete with numbers. No greeting, no filler, ' +
           'no generic encouragement, never use the word "navigate".'
@@ -122,25 +131,31 @@ router.post('/daily-outlook', async (req: Request, res: Response): Promise<void>
 
 /**
  * POST /api/chat/day-in-review
- * Always creates a fresh "Day in Review" chat — a retrospective focused on
- * yesterday, regenerated every time it's opened rather than cached through
- * the day. Unlike /daily-outlook, this deliberately does not persist: the
- * Routine tab lets the user edit a past day's task completions (e.g. cross
- * something off for yesterday), which changes the numbers this reads, so a
- * cached review could go stale mid-day. Recalculating every open guarantees
- * it always reflects the latest data.
+ * Always creates a fresh review chat, regenerated every time it's opened
+ * rather than cached through the day. Unlike /daily-outlook, this
+ * deliberately does not persist: the Routine tab lets the user edit a past
+ * day's task completions (e.g. cross something off for yesterday), which
+ * changes the numbers this reads, so a cached review could go stale mid-day.
+ * Recalculating every open guarantees it always reflects the latest data.
+ *
+ * Body scope (optional): 'yesterday' (default) reviews yesterday — the
+ * original behavior. 'today' reviews the current day as it winds down —
+ * the Home tab's evening "Close Out Today" card. All dates are computed in
+ * the user's own timezone (sent by the client), so "today" flips at the
+ * user's local midnight, not the server's.
  */
 router.post('/day-in-review', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const timezone = typeof req.body?.timezone === 'string' ? req.body.timezone : undefined;
+    const scope: 'today' | 'yesterday' = req.body?.scope === 'today' ? 'today' : 'yesterday';
     const todayDateStr = getLocalDateString(timezone);
-    const yesterdayDateStr = getPreviousDateString(todayDateStr);
+    const reviewDateStr = scope === 'today' ? todayDateStr : getPreviousDateString(todayDateStr);
     const supabase = getSupabase();
 
     const { chat } = await getOrCreateDailyChat({
       userId,
-      title: 'Day in Review',
+      title: scope === 'today' ? 'Close Out Today' : 'Day in Review',
       todayDateStr,
       timezone,
       supabase,
@@ -149,11 +164,23 @@ router.post('/day-in-review', async (req: Request, res: Response): Promise<void>
       getLocalDateString,
       alwaysCreateNew: true,
       buildSystemPrompt: async () => {
-        const yesterdayLog = await buildYesterdayLog({ userId, yesterdayDateStr, supabase });
+        // buildYesterdayLog reconstructs any date's numbers live, so it works
+        // for today-in-progress just as well as for a completed yesterday.
+        const reviewLog = await buildYesterdayLog({ userId, yesterdayDateStr: reviewDateStr, supabase });
+        if (scope === 'today') {
+          return (
+            'You are Mercia, a direct personal AI coach opening a "Close Out Today" conversation with the user ' +
+            "in the evening, looking back at today as it winds down. Here's today's numbers so far:\n\n" +
+            `${reviewLog}\n\n` +
+            'Write a short close-out: 3-5 sentences. Call out what got done and what fell short today, be ' +
+            'specific with the numbers, flag anything still doable tonight, and end with one specific thing ' +
+            'to set up for tomorrow. No greeting, no filler, no generic encouragement, never use the word "navigate".'
+          );
+        }
         return (
           'You are Mercia, a direct personal AI coach opening a "Day in Review" conversation with the user, ' +
           "looking back at yesterday specifically. Here's yesterday's numbers:\n\n" +
-          `${yesterdayLog}\n\n` +
+          `${reviewLog}\n\n` +
           'Write a short review: 3-5 sentences. Call out what went well and what fell short, be specific ' +
           'with the numbers, and note anything worth carrying into today. No greeting, no filler, ' +
           'no generic encouragement, never use the word "navigate".'
