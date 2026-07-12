@@ -12,6 +12,7 @@ import StatsScreen from '../screens/StatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SummaryDataScreen from '../screens/SummaryDataScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
+import GymArchiveScreen from '../screens/GymArchiveScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import RoutinePreferencesScreen from '../screens/RoutinePreferencesScreen';
@@ -42,6 +43,7 @@ export type ProfileStackParamList = {
   Profile: undefined;
   SummaryData: undefined;
   GymMemory: undefined;
+  GymArchive: undefined;
   NotificationSettings: undefined;
   YearlyGoals: undefined;
   RoutinePreferences: undefined;
@@ -101,6 +103,18 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Gym Memory',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="GymArchive"
+        component={GymArchiveScreen}
+        options={{
+          headerShown: true,
+          title: 'Gym Archive',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',

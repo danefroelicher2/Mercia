@@ -815,11 +815,32 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .from('gym_memory')
       .select('*')
       .eq('user_id', userId)
+      .eq('archived', false)
       .order('workout_group', { ascending: true })
       .order('pinned', { ascending: false })
       .order('session_date', { ascending: false });
 
     if (error) throw new Error(`Failed to get gym memory: ${error.message}`);
+
+    const groups: Record<string, GymMemoryEntry[]> = {};
+    for (const row of data || []) {
+      if (!groups[row.workout_group]) groups[row.workout_group] = [];
+      groups[row.workout_group].push(row);
+    }
+
+    return Object.entries(groups).map(([workout_group, entries]) => ({ workout_group, entries }));
+  }
+
+  async getGymMemoryArchive(userId: string): Promise<GymMemoryGroup[]> {
+    const { data, error } = await this.client
+      .from('gym_memory')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('archived', true)
+      .order('workout_group', { ascending: true })
+      .order('session_date', { ascending: false });
+
+    if (error) throw new Error(`Failed to get gym memory archive: ${error.message}`);
 
     const groups: Record<string, GymMemoryEntry[]> = {};
     for (const row of data || []) {
@@ -837,6 +858,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .select('*')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
+      .eq('archived', false)
       .order('pinned', { ascending: false })
       .order('session_date', { ascending: false })
       .limit(6);
@@ -858,14 +880,17 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
     if (upsertError) throw new Error(`Failed to save gym memory entry: ${upsertError.message}`);
 
-    // Retention: keep at most 5 sessions per user+group. Pinned sessions are never
-    // deleted; they still count toward the cap of 5, leaving (5 - pinnedCount) slots
-    // for the most-recent unpinned sessions. The oldest unpinned overflow is deleted.
+    // Retention: at most 5 ACTIVE sessions per user+group. Pinned sessions never
+    // age out; they still count toward the cap of 5, leaving (5 - pinnedCount)
+    // slots for the most-recent unpinned sessions. The oldest unpinned overflow
+    // is ARCHIVED (archived=true), not deleted — it moves to the Gym Archive in
+    // settings and the permanent gym history is never destroyed.
     const { data: all, error: selectError } = await this.client
       .from('gym_memory')
       .select('id, pinned, session_date')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
+      .eq('archived', false)
       .order('session_date', { ascending: false });
 
     if (selectError) throw new Error(`Failed to fetch gym memory for trimming: ${selectError.message}`);
@@ -879,14 +904,14 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       ...pinned.map((r: any) => r.id),
       ...unpinned.slice(0, unpinnedKeep).map((r: any) => r.id),
     ]);
-    const deleteIds = rows.filter((r: any) => !keepIds.has(r.id)).map((r: any) => r.id);
+    const archiveIds = rows.filter((r: any) => !keepIds.has(r.id)).map((r: any) => r.id);
 
-    if (deleteIds.length > 0) {
+    if (archiveIds.length > 0) {
       await this.client
         .from('gym_memory')
-        .delete()
+        .update({ archived: true })
         .eq('user_id', userId)
-        .in('id', deleteIds);
+        .in('id', archiveIds);
     }
   }
 
@@ -909,7 +934,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('workout_group', entry.workout_group)
-        .eq('pinned', true);
+        .eq('pinned', true)
+        .eq('archived', false);
 
       if (countError) throw new Error(`Failed to count pinned entries: ${countError.message}`);
       if ((count ?? 0) >= GYM_MEMORY_MAX_PINNED) {

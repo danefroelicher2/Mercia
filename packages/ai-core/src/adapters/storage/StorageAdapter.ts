@@ -25,6 +25,7 @@ export interface GymMemoryEntry {
   notes: string;
   session_date: string;
   pinned: boolean;
+  archived: boolean;
   created_at: string;
 }
 
@@ -273,6 +274,8 @@ export interface StorageAdapter {
   // ============================================
 
   getGymMemory(userId: string): Promise<GymMemoryGroup[]>;
+  /** Archived (aged-out) sessions, grouped — the permanent gym history. */
+  getGymMemoryArchive(userId: string): Promise<GymMemoryGroup[]>;
   getGymMemoryByGroup(userId: string, workoutGroup: string): Promise<GymMemoryEntry[]>;
   saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void>;
   setGymMemoryPinned(userId: string, entryId: string, pinned: boolean): Promise<GymMemoryEntry>;

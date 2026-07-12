@@ -175,6 +175,23 @@ router.get('/memory', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/gym/memory/archive
+ * Archived (aged-out) sessions grouped by workout name — the permanent gym
+ * history. Registered BEFORE /memory/:group so "archive" is never captured
+ * as a group name.
+ */
+router.get('/memory/archive', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const storage = getStorage();
+    const groups = await storage.getGymMemoryArchive(userId);
+    res.json({ success: true, data: groups });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/gym/memory/:group
  * Get entries for a specific group
  */

@@ -390,6 +390,9 @@ const RoutineScreen: React.FC = () => {
               text: task.text,
               type: 'today',
               dayOfWeek: selectedDay,
+              // Preserve countdown targets — omitting this made every copied
+              // task default back to a single-tap task.
+              targetCount: task.target_count ?? 1,
             });
           } catch (err) {
             console.error('[RoutineScreen] Error copying task:', err);
