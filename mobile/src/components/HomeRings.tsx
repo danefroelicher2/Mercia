@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ProgressRing from './ProgressRing';
 
 const C = {
@@ -14,13 +14,20 @@ const RING_STROKE = 11;
 
 interface HomeRingsProps {
   todayPercentage: number;
-  overallPercentage: number;
+  momentumPercentage: number;
+  onPressToday?: () => void;
+  onPressMomentum?: () => void;
 }
 
-const HomeRings: React.FC<HomeRingsProps> = ({ todayPercentage, overallPercentage }) => {
+const HomeRings: React.FC<HomeRingsProps> = ({
+  todayPercentage,
+  momentumPercentage,
+  onPressToday,
+  onPressMomentum,
+}) => {
   return (
     <View style={styles.container}>
-      <View style={styles.ringItem}>
+      <TouchableOpacity style={styles.ringItem} onPress={onPressToday} activeOpacity={0.7}>
         <ProgressRing
           percentage={todayPercentage}
           color={C.teal}
@@ -29,18 +36,18 @@ const HomeRings: React.FC<HomeRingsProps> = ({ todayPercentage, overallPercentag
           stroke={RING_STROKE}
         />
         <Text style={[styles.ringLabel, { color: C.teal }]}>Today</Text>
-      </View>
+      </TouchableOpacity>
 
-      <View style={styles.ringItem}>
+      <TouchableOpacity style={styles.ringItem} onPress={onPressMomentum} activeOpacity={0.7}>
         <ProgressRing
-          percentage={overallPercentage}
+          percentage={momentumPercentage}
           color={C.blue}
           trackColor={C.trackBlue}
           size={RING_SIZE}
           stroke={RING_STROKE}
         />
-        <Text style={[styles.ringLabel, { color: C.blue }]}>Overall</Text>
-      </View>
+        <Text style={[styles.ringLabel, { color: C.blue }]}>Momentum</Text>
+      </TouchableOpacity>
     </View>
   );
 };

@@ -256,6 +256,13 @@ export interface StorageAdapter {
   // GYM WORKOUT LOG OPERATIONS
   // ============================================
 
+  /**
+   * Weekly gym-day target (1-7) stored on user_profiles. Null = user never set
+   * one; callers apply the app default and label it as such.
+   */
+  getGymTargetDays(userId: string): Promise<number | null>;
+  setGymTargetDays(userId: string, targetDays: number): Promise<number>;
+
   getGymWorkoutLog(userId: string, dayOfWeek: string, weekNumber: number, year: number): Promise<GymWorkoutLog | null>;
   upsertGymWorkoutLog(userId: string, dayOfWeek: string, workoutGroup: string, notes: string, weekNumber: number, year: number): Promise<GymWorkoutLog>;
   getGymWorkoutLogForWeek(userId: string, weekNumber: number, year: number): Promise<GymWorkoutLog[]>;

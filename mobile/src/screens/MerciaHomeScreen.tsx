@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '../constants/theme';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -18,6 +18,7 @@ import { RoutineTask, RoutineGoal } from '../types/routine';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import DailyChatSheet from '../components/DailyChatSheet';
+import { TodayRingSheet, MomentumRingSheet, MomentumData } from '../components/RingDetailSheets';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -34,10 +35,6 @@ const GYM_WEIGHT = 20;
 const WEEKLY_WEIGHT = 20;
 const MONTHLY_WEIGHT = 30;
 
-function ratio(completed: number, total: number): number {
-  return total > 0 ? completed / total : 0;
-}
-
 function getLocalDateString(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -50,6 +47,18 @@ function getLocalDateString(date: Date, timezone: string): string {
 interface GoalCategoryResult {
   score: number;
   isActive: boolean;
+  completedToday: number;
+  remaining: number;
+}
+
+// A task's contribution to the Today ring. Countdown tasks (target_count > 1)
+// earn partial credit as they're ticked down — 4 of 5 taps is 0.8, not 0.
+function taskProgress(task: RoutineTask): number {
+  if (task.completed) return 1;
+  const target = task.target_count ?? 1;
+  if (target <= 1) return 0;
+  const current = task.current_count ?? target;
+  return Math.min(1, Math.max(0, (target - current) / target));
 }
 
 // Weekly/monthly goals reset to 0% every day — completing something today
@@ -67,7 +76,7 @@ function computeGoalCategoryScore(
   if (total === 0) {
     // No goals of this type at all — excluded from the calculation entirely,
     // not just "0 points" (that would still dilute the denominator).
-    return { score: 0, isActive: false };
+    return { score: 0, isActive: false, completedToday: 0, remaining: 0 };
   }
 
   let alreadyDoneBeforeToday = 0;
@@ -87,7 +96,20 @@ function computeGoalCategoryScore(
     ? weight // nothing left — already finished, full credit, no penalty
     : weight * (completedToday / remaining);
 
-  return { score, isActive: true };
+  return { score, isActive: true, completedToday, remaining };
+}
+
+// Gym scoring against the user's weekly day target: full credit while on pace
+// (rest days are free as long as the target is still comfortably reachable),
+// proportional credit when behind, and full — but capped — credit once the
+// target is met, so a 5th day on a 4-day target never penalizes or overflows.
+// "Expected by end of today" uses floor() so early-week rest days don't count
+// against you: target 4 → expected 0 by Mon, 1 by Tue, ..., 4 by Sun.
+function computeGymRatio(done: number, targetDays: number, todayIndex: number): number {
+  if (done >= targetDays) return 1;
+  const expectedByToday = Math.floor((targetDays * (todayIndex + 1)) / 7);
+  if (expectedByToday === 0) return 1;
+  return Math.min(1, done / expectedByToday);
 }
 
 const MerciaHomeScreen: React.FC = () => {
@@ -107,7 +129,14 @@ const MerciaHomeScreen: React.FC = () => {
   // RINGS STATE
   // ============================================
   const [todayPercentage, setTodayPercentage] = useState(0);
-  const [overallPercentage, setOverallPercentage] = useState(0);
+  const [momentumPercentage, setMomentumPercentage] = useState(0);
+  const [todayTasks, setTodayTasks] = useState<RoutineTask[]>([]);
+  const [momentumData, setMomentumData] = useState<MomentumData | null>(null);
+  const [isSavingTarget, setIsSavingTarget] = useState(false);
+
+  const todayRingSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const momentumRingSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const navigation = useNavigation<any>();
 
   // ============================================
   // DAILY OUTLOOK / DAY IN REVIEW SHEET STATE
@@ -127,37 +156,51 @@ const MerciaHomeScreen: React.FC = () => {
   const loadRings = useCallback(async () => {
     try {
       const day = getTodayDayOfWeek();
+      const todayIndex = DAYS.indexOf(day); // Mon=0 … Sun=6
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const todayDateStr = getLocalDateString(new Date(), timezone);
 
-      const [tasksRes, weeklyRes, monthlyRes, gymRes] = await Promise.all([
+      const [tasksRes, weeklyRes, monthlyRes, gymWeekRes, gymTargetRes] = await Promise.all([
         api.get(`/api/routine/tasks/${day}`),
         api.get('/api/routine/goals/weekly'),
         api.get('/api/routine/goals/monthly'),
-        api.get(`/api/gym/log/${day}`),
+        api.get('/api/gym/week'),
+        api.get('/api/gym/target'),
       ]);
 
-      // Ring 1: today's routine completion %
+      // Ring 1: today's routine completion %, with partial credit for
+      // countdown tasks (a 5-count task at 4 taps contributes 0.8, not 0).
       const tasks: RoutineTask[] = tasksRes.data.success ? (tasksRes.data.data || []) : [];
-      const todayTasks = tasks.filter(t => t.type === 'today');
-      const todayCompleted = todayTasks.filter(t => t.completed).length;
-      const todayRatio = ratio(todayCompleted, todayTasks.length);
-      setTodayPercentage(Math.round(todayRatio * 100));
+      const filteredTasks = tasks.filter(t => t.type === 'today');
+      const todayRatio = filteredTasks.length > 0
+        ? filteredTasks.reduce((sum, t) => sum + taskProgress(t), 0) / filteredTasks.length
+        : 0;
+      const todayPct = Math.round(todayRatio * 100);
+      setTodayTasks(filteredTasks);
+      setTodayPercentage(todayPct);
 
-      // Ring 2: weighted composite — routine + gym + weekly + monthly (no yearly).
-      // Each category is either "active" (has data, counts toward the total)
-      // or excluded entirely (no goals of that type at all — doesn't dilute
-      // the percentage for someone who simply doesn't use that feature).
+      // Ring 2 ("Momentum"): weighted composite — routine + gym + weekly +
+      // monthly (no yearly). Each category is either "active" (has data,
+      // counts toward the total) or excluded entirely (doesn't dilute the
+      // percentage for someone who simply doesn't use that feature).
       const weeklyGoals: RoutineGoal[] = weeklyRes.data.success ? (weeklyRes.data.data || []) : [];
       const monthlyGoals: RoutineGoal[] = monthlyRes.data.success ? (monthlyRes.data.data || []) : [];
-      const gymLoggedToday = gymRes.data.success && gymRes.data.data != null;
 
-      const routineActive = todayTasks.length > 0;
+      // Gym: scored against the user's weekly day target (pace-based; see
+      // computeGymRatio). Days are counted Mon–today so pre-logging a future
+      // day never inflates the score.
+      const gymEntries: Array<{ day_of_week: string; workout_group: string }> =
+        gymWeekRes.data.success ? (gymWeekRes.data.data || []) : [];
+      const gymDaysDone = gymEntries.filter(
+        e => e.workout_group && DAYS.indexOf(e.day_of_week) >= 0 && DAYS.indexOf(e.day_of_week) <= todayIndex
+      ).length;
+      const gymTargetDays: number = gymTargetRes.data.success ? gymTargetRes.data.data.targetDays : 4;
+      const gymTargetIsDefault: boolean = gymTargetRes.data.success ? gymTargetRes.data.data.isDefault : true;
+      const gymRatio = computeGymRatio(gymDaysDone, gymTargetDays, todayIndex);
+      const gymScore = gymRatio * GYM_WEIGHT;
+
+      const routineActive = filteredTasks.length > 0;
       const routineScore = routineActive ? todayRatio * ROUTINE_WEIGHT : 0;
-
-      // Gym has no "total items" concept (it's a single daily yes/no), so unlike
-      // the other three it's always counted, never excluded.
-      const gymScore = gymLoggedToday ? GYM_WEIGHT : 0;
 
       const weeklyResult = computeGoalCategoryScore(weeklyGoals, WEEKLY_WEIGHT, todayDateStr, timezone);
       const monthlyResult = computeGoalCategoryScore(monthlyGoals, MONTHLY_WEIGHT, todayDateStr, timezone);
@@ -177,8 +220,48 @@ const MerciaHomeScreen: React.FC = () => {
         rawScore += monthlyResult.score;
       }
 
-      const overall = activeWeight > 0 ? Math.round((rawScore / activeWeight) * 100) : 0;
-      setOverallPercentage(Math.min(100, Math.max(0, overall)));
+      const momentum = activeWeight > 0
+        ? Math.min(100, Math.max(0, Math.round((rawScore / activeWeight) * 100)))
+        : 0;
+      setMomentumPercentage(momentum);
+
+      // Per-category breakdown for the Momentum detail sheet — same numbers
+      // that built the composite, kept instead of discarded.
+      const completedCount = filteredTasks.filter(t => t.completed).length;
+      setMomentumData({
+        percentage: momentum,
+        routine: {
+          active: routineActive,
+          percent: todayRatio * 100,
+          weight: ROUTINE_WEIGHT,
+          detail: `${completedCount}/${filteredTasks.length} done`,
+        },
+        gym: {
+          active: true,
+          percent: gymRatio * 100,
+          weight: GYM_WEIGHT,
+          detail: gymDaysDone >= gymTargetDays ? 'Target met ✓' : `${gymDaysDone} of ${gymTargetDays} days`,
+          done: gymDaysDone,
+          target: gymTargetDays,
+          isDefaultTarget: gymTargetIsDefault,
+        },
+        weekly: {
+          active: weeklyResult.isActive,
+          percent: WEEKLY_WEIGHT > 0 ? (weeklyResult.score / WEEKLY_WEIGHT) * 100 : 0,
+          weight: WEEKLY_WEIGHT,
+          detail: weeklyResult.remaining === 0
+            ? 'Finished early ✓'
+            : `${weeklyResult.completedToday} of ${weeklyResult.remaining} left done today`,
+        },
+        monthly: {
+          active: monthlyResult.isActive,
+          percent: MONTHLY_WEIGHT > 0 ? (monthlyResult.score / MONTHLY_WEIGHT) * 100 : 0,
+          weight: MONTHLY_WEIGHT,
+          detail: monthlyResult.remaining === 0
+            ? 'Finished early ✓'
+            : `${monthlyResult.completedToday} of ${monthlyResult.remaining} left done today`,
+        },
+      });
     } catch (error) {
       console.error('[MerciaHomeScreen] Error loading rings:', error);
     }
@@ -256,6 +339,34 @@ const MerciaHomeScreen: React.FC = () => {
     openDailyChat('/api/chat/day-in-review', reviewSheetRef, setReviewChatId, setIsOpeningReview);
   };
 
+  const handleOpenTodayRing = () => {
+    todayRingSheetRef.current?.present();
+  };
+
+  const handleOpenMomentumRing = () => {
+    momentumRingSheetRef.current?.present();
+  };
+
+  const handleGoToRoutine = () => {
+    todayRingSheetRef.current?.dismiss();
+    navigation.navigate('Routine');
+  };
+
+  // Persist the weekly gym target, then recompute the rings — the open sheet
+  // re-renders from the refreshed momentumData.
+  const handleChangeGymTarget = async (targetDays: number) => {
+    if (isSavingTarget) return;
+    setIsSavingTarget(true);
+    try {
+      await api.put('/api/gym/target', { targetDays });
+      await loadRings();
+    } catch (error) {
+      console.error('[MerciaHomeScreen] Error saving gym target:', error);
+    } finally {
+      setIsSavingTarget(false);
+    }
+  };
+
   // ============================================
   // MAIN RENDER
   // ============================================
@@ -278,7 +389,12 @@ const MerciaHomeScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Rings */}
-        <HomeRings todayPercentage={todayPercentage} overallPercentage={overallPercentage} />
+        <HomeRings
+          todayPercentage={todayPercentage}
+          momentumPercentage={momentumPercentage}
+          onPressToday={handleOpenTodayRing}
+          onPressMomentum={handleOpenMomentumRing}
+        />
 
         {/* Day in Review */}
         <TouchableOpacity
@@ -315,6 +431,20 @@ const MerciaHomeScreen: React.FC = () => {
 
       {/* Daily Outlook Sheet */}
       <DailyChatSheet ref={outlookSheetRef} chatId={outlookChatId} isGenerating={isOpeningOutlook} />
+
+      {/* Ring detail sheets */}
+      <TodayRingSheet
+        ref={todayRingSheetRef}
+        percentage={todayPercentage}
+        tasks={todayTasks}
+        onGoToRoutine={handleGoToRoutine}
+      />
+      <MomentumRingSheet
+        ref={momentumRingSheetRef}
+        data={momentumData}
+        isSavingTarget={isSavingTarget}
+        onChangeGymTarget={handleChangeGymTarget}
+      />
     </SafeAreaView>
   );
 };

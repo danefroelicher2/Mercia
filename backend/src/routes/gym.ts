@@ -27,6 +27,14 @@ const pinMemorySchema = z.object({
   pinned: z.boolean(),
 });
 
+const gymTargetSchema = z.object({
+  targetDays: z.number().int().min(1).max(7),
+});
+
+// Applied when the user has never set a weekly gym-day target. The client
+// labels this as "(default)" so the user knows scoring isn't personalized yet.
+const DEFAULT_GYM_TARGET_DAYS = 4;
+
 function getISOWeek(date: Date): number {
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -38,6 +46,45 @@ function getISOWeek(date: Date): number {
   }
   return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
+
+/**
+ * GET /api/gym/target
+ * Get the user's weekly gym-day target. isDefault=true means the user has
+ * never set one and the app default is in effect.
+ */
+router.get('/target', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const storage = getStorage();
+    const stored = await storage.getGymTargetDays(userId);
+    res.json({
+      success: true,
+      data: { targetDays: stored ?? DEFAULT_GYM_TARGET_DAYS, isDefault: stored == null },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/gym/target
+ * Set the user's weekly gym-day target (1-7). Persists indefinitely.
+ */
+router.put(
+  '/target',
+  validate(gymTargetSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { targetDays } = req.body;
+      const storage = getStorage();
+      const saved = await storage.setGymTargetDays(userId, targetDays);
+      res.json({ success: true, data: { targetDays: saved, isDefault: false } });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
 
 /**
  * GET /api/gym/log/:dayOfWeek

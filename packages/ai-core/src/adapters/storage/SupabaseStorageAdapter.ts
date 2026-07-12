@@ -715,6 +715,30 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   // GYM WORKOUT LOG OPERATIONS
   // ============================================
 
+  async getGymTargetDays(userId: string): Promise<number | null> {
+    const { data, error } = await this.client
+      .from('user_profiles')
+      .select('gym_target_days')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to get gym target: ${error.message}`);
+    return data?.gym_target_days ?? null;
+  }
+
+  async setGymTargetDays(userId: string, targetDays: number): Promise<number> {
+    const clamped = Math.min(7, Math.max(1, Math.trunc(targetDays)));
+    const { error } = await this.client
+      .from('user_profiles')
+      .upsert(
+        { id: userId, gym_target_days: clamped, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      );
+
+    if (error) throw new Error(`Failed to set gym target: ${error.message}`);
+    return clamped;
+  }
+
   async getGymWorkoutLog(userId: string, dayOfWeek: string, weekNumber: number, year: number): Promise<GymWorkoutLog | null> {
     const { data, error } = await this.client
       .from('gym_workout_log')
