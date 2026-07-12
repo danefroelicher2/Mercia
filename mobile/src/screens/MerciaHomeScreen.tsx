@@ -19,6 +19,7 @@ import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import DailyChatSheet from '../components/DailyChatSheet';
 import { TodayRingSheet, MomentumRingSheet, MomentumData } from '../components/RingDetailSheets';
+import MonthlyReviewSheet, { MonthlyReviewData } from '../components/MonthlyReviewSheet';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -192,7 +193,16 @@ const MerciaHomeScreen: React.FC = () => {
 
   const todayRingSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
   const momentumRingSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
+  const monthlyReviewSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
   const navigation = useNavigation<any>();
+
+  // ============================================
+  // HOME EXTRAS STATE (streak / week strip / up next / monthly review)
+  // ============================================
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [weekActivity, setWeekActivity] = useState<{ days: Array<{ date: string; active: boolean }>; todayIndex: number } | null>(null);
+  const [monthlyReview, setMonthlyReview] = useState<MonthlyReviewData | null>(null);
+  const tickingTaskIds = useRef<Set<string>>(new Set());
 
   // ============================================
   // DAILY CHECK-IN SHEET STATE (time-of-day adaptive)
@@ -320,6 +330,27 @@ const MerciaHomeScreen: React.FC = () => {
     }
   }, []);
 
+  // Streak chip, week strip, and monthly review card. Separate from
+  // loadRings so a failure here never blanks the rings, and vice versa.
+  const loadHomeExtras = useCallback(async () => {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const [streaksRes, weekRes, reviewRes] = await Promise.allSettled([
+      api.get('/api/stats/streaks'),
+      api.get(`/api/stats/week-activity?timezone=${encodeURIComponent(timezone)}`),
+      api.get(`/api/stats/monthly-review?timezone=${encodeURIComponent(timezone)}`),
+    ]);
+
+    if (streaksRes.status === 'fulfilled' && streaksRes.value.data.success) {
+      setCurrentStreak(streaksRes.value.data.data.currentStreak ?? 0);
+    }
+    if (weekRes.status === 'fulfilled' && weekRes.value.data.success) {
+      setWeekActivity(weekRes.value.data.data);
+    }
+    if (reviewRes.status === 'fulfilled' && reviewRes.value.data.success) {
+      setMonthlyReview(reviewRes.value.data.data); // null when prior month has no data
+    }
+  }, []);
+
   // Recompute both rings every time this tab gains focus, so crossing items
   // off (or undoing them) anywhere — Routine tasks, goals, gym log — is
   // always reflected accurately when the user comes back here. The check-in
@@ -328,8 +359,9 @@ const MerciaHomeScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       loadRings();
+      loadHomeExtras();
       setDayPhase(getDayPhase());
-    }, [loadRings])
+    }, [loadRings, loadHomeExtras])
   );
 
   // Keep the phase current while the screen stays open across a boundary
@@ -358,8 +390,29 @@ const MerciaHomeScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await loadRings();
+    await Promise.all([loadRings(), loadHomeExtras()]);
     setIsRefreshing(false);
+  };
+
+  // Up Next: complete a task in place. Uses the same server-side tick as the
+  // Routine tab (countdown tasks decrement one step per tap), then reloads
+  // the rings so Today %, Momentum, task list, and streak stay consistent.
+  const handleTickUpNext = async (taskId: string) => {
+    if (tickingTaskIds.current.has(taskId)) return;
+    tickingTaskIds.current.add(taskId);
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      await api.patch(`/api/routine/tasks/${taskId}`, { timezone });
+      await Promise.all([loadRings(), loadHomeExtras()]);
+    } catch (error) {
+      console.error('[MerciaHomeScreen] Error ticking task:', error);
+    } finally {
+      tickingTaskIds.current.delete(taskId);
+    }
+  };
+
+  const handleOpenMonthlyReview = () => {
+    monthlyReviewSheetRef.current?.present();
   };
 
   // Open the sheet immediately (it shows its own "aggregating" loading
@@ -426,6 +479,13 @@ const MerciaHomeScreen: React.FC = () => {
   // MAIN RENDER
   // ============================================
 
+  const upNextTasks = todayTasks.filter(t => !t.completed).slice(0, 2);
+  const upNextRemaining = todayTasks.filter(t => !t.completed).length;
+  // Monthly review card only appears the first week of a new month, and only
+  // when the prior month actually has logged data.
+  const showMonthlyReview = monthlyReview != null && new Date().getDate() <= 7;
+  const WEEK_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -451,6 +511,42 @@ const MerciaHomeScreen: React.FC = () => {
           onPressMomentum={handleOpenMomentumRing}
         />
 
+        {/* Streak chip */}
+        {currentStreak > 0 && (
+          <View style={styles.streakChipRow}>
+            <View style={styles.streakChip}>
+              <Text style={styles.streakChipText}>
+                🔥 {currentStreak}-day streak
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Week strip — Mon-Sun activity dots */}
+        {weekActivity && (
+          <View style={styles.weekStrip}>
+            {weekActivity.days.map((d, index) => {
+              const isToday = index === weekActivity.todayIndex;
+              const isFuture = index > weekActivity.todayIndex;
+              return (
+                <View key={d.date} style={styles.weekStripDay}>
+                  <Text style={[styles.weekStripLetter, isToday && styles.weekStripLetterToday]}>
+                    {WEEK_LETTERS[index]}
+                  </Text>
+                  <View
+                    style={[
+                      styles.weekStripDot,
+                      d.active && styles.weekStripDotActive,
+                      isToday && styles.weekStripDotToday,
+                      isFuture && styles.weekStripDotFuture,
+                    ]}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* Daily check-in — one card whose identity follows the time of day */}
         <TouchableOpacity
           style={styles.outlookCard}
@@ -464,6 +560,51 @@ const MerciaHomeScreen: React.FC = () => {
           </View>
           <Text style={styles.outlookArrow}>›</Text>
         </TouchableOpacity>
+
+        {/* Up Next — top unfinished tasks, completable in place */}
+        {upNextTasks.length > 0 && (
+          <View style={styles.upNextCard}>
+            <Text style={styles.upNextLabel}>UP NEXT</Text>
+            {upNextTasks.map(task => (
+              <TouchableOpacity
+                key={task.id}
+                style={styles.upNextRow}
+                onPress={() => handleTickUpNext(task.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.upNextCheck} />
+                <Text style={styles.upNextText} numberOfLines={1}>{task.text}</Text>
+                {(task.target_count ?? 1) > 1 && (
+                  <Text style={styles.upNextCount}>
+                    {(task.current_count ?? 1)} left
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            {upNextRemaining > 2 && (
+              <TouchableOpacity onPress={() => navigation.navigate('Routine')}>
+                <Text style={styles.upNextMore}>+{upNextRemaining - 2} more →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Monthly review — appears the first week of a new month */}
+        {showMonthlyReview && (
+          <TouchableOpacity
+            style={[styles.outlookCard, styles.monthlyReviewCard]}
+            onPress={handleOpenMonthlyReview}
+            activeOpacity={0.8}
+          >
+            <View style={styles.outlookTextContainer}>
+              <Text style={styles.outlookTitle}>Your {monthlyReview!.monthLabel.split(' ')[0]} review is ready</Text>
+              <Text style={styles.outlookSubtitle}>
+                {monthlyReview!.avgOverall}% average momentum · {monthlyReview!.gymSessions} gym sessions
+              </Text>
+            </View>
+            <Text style={[styles.outlookArrow, { color: '#D9A03F' }]}>›</Text>
+          </TouchableOpacity>
+        )}
 
       </ScrollView>
 
@@ -483,6 +624,7 @@ const MerciaHomeScreen: React.FC = () => {
         isSavingTarget={isSavingTarget}
         onChangeGymTarget={handleChangeGymTarget}
       />
+      <MonthlyReviewSheet ref={monthlyReviewSheetRef} data={monthlyReview} />
     </SafeAreaView>
   );
 };
@@ -534,6 +676,124 @@ const styles = StyleSheet.create({
     color: '#7B9EFF',
     fontWeight: '300',
     marginLeft: 8,
+  },
+
+  // Streak chip
+  streakChipRow: {
+    alignItems: 'center',
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  streakChip: {
+    backgroundColor: 'rgba(217, 160, 63, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 160, 63, 0.3)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  streakChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#D9A03F',
+  },
+
+  // Week strip
+  weekStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#161616',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#232323',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  weekStripDay: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  weekStripLetter: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#666',
+  },
+  weekStripLetterToday: {
+    color: '#00D9A0',
+  },
+  weekStripDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2A2A2A',
+  },
+  weekStripDotActive: {
+    backgroundColor: '#00D9A0',
+  },
+  weekStripDotToday: {
+    borderWidth: 1.5,
+    borderColor: '#00D9A0',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  weekStripDotFuture: {
+    backgroundColor: '#1E1E1E',
+  },
+
+  // Up Next
+  upNextCard: {
+    backgroundColor: '#161616',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#232323',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+  },
+  upNextLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    color: '#666',
+    marginBottom: 8,
+  },
+  upNextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  upNextCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#00D9A0',
+    flexShrink: 0,
+  },
+  upNextText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#E8E8E8',
+  },
+  upNextCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#00D9A0',
+  },
+  upNextMore: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#00D9A0',
+    marginTop: 6,
+  },
+
+  // Monthly review card accent
+  monthlyReviewCard: {
+    borderTopColor: '#D9A03F',
   },
 });
 

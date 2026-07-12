@@ -166,6 +166,151 @@ router.get('/heatmap', async (req: Request, res: Response): Promise<void> => {
 });
 
 // ============================================
+// GET /api/stats/week-activity?timezone=America/Chicago
+// Current Mon-Sun week as 7 dots for the Home week strip: one entry per
+// date with whether any activity (task/goal/chat) was logged that day.
+// Dates are computed in the user's timezone.
+// ============================================
+router.get('/week-activity', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+    const todayStr = getLocalDateString(timezone);
+
+    // Monday of the user-local week containing today (noon-UTC anchor avoids
+    // DST/date-line issues when stepping YYYY-MM-DD strings).
+    const ref = new Date(todayStr + 'T12:00:00Z');
+    const utcDay = ref.getUTCDay(); // 0=Sun … 6=Sat
+    const daysFromMonday = utcDay === 0 ? 6 : utcDay - 1;
+    const monday = new Date(ref);
+    monday.setUTCDate(ref.getUTCDate() - daysFromMonday);
+
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setUTCDate(monday.getUTCDate() + i);
+      weekDates.push(d.toISOString().split('T')[0]);
+    }
+
+    const { data, error } = await supabase
+      .schema('oasis')
+      .from('user_activity_log')
+      .select('activity_date')
+      .eq('user_id', userId)
+      .gte('activity_date', weekDates[0])
+      .lte('activity_date', weekDates[6]);
+
+    if (error) throw error;
+
+    const activeDates = new Set((data || []).map((r: any) => r.activity_date));
+    res.json({
+      success: true,
+      data: {
+        days: weekDates.map(date => ({ date, active: activeDates.has(date) })),
+        todayIndex: daysFromMonday,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Stats Week Activity] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// GET /api/stats/monthly-review?timezone=America/Chicago
+// Aggregates the previous calendar month (user-local) from the per-day
+// weekly_summaries rows into hero stats for the Home monthly review card.
+// Returns data: null when the prior month has no logged days. Note: gym
+// sessions are approximated by summing each ISO week's max rolling
+// gym_days_this_week snapshot (gym_workout_log itself is wiped weekly, so
+// it can't be counted directly); weeks straddling month boundaries can be
+// attributed to whichever month their later days fall in.
+// ============================================
+router.get('/monthly-review', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+    const todayStr = getLocalDateString(timezone);
+
+    // Previous calendar month bounds from the user-local date.
+    const [y, m] = todayStr.split('-').map(Number);
+    const prevYear = m === 1 ? y - 1 : y;
+    const prevMonth = m === 1 ? 12 : m - 1;
+    const monthStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+    const lastDay = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+    const monthEnd = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const { data: rows, error } = await supabase
+      .schema('oasis')
+      .from('weekly_summaries')
+      .select(
+        'week_end_date, today_completed, today_total, overall_percentage, ' +
+        'monthly_goals_completed, monthly_goals_total, gym_days_this_week, has_complete_data'
+      )
+      .eq('user_id', userId)
+      .gte('week_end_date', monthStart)
+      .lte('week_end_date', monthEnd)
+      .order('week_end_date', { ascending: true });
+
+    if (error) throw error;
+
+    const complete = (rows || []).filter((r: any) => r.has_complete_data);
+    if (complete.length === 0) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    let routineCompleted = 0;
+    let routineTotal = 0;
+    let overallSum = 0;
+    let bestDay = { date: '', percentage: -1 };
+    const gymMaxByWeek: Record<string, number> = {};
+
+    for (const r of complete as any[]) {
+      routineCompleted += r.today_completed ?? 0;
+      routineTotal += r.today_total ?? 0;
+      overallSum += r.overall_percentage ?? 0;
+      if ((r.overall_percentage ?? 0) > bestDay.percentage) {
+        bestDay = { date: r.week_end_date, percentage: r.overall_percentage ?? 0 };
+      }
+      // ISO week key for the gym approximation (rolling weekly counter).
+      const d = new Date(r.week_end_date + 'T12:00:00Z');
+      const dayNr = (d.getUTCDay() + 6) % 7;
+      d.setUTCDate(d.getUTCDate() - dayNr + 3);
+      const weekKey = `${d.getUTCFullYear()}-${Math.ceil((((d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 4)) / 86400000) + ((new Date(Date.UTC(d.getUTCFullYear(), 0, 4)).getUTCDay() + 6) % 7) + 1) / 7)}`;
+      gymMaxByWeek[weekKey] = Math.max(gymMaxByWeek[weekKey] ?? 0, r.gym_days_this_week ?? 0);
+    }
+
+    const gymSessions = Object.values(gymMaxByWeek).reduce((a, b) => a + b, 0);
+    const last = complete[complete.length - 1] as any;
+    const monthLabel = new Date(monthStart + 'T12:00:00Z').toLocaleDateString('en-US', {
+      month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        month: `${prevYear}-${String(prevMonth).padStart(2, '0')}`,
+        monthLabel,
+        daysLogged: complete.length,
+        avgOverall: Math.round(overallSum / complete.length),
+        routineCompleted,
+        routineTotal,
+        gymSessions,
+        monthlyGoalsCompleted: last.monthly_goals_completed ?? 0,
+        monthlyGoalsTotal: last.monthly_goals_total ?? 0,
+        bestDay: bestDay.percentage >= 0 ? bestDay : null,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Stats Monthly Review] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // GET /api/stats/achievements
 // ============================================
 router.get('/achievements', async (req: Request, res: Response): Promise<void> => {
