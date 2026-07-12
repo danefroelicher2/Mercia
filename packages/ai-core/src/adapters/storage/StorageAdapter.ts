@@ -14,6 +14,7 @@ export interface GymWorkoutLog {
   logged_date: string;
   week_number: number;
   year: number;
+  is_rest: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -266,6 +267,12 @@ export interface StorageAdapter {
 
   getGymWorkoutLog(userId: string, dayOfWeek: string, weekNumber: number, year: number): Promise<GymWorkoutLog | null>;
   upsertGymWorkoutLog(userId: string, dayOfWeek: string, workoutGroup: string, notes: string, weekNumber: number, year: number): Promise<GymWorkoutLog>;
+  /**
+   * Mark/unmark a day as an intentional rest day. Rest days are not gym
+   * sessions (they don't count toward the weekly target or create memory
+   * entries) but tell the coach the user rested on purpose, not skipped.
+   */
+  setGymRestDay(userId: string, dayOfWeek: string, weekNumber: number, year: number, rest: boolean): Promise<GymWorkoutLog | null>;
   getGymWorkoutLogForWeek(userId: string, weekNumber: number, year: number): Promise<GymWorkoutLog[]>;
   resetGymWorkoutLogs(): Promise<void>;
 

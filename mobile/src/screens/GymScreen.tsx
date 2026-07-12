@@ -25,6 +25,7 @@ interface GymWorkoutLog {
   logged_date: string;
   week_number: number;
   year: number;
+  is_rest: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +104,7 @@ const GymScreen: React.FC = () => {
   const [hasKeystroke, setHasKeystroke] = useState(false);
   const [priorSessions, setPriorSessions] = useState<GymMemoryEntry[]>([]);
   const [priorSessionEmpty, setPriorSessionEmpty] = useState(false);
+  const [isRestDay, setIsRestDay] = useState(false);
   const [weekLog, setWeekLog] = useState<GymWorkoutLog[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -125,7 +127,16 @@ const GymScreen: React.FC = () => {
     try {
       const res = await api.get(`/api/gym/log/${day}`);
       const entry: GymWorkoutLog | null = res.data.data;
-      if (entry) {
+      if (entry && entry.is_rest) {
+        // Rest marker — show the rest state, not "Rest" as a workout name.
+        setIsRestDay(true);
+        setWorkoutGroup('');
+        setNotes('');
+        setHasKeystroke(false);
+        setPriorSessions([]);
+        setPriorSessionEmpty(false);
+      } else if (entry) {
+        setIsRestDay(false);
         setWorkoutGroup(entry.workout_group);
         setNotes(entry.notes);
         setHasKeystroke(false);
@@ -136,6 +147,7 @@ const GymScreen: React.FC = () => {
           setPriorSessionEmpty(false);
         }
       } else {
+        setIsRestDay(false);
         setWorkoutGroup('');
         setNotes('');
         setHasKeystroke(false);
@@ -208,10 +220,46 @@ const GymScreen: React.FC = () => {
     }, 1000);
   };
 
+  const handleToggleRest = async (day: DayOfWeek = selectedDay) => {
+    const next = !isRestDay;
+    setIsRestDay(next);
+    if (next) {
+      // Rest replaces any in-progress typing for the day.
+      setWorkoutGroup('');
+      setNotes('');
+      setPriorSessions([]);
+      setPriorSessionEmpty(false);
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    }
+    try {
+      await api.post('/api/gym/log/rest', { dayOfWeek: day, rest: next });
+      loadWeekLog();
+    } catch {
+      setIsRestDay(!next); // revert on failure
+    }
+  };
+
   const handleGroupChange = (text: string) => {
+    // Typing a workout name un-rests the day.
+    if (isRestDay) {
+      setIsRestDay(false);
+      api.post('/api/gym/log/rest', { dayOfWeek: selectedDay, rest: false }).catch(() => {});
+    }
     setWorkoutGroup(text);
     setShowSuggestions(text.length >= 1);
     triggerSave(text, notes);
+  };
+
+  // "Copy last session" — prefill today's notes with the most recent prior
+  // session's notes (by date, ignoring pin order) for edit-in-place.
+  const lastSession = priorSessions.length > 0
+    ? priorSessions.reduce((latest, s) => (s.session_date > latest.session_date ? s : latest))
+    : null;
+
+  const handleCopyLastSession = () => {
+    if (!lastSession) return;
+    setNotes(lastSession.notes);
+    triggerSave(workoutGroup, lastSession.notes);
   };
 
   const handleNotesChange = (text: string) => {
@@ -307,15 +355,26 @@ const GymScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Unified Workout Entry Card */}
         <View style={styles.card}>
-          <TextInput
-            style={styles.groupInput}
-            value={workoutGroup}
-            onChangeText={handleGroupChange}
-            placeholder="Workout name..."
-            placeholderTextColor={colors.textTertiary}
-            returnKeyType="done"
-            textAlign="center"
-          />
+          <View style={styles.groupRow}>
+            <TextInput
+              style={styles.groupInput}
+              value={workoutGroup}
+              onChangeText={handleGroupChange}
+              placeholder={isRestDay ? 'Rest day' : 'Workout name...'}
+              placeholderTextColor={isRestDay ? colors.primary : colors.textTertiary}
+              returnKeyType="done"
+              textAlign="center"
+            />
+            <TouchableOpacity
+              style={[styles.restButton, isRestDay && styles.restButtonActive]}
+              onPress={() => handleToggleRest()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[styles.restButtonText, isRestDay && styles.restButtonTextActive]}>
+                Rest
+              </Text>
+            </TouchableOpacity>
+          </View>
           {showSuggestions && filteredSuggestions.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsRow}>
               {filteredSuggestions.map(s => (
@@ -330,15 +389,30 @@ const GymScreen: React.FC = () => {
             </ScrollView>
           )}
           <View style={styles.cardDivider} />
-          <TextInput
-            style={styles.notesInput}
-            value={notes}
-            onChangeText={handleNotesChange}
-            placeholder="Write your workout..."
-            placeholderTextColor={colors.textTertiary}
-            multiline
-            textAlignVertical="top"
-          />
+          {isRestDay ? (
+            <Text style={styles.restMessage}>
+              Rest day logged — recovery counts. Mercia knows this isn't a skip.
+            </Text>
+          ) : (
+            <>
+              <TextInput
+                style={styles.notesInput}
+                value={notes}
+                onChangeText={handleNotesChange}
+                placeholder="Write your workout..."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                textAlignVertical="top"
+              />
+              {notes.trim().length === 0 && lastSession && (
+                <TouchableOpacity onPress={handleCopyLastSession} style={styles.copyLastButton}>
+                  <Text style={styles.copyLastText}>
+                    Copy last session ({formatDate(lastSession.session_date)}) ↓
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
 
         {/* Prior Session Card */}
@@ -472,12 +546,56 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 10,
   },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   groupInput: {
+    flex: 1,
     fontSize: 17,
     fontWeight: '600',
     color: '#E8E8E8',
     paddingVertical: 8,
     textAlign: 'center',
+    // Offset the Rest button's width so the centered text stays visually
+    // centered in the card.
+    marginLeft: 44,
+  },
+  restButton: {
+    width: 44,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#1F1F1F',
+    alignItems: 'center',
+  },
+  restButtonActive: {
+    borderColor: 'rgba(29, 158, 117, 0.5)',
+    backgroundColor: 'rgba(29, 158, 117, 0.15)',
+  },
+  restButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+  },
+  restButtonTextActive: {
+    color: '#5DCAA5',
+  },
+  restMessage: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    paddingVertical: 12,
+    textAlign: 'center',
+  },
+  copyLastButton: {
+    marginTop: 4,
+  },
+  copyLastText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
   },
   cardDivider: {
     height: 1,

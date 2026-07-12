@@ -140,7 +140,8 @@ export async function computeSummaryStats(
       .from('gym_workout_log')
       .select('workout_group')
       .eq('user_id', userId)
-      .eq('logged_date', date),
+      .eq('logged_date', date)
+      .eq('is_rest', false), // intentional rest days are not gym sessions
     supabase
       .schema('oasis')
       .from('routine_goals')
@@ -183,7 +184,8 @@ export async function computeSummaryStats(
       .eq('user_id', userId)
       .in('logged_date', weekDates)
       .not('workout_group', 'is', null)
-      .neq('workout_group', ''),
+      .neq('workout_group', '')
+      .eq('is_rest', false), // rest markers don't count toward gym days
   ]);
 
   const completedTasks = completedRows || [];

@@ -229,10 +229,13 @@ const MerciaHomeScreen: React.FC = () => {
       // Gym: simple fill toward the weekly target, capped at full — a 5th day
       // on a 4-day target neither helps nor hurts. Days counted Mon–today so
       // pre-logging a future day never inflates the score.
-      const gymEntries: Array<{ day_of_week: string; workout_group: string }> =
+      const gymEntries: Array<{ day_of_week: string; workout_group: string; is_rest?: boolean }> =
         gymWeekRes.data.success ? (gymWeekRes.data.data || []) : [];
+      // Rest markers are intentional recovery, not sessions — they never
+      // count toward the target (and never against it: accumulator scoring
+      // makes non-gym days neutral by construction).
       const gymDaysDone = gymEntries.filter(
-        e => e.workout_group && DAYS.indexOf(e.day_of_week) >= 0 && DAYS.indexOf(e.day_of_week) <= todayIndex
+        e => e.workout_group && !e.is_rest && DAYS.indexOf(e.day_of_week) >= 0 && DAYS.indexOf(e.day_of_week) <= todayIndex
       ).length;
       const gymTargetDays: number = gymTargetRes.data.success ? gymTargetRes.data.data.targetDays : 4;
       const gymTargetIsDefault: boolean = gymTargetRes.data.success ? gymTargetRes.data.data.isDefault : true;

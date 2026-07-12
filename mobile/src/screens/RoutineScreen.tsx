@@ -84,6 +84,9 @@ const RoutineScreen: React.FC = () => {
 
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskCount, setNewTaskCount] = useState('1');
+  // Multi-day creation: which days the new task should be created on.
+  // Defaults to just the selected day when the modal opens.
+  const [newTaskDays, setNewTaskDays] = useState<DayOfWeek[]>([]);
   const [newGoalText, setNewGoalText] = useState('');
   const [newGoalCount, setNewGoalCount] = useState('1');
 
@@ -297,25 +300,34 @@ const RoutineScreen: React.FC = () => {
 
     const parsedCount = parseInt(newTaskCount, 10);
     const targetCount = Number.isFinite(parsedCount) ? Math.min(999, Math.max(1, parsedCount)) : 1;
+    const days = newTaskDays.length > 0 ? newTaskDays : [selectedDay];
 
     try {
-      const response = await api.post('/api/routine/tasks', {
-        text: newTaskText.trim(),
-        type: 'today',
-        dayOfWeek: selectedDay,
-        targetCount,
-      });
-
-      if (response.data.success) {
-        setTasks([...tasks, response.data.data]);
-        setNewTaskText('');
-        setNewTaskCount('1');
-        setTaskModalVisible(false);
+      // One create per selected day — same task on Mon/Wed/Fri in one shot.
+      for (const day of days) {
+        await api.post('/api/routine/tasks', {
+          text: newTaskText.trim(),
+          type: 'today',
+          dayOfWeek: day,
+          targetCount,
+        });
       }
+
+      await loadTasks();
+      setNewTaskText('');
+      setNewTaskCount('1');
+      setNewTaskDays([]);
+      setTaskModalVisible(false);
     } catch (error) {
       console.error('[RoutineScreen] Error adding task:', error);
       Alert.alert('Error', 'Failed to add task. Please try again.');
     }
+  };
+
+  const toggleNewTaskDay = (day: DayOfWeek) => {
+    setNewTaskDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
   };
 
   const handleToggleTask = async (taskId: string) => {
@@ -779,7 +791,10 @@ const RoutineScreen: React.FC = () => {
                   <TouchableOpacity onPress={() => handleEnterEdit('today')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => setTaskModalVisible(true)}>
+                  <TouchableOpacity
+                    style={styles.taskCardAddButton}
+                    onPress={() => { setNewTaskDays([selectedDay]); setTaskModalVisible(true); }}
+                  >
                     <Text style={styles.taskCardAddButtonText}>+ Add</Text>
                   </TouchableOpacity>
                 </>
@@ -1042,6 +1057,24 @@ const RoutineScreen: React.FC = () => {
                     }}
                     maxLength={3}
                   />
+                </View>
+
+                {/* Which days — create the same task on multiple days at once */}
+                <View style={styles.taskDaysRow}>
+                  {DAYS.map((day, index) => {
+                    const isOn = newTaskDays.includes(day);
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        style={[styles.taskDayChip, isOn && styles.taskDayChipActive]}
+                        onPress={() => toggleNewTaskDay(day)}
+                      >
+                        <Text style={[styles.taskDayChipText, isOn && styles.taskDayChipTextActive]}>
+                          {DAY_LABELS[index][0]}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 <View style={[styles.modalButtons, { justifyContent: 'space-between', alignItems: 'center' }]}>
@@ -1520,6 +1553,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 20,
+  },
+  taskDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  taskDayChip: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    backgroundColor: '#1F1F1F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskDayChipActive: {
+    borderColor: 'rgba(29, 158, 117, 0.5)',
+    backgroundColor: 'rgba(29, 158, 117, 0.18)',
+  },
+  taskDayChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  taskDayChipTextActive: {
+    color: '#5DCAA5',
   },
   goalCountLabel: {
     fontSize: 14,

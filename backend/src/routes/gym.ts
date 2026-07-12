@@ -31,6 +31,11 @@ const gymTargetSchema = z.object({
   targetDays: z.number().int().min(1).max(7),
 });
 
+const restDaySchema = z.object({
+  dayOfWeek: z.enum(DAYS),
+  rest: z.boolean(),
+});
+
 // Applied when the user has never set a weekly gym-day target. The client
 // labels this as "(default)" so the user knows scoring isn't personalized yet.
 const DEFAULT_GYM_TARGET_DAYS = 4;
@@ -131,6 +136,34 @@ router.post(
 
       const storage = getStorage();
       const entry = await storage.upsertGymWorkoutLog(userId, dayOfWeek, workoutGroup, notes, weekNumber, year);
+
+      res.json({ success: true, data: entry });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/gym/log/rest
+ * Mark or unmark a day as an intentional rest day. Rest days don't count as
+ * gym sessions anywhere (target progress, memory, lifetime) — they exist so
+ * the coach knows the user rested on purpose rather than skipped.
+ */
+router.post(
+  '/log/rest',
+  validate(restDaySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { dayOfWeek, rest } = req.body;
+
+      const now = new Date();
+      const weekNumber = getISOWeek(now);
+      const year = now.getFullYear();
+
+      const storage = getStorage();
+      const entry = await storage.setGymRestDay(userId, dayOfWeek, weekNumber, year, rest);
 
       res.json({ success: true, data: entry });
     } catch (error: any) {

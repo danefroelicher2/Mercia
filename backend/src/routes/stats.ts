@@ -391,10 +391,12 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
         .eq('user_id', userId).eq('activity_type', 'goal_completed'),
       supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
         .eq('user_id', userId).eq('activity_type', 'ai_chat_sent'),
-      // Only rows with an actual workout_group count as a "logged" gym day —
-      // matches the filter used in summaryCompute.ts for the same table.
-      supabase.schema('oasis').from('gym_workout_log').select('id', { count: 'exact', head: true })
-        .eq('user_id', userId).not('workout_group', 'is', null).neq('workout_group', ''),
+      // Lifetime gym days come from gym_memory — the PERMANENT record
+      // (includes archived sessions; rest markers never create memory rows).
+      // gym_workout_log is wiped weekly, so counting it could only ever see
+      // the current week. Distinct session_date dedupes multi-group days.
+      supabase.schema('oasis').from('gym_memory').select('session_date')
+        .eq('user_id', userId),
       supabase.schema('oasis').from('user_activity_log').select('activity_date').eq('user_id', userId),
     ]);
 
@@ -409,7 +411,9 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
     const todayItemsCheckedOff = taskCountResult.count ?? 0;
     const goalsCompleted = goalCountResult.count ?? 0;
     const chatMessagesSent = chatCountResult.count ?? 0;
-    const gymDaysLogged = gymCountResult.count ?? 0;
+    const gymDaysLogged = new Set(
+      (gymCountResult.data ?? []).map((row: any) => row.session_date as string)
+    ).size;
 
     const lifetimeActions = todayItemsCheckedOff + goalsCompleted + chatMessagesSent + gymDaysLogged;
 

@@ -80,21 +80,29 @@ export async function buildYesterdayLog({ userId, yesterdayDateStr, supabase }: 
     supabase
       .schema('oasis')
       .from('gym_workout_log')
-      .select('workout_group')
+      .select('workout_group, is_rest')
       .eq('user_id', userId)
       .eq('logged_date', yesterdayDateStr),
   ]);
 
   const gymRowList = (gymRows || []) as any[];
-  const gymLogged = gymRowList.length > 0;
-  const gymGroup = gymLogged ? gymRowList[0].workout_group : null;
+  const restDay = gymRowList.some((r) => r.is_rest);
+  const workoutRow = gymRowList.find((r) => !r.is_rest);
   const missedTasks = stats.tasks_missed_frequently.map((t) => t.task_name);
+
+  // Rest days are intentional recovery, not skips — phrase it so the coach
+  // treats it as taking care of the body, never as a missed session.
+  const gymPart = workoutRow
+    ? `yes — ${workoutRow.workout_group ?? 'logged'}`
+    : restDay
+      ? 'planned rest day (intentional recovery, not a skip)'
+      : 'no';
 
   return (
     `${yesterdayDateStr}: today-tasks ${stats.today_completed}/${stats.today_total}, ` +
     `overall ${stats.overall_percentage}%, weekly goals ${stats.weekly_goals_completed}/${stats.weekly_goals_total}, ` +
     `monthly goals ${stats.monthly_goals_completed}/${stats.monthly_goals_total}, ` +
-    `gym: ${gymLogged ? `yes — ${gymGroup ?? 'logged'}` : 'no'}, ` +
+    `gym: ${gymPart}, ` +
     `missed: ${missedTasks.length > 0 ? missedTasks.join(', ') : 'none'}`
   );
 }

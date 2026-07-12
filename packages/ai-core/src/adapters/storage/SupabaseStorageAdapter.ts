@@ -767,6 +767,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
           logged_date: today,
           week_number: weekNumber,
           year,
+          is_rest: false, // typing a real workout always clears a rest marker
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,day_of_week,week_number,year' }
@@ -782,6 +783,47 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
 
     return data;
+  }
+
+  async setGymRestDay(userId: string, dayOfWeek: string, weekNumber: number, year: number, rest: boolean): Promise<GymWorkoutLog | null> {
+    if (rest) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await this.client
+        .from('gym_workout_log')
+        .upsert(
+          {
+            user_id: userId,
+            day_of_week: dayOfWeek,
+            workout_group: 'Rest',
+            notes: '',
+            logged_date: today,
+            week_number: weekNumber,
+            year,
+            is_rest: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,day_of_week,week_number,year' }
+        )
+        .select()
+        .single();
+
+      if (error) throw new Error(`Failed to set rest day: ${error.message}`);
+      return data;
+    }
+
+    // Unmark: rest rows are pure markers, so remove the row — but only if it
+    // actually is a rest marker, never a real logged workout.
+    const { error } = await this.client
+      .from('gym_workout_log')
+      .delete()
+      .eq('user_id', userId)
+      .eq('day_of_week', dayOfWeek)
+      .eq('week_number', weekNumber)
+      .eq('year', year)
+      .eq('is_rest', true);
+
+    if (error) throw new Error(`Failed to unset rest day: ${error.message}`);
+    return null;
   }
 
   async getGymWorkoutLogForWeek(userId: string, weekNumber: number, year: number): Promise<GymWorkoutLog[]> {
