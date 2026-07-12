@@ -1,7 +1,8 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { RoutineTask } from '../types/routine';
+import { getWeeklyCountdown } from '../utils/weeklyReset';
 
 // Shared visual language with the rest of the app (dark cards, teal/blue accents).
 const C = {
@@ -136,6 +137,14 @@ const CategoryRow: React.FC<{ name: string; category: MomentumCategory }> = ({ n
 
 export const MomentumRingSheet = forwardRef<React.ElementRef<typeof BottomSheetModal>, MomentumRingSheetProps>(
   ({ data, isSavingTarget, onChangeGymTarget }, ref) => {
+    // Weekly reset countdown — the exact same math the Routine tab's "This
+    // week" card uses (shared util), so the two timers can never disagree.
+    const [countdown, setCountdown] = useState(getWeeklyCountdown);
+    useEffect(() => {
+      const interval = setInterval(() => setCountdown(getWeeklyCountdown()), 60000);
+      return () => clearInterval(interval);
+    }, []);
+
     return (
       <BottomSheetModal
         ref={ref}
@@ -149,11 +158,16 @@ export const MomentumRingSheet = forwardRef<React.ElementRef<typeof BottomSheetM
             <ActivityIndicator color={C.blue} style={{ marginVertical: 32 }} />
           ) : (
             <>
-              <Text style={styles.title}>
-                Momentum — <Text style={{ color: C.blue }}>{data.percentage}%</Text>
-              </Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>
+                  Momentum — <Text style={{ color: C.blue }}>{data.percentage}%</Text>
+                </Text>
+                <Text style={[styles.countdownText, countdown.urgent && styles.countdownUrgent]}>
+                  {countdown.text}
+                </Text>
+              </View>
               <Text style={styles.subtitle}>
-                Weighted across your active categories. Inactive ones don't count against you.
+                Your week, banked so far — fills toward 100% by Sunday and resets with your weekly items.
               </Text>
 
               <CategoryRow name="Routine" category={data.routine} />
@@ -219,6 +233,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: C.textPrimary,
     marginBottom: 4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  countdownText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#1D9E75',
+  },
+  countdownUrgent: {
+    color: '#FF6B6B',
   },
   subtitle: {
     fontSize: 12,

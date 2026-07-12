@@ -92,24 +92,10 @@ const GYM_WEIGHT = 20;
 const WEEKLY_WEIGHT = 20;
 const MONTHLY_WEIGHT = 30;
 
-function getLocalDateString(date: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
-
-interface GoalCategoryResult {
-  score: number;
-  isActive: boolean;
-  completedToday: number;
-  remaining: number;
-}
-
 // A task's contribution to the Today ring. Countdown tasks (target_count > 1)
 // earn partial credit as they're ticked down — 4 of 5 taps is 0.8, not 0.
+// (Weekly Momentum counts binary completions from task_completion_history,
+// which has no partial info — partials are a Today-ring-only concept.)
 function taskProgress(task: RoutineTask): number {
   if (task.completed) return 1;
   const target = task.target_count ?? 1;
@@ -118,55 +104,15 @@ function taskProgress(task: RoutineTask): number {
   return Math.min(1, Math.max(0, (target - current) / target));
 }
 
-// Weekly/monthly goals reset to 0% every day — completing something today
-// only counts against what's still left over from before today, so finishing
-// a whole list early in the period doesn't get "used up" and penalize the
-// days that follow, and a fresh item added mid-period just changes what's
-// left, not what was already earned.
-function computeGoalCategoryScore(
-  goals: RoutineGoal[],
-  weight: number,
-  todayDateStr: string,
-  timezone: string
-): GoalCategoryResult {
+// Momentum is a WEEKLY accumulator: each category is simply "banked / total
+// for the period" and the whole ring resets with the Routine tab's weekly
+// items (Monday 5 AM UTC — see utils/weeklyReset). A goal category with zero
+// goals is excluded from the denominator entirely rather than scored 0.
+function goalCompletionRatio(goals: RoutineGoal[]): { ratio: number; completed: number; total: number; isActive: boolean } {
   const total = goals.length;
-  if (total === 0) {
-    // No goals of this type at all — excluded from the calculation entirely,
-    // not just "0 points" (that would still dilute the denominator).
-    return { score: 0, isActive: false, completedToday: 0, remaining: 0 };
-  }
-
-  let alreadyDoneBeforeToday = 0;
-  let completedToday = 0;
-  for (const goal of goals) {
-    if (!goal.completed || !goal.completed_at) continue;
-    const completedDateStr = getLocalDateString(new Date(goal.completed_at), timezone);
-    if (completedDateStr < todayDateStr) {
-      alreadyDoneBeforeToday++;
-    } else if (completedDateStr === todayDateStr) {
-      completedToday++;
-    }
-  }
-
-  const remaining = total - alreadyDoneBeforeToday;
-  const score = remaining === 0
-    ? weight // nothing left — already finished, full credit, no penalty
-    : weight * (completedToday / remaining);
-
-  return { score, isActive: true, completedToday, remaining };
-}
-
-// Gym scoring against the user's weekly day target: full credit while on pace
-// (rest days are free as long as the target is still comfortably reachable),
-// proportional credit when behind, and full — but capped — credit once the
-// target is met, so a 5th day on a 4-day target never penalizes or overflows.
-// "Expected by end of today" uses floor() so early-week rest days don't count
-// against you: target 4 → expected 0 by Mon, 1 by Tue, ..., 4 by Sun.
-function computeGymRatio(done: number, targetDays: number, todayIndex: number): number {
-  if (done >= targetDays) return 1;
-  const expectedByToday = Math.floor((targetDays * (todayIndex + 1)) / 7);
-  if (expectedByToday === 0) return 1;
-  return Math.min(1, done / expectedByToday);
+  if (total === 0) return { ratio: 0, completed: 0, total: 0, isActive: false };
+  const completed = goals.filter(g => g.completed).length;
+  return { ratio: completed / total, completed, total, isActive: true };
 }
 
 const MerciaHomeScreen: React.FC = () => {
@@ -221,14 +167,16 @@ const MerciaHomeScreen: React.FC = () => {
       const day = getTodayDayOfWeek();
       const todayIndex = DAYS.indexOf(day); // Mon=0 … Sun=6
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const todayDateStr = getLocalDateString(new Date(), timezone);
 
-      const [tasksRes, weeklyRes, monthlyRes, gymWeekRes, gymTargetRes] = await Promise.all([
+      const [tasksRes, weeklyRes, monthlyRes, gymWeekRes, gymTargetRes, summaryRes] = await Promise.all([
         api.get(`/api/routine/tasks/${day}`),
         api.get('/api/routine/goals/weekly'),
         api.get('/api/routine/goals/monthly'),
         api.get('/api/gym/week'),
         api.get('/api/gym/target'),
+        // Weekly routine numbers: check-offs Mon→today (task_completion_history)
+        // over the FULL Mon–Sun week's task count. Same math as Summary Data.
+        api.get(`/api/routine/summary-data?timezone=${encodeURIComponent(timezone)}`),
       ]);
 
       // Ring 1: today's routine completion %, with partial credit for
@@ -242,16 +190,27 @@ const MerciaHomeScreen: React.FC = () => {
       setTodayTasks(filteredTasks);
       setTodayPercentage(todayPct);
 
-      // Ring 2 ("Momentum"): weighted composite — routine + gym + weekly +
-      // monthly (no yearly). Each category is either "active" (has data,
-      // counts toward the total) or excluded entirely (doesn't dilute the
+      // Ring 2 ("Momentum"): WEEKLY accumulator — the ring fills across the
+      // Mon–Sun week as work gets banked and resets with the weekly items
+      // (Monday 5 AM UTC, same clock as the Routine tab's countdown).
+      // Weighted across routine + gym + weekly + monthly (no yearly); a goal
+      // category with zero goals is excluded entirely (doesn't dilute the
       // percentage for someone who simply doesn't use that feature).
       const weeklyGoals: RoutineGoal[] = weeklyRes.data.success ? (weeklyRes.data.data || []) : [];
       const monthlyGoals: RoutineGoal[] = monthlyRes.data.success ? (monthlyRes.data.data || []) : [];
 
-      // Gym: scored against the user's weekly day target (pace-based; see
-      // computeGymRatio). Days are counted Mon–today so pre-logging a future
-      // day never inflates the score.
+      // Routine: completions recorded Mon→today over the FULL week's possible
+      // count (accumulator: only reaches 100% by finishing the whole week).
+      // Binary per task-per-day — countdown partials exist only on the Today ring.
+      const currentWeek = summaryRes.data.success ? summaryRes.data.data.current_week : null;
+      const weekPossible: number = currentWeek?.total_possible ?? 0;
+      const weekCompleted: number = currentWeek?.total_completed ?? 0;
+      const routineActive = weekPossible > 0;
+      const routineRatio = routineActive ? weekCompleted / weekPossible : 0;
+
+      // Gym: simple fill toward the weekly target, capped at full — a 5th day
+      // on a 4-day target neither helps nor hurts. Days counted Mon–today so
+      // pre-logging a future day never inflates the score.
       const gymEntries: Array<{ day_of_week: string; workout_group: string }> =
         gymWeekRes.data.success ? (gymWeekRes.data.data || []) : [];
       const gymDaysDone = gymEntries.filter(
@@ -259,28 +218,28 @@ const MerciaHomeScreen: React.FC = () => {
       ).length;
       const gymTargetDays: number = gymTargetRes.data.success ? gymTargetRes.data.data.targetDays : 4;
       const gymTargetIsDefault: boolean = gymTargetRes.data.success ? gymTargetRes.data.data.isDefault : true;
-      const gymRatio = computeGymRatio(gymDaysDone, gymTargetDays, todayIndex);
-      const gymScore = gymRatio * GYM_WEIGHT;
+      const gymRatio = Math.min(1, gymDaysDone / Math.max(1, gymTargetDays));
 
-      const routineActive = filteredTasks.length > 0;
-      const routineScore = routineActive ? todayRatio * ROUTINE_WEIGHT : 0;
-
-      const weeklyResult = computeGoalCategoryScore(weeklyGoals, WEEKLY_WEIGHT, todayDateStr, timezone);
-      const monthlyResult = computeGoalCategoryScore(monthlyGoals, MONTHLY_WEIGHT, todayDateStr, timezone);
+      // Weekly/monthly goals: plain completed/total for their periods. (The
+      // monthly slice persists through Monday resets by design — month
+      // progress is real standing momentum, so the ring doesn't start the
+      // week at exactly 0%.)
+      const weeklyResult = goalCompletionRatio(weeklyGoals);
+      const monthlyResult = goalCompletionRatio(monthlyGoals);
 
       let activeWeight = GYM_WEIGHT;
-      let rawScore = gymScore;
+      let rawScore = gymRatio * GYM_WEIGHT;
       if (routineActive) {
         activeWeight += ROUTINE_WEIGHT;
-        rawScore += routineScore;
+        rawScore += routineRatio * ROUTINE_WEIGHT;
       }
       if (weeklyResult.isActive) {
         activeWeight += WEEKLY_WEIGHT;
-        rawScore += weeklyResult.score;
+        rawScore += weeklyResult.ratio * WEEKLY_WEIGHT;
       }
       if (monthlyResult.isActive) {
         activeWeight += MONTHLY_WEIGHT;
-        rawScore += monthlyResult.score;
+        rawScore += monthlyResult.ratio * MONTHLY_WEIGHT;
       }
 
       const momentum = activeWeight > 0
@@ -290,14 +249,13 @@ const MerciaHomeScreen: React.FC = () => {
 
       // Per-category breakdown for the Momentum detail sheet — same numbers
       // that built the composite, kept instead of discarded.
-      const completedCount = filteredTasks.filter(t => t.completed).length;
       setMomentumData({
         percentage: momentum,
         routine: {
           active: routineActive,
-          percent: todayRatio * 100,
+          percent: routineRatio * 100,
           weight: ROUTINE_WEIGHT,
-          detail: `${completedCount}/${filteredTasks.length} done`,
+          detail: `${weekCompleted}/${weekPossible} this week`,
         },
         gym: {
           active: true,
@@ -310,19 +268,15 @@ const MerciaHomeScreen: React.FC = () => {
         },
         weekly: {
           active: weeklyResult.isActive,
-          percent: WEEKLY_WEIGHT > 0 ? (weeklyResult.score / WEEKLY_WEIGHT) * 100 : 0,
+          percent: weeklyResult.ratio * 100,
           weight: WEEKLY_WEIGHT,
-          detail: weeklyResult.remaining === 0
-            ? 'Finished early ✓'
-            : `${weeklyResult.completedToday} of ${weeklyResult.remaining} left done today`,
+          detail: `${weeklyResult.completed}/${weeklyResult.total} done`,
         },
         monthly: {
           active: monthlyResult.isActive,
-          percent: MONTHLY_WEIGHT > 0 ? (monthlyResult.score / MONTHLY_WEIGHT) * 100 : 0,
+          percent: monthlyResult.ratio * 100,
           weight: MONTHLY_WEIGHT,
-          detail: monthlyResult.remaining === 0
-            ? 'Finished early ✓'
-            : `${monthlyResult.completedToday} of ${monthlyResult.remaining} left done today`,
+          detail: `${monthlyResult.completed}/${monthlyResult.total} this month`,
         },
       });
     } catch (error) {

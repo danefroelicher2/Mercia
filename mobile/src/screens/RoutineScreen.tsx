@@ -24,6 +24,7 @@ import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
 import { Ionicons } from '@expo/vector-icons';
+import { getNextMonday, getNextFirstOfMonth, formatTimeRemaining, shouldShowUrgent } from '../utils/weeklyReset';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -39,56 +40,6 @@ const colors = {
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
-
-const getNextMonday = (): Date => {
-  const now = new Date();
-  const dayUTC = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-
-  // If today is Monday and the reset (5 AM UTC) hasn't happened yet, use today
-  if (dayUTC === 1) {
-    const todayReset = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 5, 0, 0, 0
-    ));
-    if (now < todayReset) return todayReset;
-  }
-
-  const daysUntil = (8 - dayUTC) % 7 || 7;
-  return new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntil, 5, 0, 0, 0
-  ));
-};
-
-const getNextFirstOfMonth = (): Date => {
-  const now = new Date();
-
-  // If today is the 1st and the reset hasn't happened yet, use today
-  if (now.getUTCDate() === 1) {
-    const todayReset = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), 1, 5, 0, 0, 0
-    ));
-    if (now < todayReset) return todayReset;
-  }
-
-  return new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 5, 0, 0, 0
-  ));
-};
-
-const formatTimeRemaining = (ms: number): string => {
-  if (ms <= 0) return 'Resetting...';
-  const totalMinutes = Math.floor(ms / 60000);
-  const totalHours = Math.floor(totalMinutes / 60);
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-  const minutes = totalMinutes % 60;
-  if (days > 0) return `${days}d ${hours}h remaining`;
-  if (totalHours > 0) return `${totalHours}h ${minutes}m remaining`;
-  return `${minutes}m remaining`;
-};
-
-const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS;
 
 const getCalendarDateForDay = (day: DayOfWeek): string => {
   const today = new Date();
