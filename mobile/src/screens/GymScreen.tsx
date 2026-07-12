@@ -8,6 +8,7 @@ import {
   StyleSheet,
   AppState,
   AppStateStatus,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import QuoteCard from '../components/QuoteCard';
@@ -34,6 +35,7 @@ interface GymMemoryEntry {
   workout_group: string;
   notes: string;
   session_date: string;
+  pinned: boolean;
   created_at: string;
 }
 
@@ -51,6 +53,23 @@ const colors = {
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const DAY_OFFSETS: Record<string, number> = {
+  monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
+};
+
+// Mirrors the backend's getISOWeekDayDate so we can identify the session_date the
+// current day's entry is stored under, and exclude it from the "Prior Sessions" list.
+function getISOWeekDayDate(dayOfWeek: string, weekNumber: number, year: number): string {
+  const jan4 = new Date(year, 0, 4);
+  const jan4DayOfWeek = (jan4.getDay() + 6) % 7; // Mon=0 … Sun=6
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - jan4DayOfWeek + (weekNumber - 1) * 7);
+  const offset = DAY_OFFSETS[dayOfWeek.toLowerCase()] ?? 0;
+  const result = new Date(monday);
+  result.setDate(monday.getDate() + offset);
+  return result.toISOString().split('T')[0];
+}
 
 function getISOWeek(date: Date): number {
   const target = new Date(date.valueOf());
@@ -153,8 +172,13 @@ const GymScreen: React.FC = () => {
     try {
       const res = await api.get(`/api/gym/memory/${encodeURIComponent(normalized)}`);
       const entries: GymMemoryEntry[] = res.data.data || [];
-      if (entries.length > 0) {
-        setPriorSessions(entries.slice(0, 5));
+      // Exclude the session for the currently-selected day — the user is editing it
+      // right now and doesn't need to see it duplicated under "Prior Sessions".
+      const now = new Date();
+      const currentSessionDate = getISOWeekDayDate(selectedDay, getISOWeek(now), now.getFullYear());
+      const priors = entries.filter(e => e.session_date !== currentSessionDate);
+      if (priors.length > 0) {
+        setPriorSessions(priors.slice(0, 5));
         setPriorSessionEmpty(false);
       } else {
         setPriorSessions([]);
@@ -201,6 +225,20 @@ const GymScreen: React.FC = () => {
     setShowSuggestions(false);
     triggerSave(group, notes);
     loadPriorSession(group);
+  };
+
+  const handleTogglePin = async (session: GymMemoryEntry) => {
+    // Best-effort client guard; the server enforces the 3-pin cap authoritatively.
+    if (!session.pinned && priorSessions.filter(s => s.pinned).length >= 3) {
+      Alert.alert('Pin limit reached', 'You can pin up to 3 workouts per group.');
+      return;
+    }
+    try {
+      await api.post(`/api/gym/memory/entry/${session.id}/pin`, { pinned: !session.pinned });
+      loadPriorSession(workoutGroup);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.error || 'Failed to update pin. Please try again.');
+    }
   };
 
   const filteredSuggestions = suggestions.filter(s =>
@@ -313,7 +351,17 @@ const GymScreen: React.FC = () => {
               priorSessions.map((session, index) => (
                 <View key={session.id}>
                   {index > 0 && <View style={styles.sessionDivider} />}
-                  <Text style={styles.priorDate}>{formatDate(session.session_date)}</Text>
+                  <View style={styles.priorHeader}>
+                    <Text style={styles.priorDate}>{formatDate(session.session_date)}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleTogglePin(session)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[styles.starIcon, session.pinned && styles.starIconActive]}>
+                        {session.pinned ? '★' : '☆'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.priorNotes}>{session.notes}</Text>
                 </View>
               ))
@@ -466,11 +514,24 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginBottom: 12,
   },
+  priorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   priorDate: {
     fontSize: 12,
     color: colors.primary,
     fontWeight: '500',
-    marginBottom: 6,
+  },
+  starIcon: {
+    fontSize: 16,
+    color: colors.textTertiary,
+    lineHeight: 18,
+  },
+  starIconActive: {
+    color: '#F5C518',
   },
   priorNotes: {
     fontSize: 13,

@@ -23,6 +23,10 @@ const upsertLogSchema = z.object({
   notes: z.string().max(5000),
 });
 
+const pinMemorySchema = z.object({
+  pinned: z.boolean(),
+});
+
 function getISOWeek(date: Date): number {
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -138,6 +142,31 @@ router.get('/memory/:group', async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+/**
+ * POST /api/gym/memory/entry/:entryId/pin
+ * Pin or unpin a single memory entry. Max 3 pinned per workout group.
+ */
+router.post(
+  '/memory/entry/:entryId/pin',
+  validate(pinMemorySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { entryId } = req.params;
+      const { pinned } = req.body;
+      const storage = getStorage();
+      const entry = await storage.setGymMemoryPinned(userId, entryId, pinned);
+      res.json({ success: true, data: entry });
+    } catch (error: any) {
+      if (error.message === 'PIN_LIMIT') {
+        res.status(409).json({ success: false, error: 'You can pin up to 3 workouts per group.' });
+        return;
+      }
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
 
 /**
  * DELETE /api/gym/memory/entry/:entryId

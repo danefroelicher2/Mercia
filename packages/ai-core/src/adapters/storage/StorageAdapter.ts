@@ -24,6 +24,7 @@ export interface GymMemoryEntry {
   workout_group: string;
   notes: string;
   session_date: string;
+  pinned: boolean;
   created_at: string;
 }
 
@@ -259,6 +260,7 @@ export interface StorageAdapter {
   getGymMemory(userId: string): Promise<GymMemoryGroup[]>;
   getGymMemoryByGroup(userId: string, workoutGroup: string): Promise<GymMemoryEntry[]>;
   saveGymMemoryEntry(userId: string, workoutGroup: string, notes: string, sessionDate: string): Promise<void>;
+  setGymMemoryPinned(userId: string, entryId: string, pinned: boolean): Promise<GymMemoryEntry>;
   deleteGymMemoryGroup(userId: string, workoutGroup: string): Promise<void>;
   deleteGymMemoryEntry(userId: string, entryId: string): Promise<void>;
   getGymPRs(userId: string): Promise<GymPRGroup[]>;

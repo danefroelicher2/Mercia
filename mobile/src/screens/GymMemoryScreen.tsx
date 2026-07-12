@@ -20,6 +20,7 @@ interface GymMemoryEntry {
   workout_group: string;
   notes: string;
   session_date: string;
+  pinned: boolean;
   created_at: string;
 }
 
@@ -205,6 +206,21 @@ const GymMemoryScreen: React.FC = () => {
     );
   };
 
+  const handleTogglePin = async (entry: GymMemoryEntry, groupName: string) => {
+    const group = groups.find(g => g.workout_group === groupName);
+    const pinnedCount = group ? group.entries.filter(e => e.pinned).length : 0;
+    if (!entry.pinned && pinnedCount >= 3) {
+      Alert.alert('Pin limit reached', 'You can pin up to 3 workouts per group.');
+      return;
+    }
+    try {
+      await api.post(`/api/gym/memory/entry/${entry.id}/pin`, { pinned: !entry.pinned });
+      loadMemory();
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.error || 'Failed to update pin. Please try again.');
+    }
+  };
+
   const handleDeleteEntry = (entry: GymMemoryEntry, groupName: string) => {
     Alert.alert(
       'Delete Workout',
@@ -300,7 +316,17 @@ const GymMemoryScreen: React.FC = () => {
                     onPress={() => toggleEntry(entry.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.entryDate}>{formatDate(entry.session_date)}</Text>
+                    <View style={styles.entryLeft}>
+                      <TouchableOpacity
+                        onPress={() => handleTogglePin(entry, group.workout_group)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={[styles.starIcon, entry.pinned && styles.starIconActive]}>
+                          {entry.pinned ? '★' : '☆'}
+                        </Text>
+                      </TouchableOpacity>
+                      <Text style={styles.entryDate}>{formatDate(entry.session_date)}</Text>
+                    </View>
                     <Text style={styles.entryChevron}>{isExpanded ? '∧' : '∨'}</Text>
                   </TouchableOpacity>
                   {isExpanded && (
@@ -583,6 +609,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#1E1E1E',
+  },
+  entryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  starIcon: {
+    fontSize: 16,
+    color: '#555',
+    lineHeight: 18,
+  },
+  starIconActive: {
+    color: '#F5C518',
   },
   entryDate: {
     fontSize: 14,

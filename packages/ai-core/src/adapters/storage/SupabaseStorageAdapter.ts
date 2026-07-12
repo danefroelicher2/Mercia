@@ -7,6 +7,11 @@ import {
   RoutineGoal,
 } from '../../types';
 
+// Gym memory retention: at most 5 sessions kept per user+group, of which at most
+// 3 may be pinned. Pinned sessions bypass deletion but still count toward the cap.
+const GYM_MEMORY_MAX = 5;
+const GYM_MEMORY_MAX_PINNED = 3;
+
 const DAY_OFFSETS: Record<string, number> = {
   monday: 0, tuesday: 1, wednesday: 2, thursday: 3,
   friday: 4, saturday: 5, sunday: 6,
@@ -734,7 +739,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .select('*')
       .eq('user_id', userId)
       .order('workout_group', { ascending: true })
-      .order('created_at', { ascending: false });
+      .order('pinned', { ascending: false })
+      .order('session_date', { ascending: false });
 
     if (error) throw new Error(`Failed to get gym memory: ${error.message}`);
 
@@ -754,8 +760,9 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .select('*')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
-      .order('created_at', { ascending: false })
-      .limit(5);
+      .order('pinned', { ascending: false })
+      .order('session_date', { ascending: false })
+      .limit(6);
 
     if (error) throw new Error(`Failed to get gym memory by group: ${error.message}`);
     return data || [];
@@ -774,26 +781,75 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
     if (upsertError) throw new Error(`Failed to save gym memory entry: ${upsertError.message}`);
 
-    // Keep only the 5 most recent sessions per user+group
-    const { data: recent, error: selectError } = await this.client
+    // Retention: keep at most 5 sessions per user+group. Pinned sessions are never
+    // deleted; they still count toward the cap of 5, leaving (5 - pinnedCount) slots
+    // for the most-recent unpinned sessions. The oldest unpinned overflow is deleted.
+    const { data: all, error: selectError } = await this.client
       .from('gym_memory')
-      .select('id')
+      .select('id, pinned, session_date')
       .eq('user_id', userId)
       .eq('workout_group', normalized)
-      .order('session_date', { ascending: false })
-      .limit(5);
+      .order('session_date', { ascending: false });
 
     if (selectError) throw new Error(`Failed to fetch gym memory for trimming: ${selectError.message}`);
 
-    const keepIds = (recent || []).map((r: any) => r.id);
-    if (keepIds.length === 5) {
+    const rows = all || [];
+    const pinned = rows.filter((r: any) => r.pinned);
+    const unpinned = rows.filter((r: any) => !r.pinned); // already newest-first
+    const unpinnedKeep = Math.max(0, GYM_MEMORY_MAX - pinned.length);
+
+    const keepIds = new Set<string>([
+      ...pinned.map((r: any) => r.id),
+      ...unpinned.slice(0, unpinnedKeep).map((r: any) => r.id),
+    ]);
+    const deleteIds = rows.filter((r: any) => !keepIds.has(r.id)).map((r: any) => r.id);
+
+    if (deleteIds.length > 0) {
       await this.client
         .from('gym_memory')
         .delete()
         .eq('user_id', userId)
-        .eq('workout_group', normalized)
-        .not('id', 'in', `(${keepIds.join(',')})`);
+        .in('id', deleteIds);
     }
+  }
+
+  async setGymMemoryPinned(userId: string, entryId: string, pinned: boolean): Promise<GymMemoryEntry> {
+    // Look up the target entry (scoped to the user) to find its group.
+    const { data: entry, error: fetchError } = await this.client
+      .from('gym_memory')
+      .select('*')
+      .eq('id', entryId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError) throw new Error(`Failed to fetch gym memory entry: ${fetchError.message}`);
+    if (!entry) throw new Error('Gym memory entry not found');
+
+    // Enforce max pins per group when pinning (server is the source of truth).
+    if (pinned && !entry.pinned) {
+      const { count, error: countError } = await this.client
+        .from('gym_memory')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('workout_group', entry.workout_group)
+        .eq('pinned', true);
+
+      if (countError) throw new Error(`Failed to count pinned entries: ${countError.message}`);
+      if ((count ?? 0) >= GYM_MEMORY_MAX_PINNED) {
+        throw new Error('PIN_LIMIT');
+      }
+    }
+
+    const { data, error } = await this.client
+      .from('gym_memory')
+      .update({ pinned })
+      .eq('id', entryId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update gym memory pin: ${error.message}`);
+    return data;
   }
 
   async deleteGymMemoryGroup(userId: string, workoutGroup: string): Promise<void> {
