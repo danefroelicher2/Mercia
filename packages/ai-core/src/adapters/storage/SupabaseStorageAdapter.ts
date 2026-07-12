@@ -214,8 +214,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     userId: string,
     text: string,
     type: 'today',
-    dayOfWeek: string
+    dayOfWeek: string,
+    targetCount: number = 1
   ): Promise<RoutineTask> {
+    const clampedTargetCount = Math.min(999, Math.max(1, Math.trunc(targetCount)));
+
     const { data: maxData } = await this.client
       .from('routine_tasks')
       .select('sort_order')
@@ -237,6 +240,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         day_of_week: dayOfWeek,
         completed: false,
         sort_order: nextSortOrder,
+        target_count: clampedTargetCount,
+        current_count: clampedTargetCount,
       })
       .select()
       .single();
@@ -281,6 +286,54 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
 
     return data;
+  }
+
+  async tickRoutineTask(
+    taskId: string,
+    userId: string
+  ): Promise<{ task: RoutineTask; becameCompleted: boolean; becameUncompleted: boolean }> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: existing, error: fetchError } = await this.client
+        .from('routine_tasks')
+        .select('current_count, target_count, completed')
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch task for tick: ${fetchError.message}`);
+      }
+
+      const wasCompleted = existing.completed;
+      const newCount = existing.current_count > 0
+        ? existing.current_count - 1
+        : Math.min(existing.current_count + 1, existing.target_count);
+      const newCompleted = newCount === 0;
+
+      const { data, error } = await this.client
+        .from('routine_tasks')
+        .update({ current_count: newCount, completed: newCompleted })
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .eq('current_count', existing.current_count)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(`Failed to tick task: ${error.message}`);
+      }
+
+      if (data) {
+        return {
+          task: data,
+          becameCompleted: !wasCompleted && newCompleted,
+          becameUncompleted: wasCompleted && !newCompleted,
+        };
+      }
+      // current_count changed between fetch and update (concurrent tick) — retry up to 4 times
+    }
+
+    throw new Error('Failed to tick task: concurrent update conflict');
   }
 
   async deleteRoutineTask(taskId: string, userId: string): Promise<void> {
@@ -488,16 +541,16 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 
   async resetAllTaskCompletions(): Promise<void> {
+    // RPC resets completed=false AND current_count=target_count (column-to-column),
+    // mirroring reset_goal_progress so countdown tasks restore their full count.
     const { error } = await this.client
-      .from('routine_tasks')
-      .update({ completed: false })
-      .neq('user_id', '00000000-0000-0000-0000-000000000000'); // Update all
+      .rpc('reset_task_progress');
 
     if (error) {
       throw new Error(`Failed to reset task completions: ${error.message}`);
     }
 
-    console.log('[Reset] All task completions reset to false');
+    console.log('[Reset] All task completions and counts reset');
   }
 
   async resetAllWeeklyGoalCompletions(): Promise<void> {

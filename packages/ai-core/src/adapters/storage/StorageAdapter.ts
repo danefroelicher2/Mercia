@@ -121,7 +121,8 @@ export interface StorageAdapter {
     userId: string,
     text: string,
     type: 'today',
-    dayOfWeek: string
+    dayOfWeek: string,
+    targetCount?: number
   ): Promise<RoutineTask>;
 
   /**
@@ -133,6 +134,13 @@ export interface StorageAdapter {
    * Update task completion status
    */
   updateRoutineTaskCompletion(taskId: string, userId: string, completed: boolean): Promise<RoutineTask>;
+
+  /**
+   * Tick a routine task's countdown: decrements current_count, completing at 0.
+   * Mirrors tickRoutineGoal. Returns the transition so callers can fire
+   * completion side-effects (activity log, achievements, history).
+   */
+  tickRoutineTask(taskId: string, userId: string): Promise<{ task: RoutineTask; becameCompleted: boolean; becameUncompleted: boolean }>;
 
   /**
    * Delete a routine task

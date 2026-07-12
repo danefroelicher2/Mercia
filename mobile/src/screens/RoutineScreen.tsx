@@ -132,6 +132,7 @@ const RoutineScreen: React.FC = () => {
   const [goalModalVisible, setGoalModalVisible] = useState(false);
 
   const [newTaskText, setNewTaskText] = useState('');
+  const [newTaskCount, setNewTaskCount] = useState('1');
   const [newGoalText, setNewGoalText] = useState('');
   const [newGoalCount, setNewGoalCount] = useState('1');
 
@@ -160,6 +161,7 @@ const RoutineScreen: React.FC = () => {
   const [notepadContent, setNotepadContent] = useState('');
   const notepadSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickingGoalIds = useRef<Set<string>>(new Set());
+  const tickingTaskIds = useRef<Set<string>>(new Set());
 
   // Edit mode state — each card manages its own independently
   const [editingCard, setEditingCard] = useState<'today' | 'weekly' | 'monthly' | 'yearly' | null>(null);
@@ -342,16 +344,21 @@ const RoutineScreen: React.FC = () => {
   const handleAddTask = async () => {
     if (!newTaskText.trim()) return;
 
+    const parsedCount = parseInt(newTaskCount, 10);
+    const targetCount = Number.isFinite(parsedCount) ? Math.min(999, Math.max(1, parsedCount)) : 1;
+
     try {
       const response = await api.post('/api/routine/tasks', {
         text: newTaskText.trim(),
         type: 'today',
         dayOfWeek: selectedDay,
+        targetCount,
       });
 
       if (response.data.success) {
         setTasks([...tasks, response.data.data]);
         setNewTaskText('');
+        setNewTaskCount('1');
         setTaskModalVisible(false);
       }
     } catch (error) {
@@ -360,17 +367,16 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
+  const handleToggleTask = async (taskId: string) => {
+    if (tickingTaskIds.current.has(taskId)) return;
+    tickingTaskIds.current.add(taskId);
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const selectedDate = getCalendarDateForDay(selectedDay);
       const now = new Date();
       const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const body: { completed: boolean; timezone: string; date?: string } = {
-        completed: !currentStatus,
-        timezone,
-      };
+      const body: { timezone: string; date?: string } = { timezone };
 
       if (selectedDate < todayDate) {
         body.date = selectedDate;
@@ -379,12 +385,13 @@ const RoutineScreen: React.FC = () => {
       const response = await api.patch(`/api/routine/tasks/${taskId}`, body);
 
       if (response.data.success) {
-        setTasks(tasks.map(t =>
-          t.id === taskId ? { ...t, completed: !currentStatus } : t
-        ));
+        const updated: RoutineTask = response.data.data;
+        setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
       }
     } catch (error) {
       console.error('[RoutineScreen] Error toggling task:', error);
+    } finally {
+      tickingTaskIds.current.delete(taskId);
     }
   };
 
@@ -663,7 +670,7 @@ const RoutineScreen: React.FC = () => {
   ) => (
     <TouchableOpacity
       key={item.id}
-      onPress={isEditing ? undefined : () => handleToggleTask(item.id, item.completed)}
+      onPress={isEditing ? undefined : () => handleToggleTask(item.id)}
       style={[styles.taskItem, { width: '100%' }]}
       activeOpacity={isEditing ? 1 : 0.7}
     >
@@ -673,6 +680,11 @@ const RoutineScreen: React.FC = () => {
       <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
         {item.text}
       </Text>
+      {item.target_count > 1 && item.current_count > 0 && (
+        <View style={styles.goalCountBadge}>
+          <Text style={styles.goalCountBadgeText}>{item.current_count}</Text>
+        </View>
+      )}
       {isEditing ? (
         <View style={styles.reorderButtons}>
           <TouchableOpacity
@@ -988,6 +1000,7 @@ const RoutineScreen: React.FC = () => {
         onRequestClose={() => {
           setTaskModalVisible(false);
           setNewTaskText('');
+          setNewTaskCount('1');
           setCopyModeActive(false);
           setCopyNoTasksMessage('');
         }}
@@ -1002,6 +1015,7 @@ const RoutineScreen: React.FC = () => {
             onPress={() => {
               setTaskModalVisible(false);
               setNewTaskText('');
+              setNewTaskCount('1');
               setCopyModeActive(false);
               setCopyNoTasksMessage('');
             }}
@@ -1060,6 +1074,22 @@ const RoutineScreen: React.FC = () => {
                   multiline
                 />
 
+                <View style={styles.goalCountRow}>
+                  <Text style={styles.goalCountLabel}>How many times?</Text>
+                  <TextInput
+                    style={styles.goalCountInput}
+                    keyboardType="number-pad"
+                    value={newTaskCount}
+                    onChangeText={(text) => setNewTaskCount(text.replace(/[^0-9]/g, ''))}
+                    onBlur={() => {
+                      const parsed = parseInt(newTaskCount, 10);
+                      const clamped = Number.isFinite(parsed) ? Math.min(999, Math.max(1, parsed)) : 1;
+                      setNewTaskCount(String(clamped));
+                    }}
+                    maxLength={3}
+                  />
+                </View>
+
                 <View style={[styles.modalButtons, { justifyContent: 'space-between', alignItems: 'center' }]}>
                   <TouchableOpacity
                     onPress={() => { setCopyNoTasksMessage(''); setCopyModeActive(true); }}
@@ -1072,6 +1102,7 @@ const RoutineScreen: React.FC = () => {
                       onPress={() => {
                         setTaskModalVisible(false);
                         setNewTaskText('');
+                        setNewTaskCount('1');
                         setCopyModeActive(false);
                         setCopyNoTasksMessage('');
                       }}

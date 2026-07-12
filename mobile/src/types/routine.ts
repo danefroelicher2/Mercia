@@ -5,6 +5,8 @@ export interface RoutineTask {
   type: 'today';
   day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
   completed: boolean;
+  target_count: number;
+  current_count: number;
   created_at: string;
 }
 

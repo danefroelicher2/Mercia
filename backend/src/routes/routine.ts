@@ -34,6 +34,7 @@ const createTaskSchema = z.object({
   text: z.string().min(1).max(500),
   type: z.enum(['today']),
   dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  targetCount: z.number().int().min(1).max(999).optional(),
 });
 
 const createGoalSchema = z.object({
@@ -43,7 +44,6 @@ const createGoalSchema = z.object({
 });
 
 const toggleCompletionSchema = z.object({
-  completed: z.boolean(),
   timezone: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
@@ -76,8 +76,9 @@ router.post(
       const userId = req.user!.id;
       const { text, type, dayOfWeek } = req.body;
 
+      const { targetCount } = req.body;
       const storage = getStorage();
-      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek);
+      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek, targetCount);
 
       res.status(201).json({
         success: true,
@@ -159,7 +160,7 @@ router.patch(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { completed, timezone, date } = req.body;
+      const { timezone, date } = req.body;
       const today = getLocalDateString(timezone);
 
       if (date && date > today) {
@@ -170,10 +171,12 @@ router.patch(
       const activityDate = date ?? today;
 
       const storage = getStorage();
-      const task = await storage.updateRoutineTaskCompletion(id, userId, completed);
+      // Countdown tick: decrements current_count, completing at 0. Side-effects
+      // below fire only on the completion transition, mirroring the goal endpoint.
+      const { task, becameCompleted, becameUncompleted } = await storage.tickRoutineTask(id, userId);
 
-      // Log activity for stats AND check achievements (only if marking as completed)
-      if (completed === true) {
+      // Log activity for stats AND check achievements (only on the completion transition)
+      if (becameCompleted) {
         try {
           const supabase = getSupabase();
 
@@ -225,7 +228,7 @@ router.patch(
         } catch (err) {
           console.error('Failed to log task activity or check achievements:', err);
         }
-      } else {
+      } else if (becameUncompleted) {
         // Fire-and-forget: remove history entry when task is unchecked
         const supabase = getSupabase();
         supabase
