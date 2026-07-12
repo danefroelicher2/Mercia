@@ -85,12 +85,16 @@ const CHECK_IN_CARDS: Record<DayPhase, CheckInCardConfig> = {
   },
 };
 
-// Ring 2 ("Overall") category weights — see
-// docs/superpowers/specs/2026-07-08-home-tab-rings-design.md for the full reasoning.
-const ROUTINE_WEIGHT = 30;
-const GYM_WEIGHT = 20;
-const WEEKLY_WEIGHT = 20;
-const MONTHLY_WEIGHT = 30;
+// Ring 2 ("Momentum") category weights, tuned for the WEEKLY frame:
+// routine is the backbone (highest volume, hardest to max), gym and weekly
+// goals are explicit weekly commitments, and monthly is deliberately a small
+// nudge — a month is ~4.3 weeks, so an on-track user may legitimately touch
+// zero monthly goals in a given week. A perfect week with untouched
+// monthlies reads 90%, not 70%. See docs/FABLE_HOMESCREEN.md §2.
+const ROUTINE_WEIGHT = 40;
+const GYM_WEIGHT = 25;
+const WEEKLY_WEIGHT = 25;
+const MONTHLY_WEIGHT = 10;
 
 // A task's contribution to the Today ring. Countdown tasks (target_count > 1)
 // earn partial credit as they're ticked down — 4 of 5 taps is 0.8, not 0.
@@ -104,15 +108,29 @@ function taskProgress(task: RoutineTask): number {
   return Math.min(1, Math.max(0, (target - current) / target));
 }
 
-// Momentum is a WEEKLY accumulator: each category is simply "banked / total
-// for the period" and the whole ring resets with the Routine tab's weekly
-// items (Monday 5 AM UTC — see utils/weeklyReset). A goal category with zero
-// goals is excluded from the denominator entirely rather than scored 0.
+// Momentum is a WEEKLY accumulator: each category is "banked / total for the
+// period" and the whole ring resets with the Routine tab's weekly items
+// (Monday 5 AM UTC — see utils/weeklyReset). A goal category with zero goals
+// is excluded from the denominator entirely rather than scored 0.
+//
+// Countdown goals earn PARTIAL credit from their live tick progress — a
+// "Run 4x" goal at 3 ticks contributes 0.75, not 0 — mirroring how the
+// Today ring treats countdown tasks, so the ring fills smoothly instead of
+// jumping on the final tick. (current_count counts DOWN to 0 = complete.)
+function goalProgress(goal: RoutineGoal): number {
+  if (goal.completed) return 1;
+  const target = goal.target_count ?? 1;
+  if (target <= 1) return 0;
+  const current = goal.current_count ?? target;
+  return Math.min(1, Math.max(0, (target - current) / target));
+}
+
 function goalCompletionRatio(goals: RoutineGoal[]): { ratio: number; completed: number; total: number; isActive: boolean } {
   const total = goals.length;
   if (total === 0) return { ratio: 0, completed: 0, total: 0, isActive: false };
   const completed = goals.filter(g => g.completed).length;
-  return { ratio: completed / total, completed, total, isActive: true };
+  const progressSum = goals.reduce((sum, g) => sum + goalProgress(g), 0);
+  return { ratio: progressSum / total, completed, total, isActive: true };
 }
 
 const MerciaHomeScreen: React.FC = () => {
