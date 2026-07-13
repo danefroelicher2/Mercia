@@ -54,11 +54,14 @@ export function getDatesFromMondayToDate(dateStr: string): string[] {
   return dates;
 }
 
-// Ring weights — MUST stay in sync with mobile/src/screens/MerciaHomeScreen.tsx's
-// ROUTINE_WEIGHT/GYM_WEIGHT/WEEKLY_WEIGHT/MONTHLY_WEIGHT and computeGoalCategoryScore.
-// See docs/superpowers/specs/2026-07-08-home-tab-rings-design.md for the full formula
-// reasoning. Duplicated rather than shared as a package because the mobile app isn't
-// currently wired to import from @mercia/ai-core — if that changes, extract this.
+// LEGACY daily-frame ring weights + remaining-pool scoring, kept DELIBERATELY.
+// These compute the historical per-day overall_percentage written into
+// weekly_summaries rows (one row per day) — a self-consistent daily series
+// used by the LLM month log, best-day stats, and monthly/yearly reviews.
+// The Home tab's Momentum ring moved to a WEEKLY accumulator with different
+// weights (40/25/25/10 — see docs/FABLE_HOMESCREEN.md §2); do NOT "sync"
+// these to match it, or every stored day's history changes meaning.
+// Original formula reasoning: docs/superpowers/specs/2026-07-08-home-tab-rings-design.md.
 const ROUTINE_WEIGHT = 30;
 const GYM_WEIGHT = 20;
 const WEEKLY_WEIGHT = 20;
