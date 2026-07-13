@@ -440,12 +440,32 @@ router.patch(
       const { timezone } = req.body;
 
       const storage = getStorage();
-      const { goal, becameCompleted } = await storage.tickRoutineGoal(id, userId);
+      const { goal, becameCompleted, becameUncompleted } = await storage.tickRoutineGoal(id, userId);
 
       // Log activity for stats AND check achievements (only on the false -> true transition)
       if (becameCompleted) {
         try {
           const supabase = getSupabase();
+
+          // Fire-and-forget: record the completion BY NAME so reviews and the
+          // LLM can reference specific goals ("Run 4x" not "a weekly goal").
+          // Mirrors task_completion_history; keyed per goal per local day.
+          supabase
+            .schema('oasis')
+            .from('goal_completion_history')
+            .upsert(
+              {
+                user_id: userId,
+                goal_id: goal.id,
+                goal_text: goal.text,
+                goal_type: goal.type,
+                completed_date: getLocalDateString(timezone),
+              },
+              { onConflict: 'user_id,goal_id,completed_date' }
+            )
+            .then(({ error }) => {
+              if (error) console.error('[Routine] goal_completion_history upsert failed:', error);
+            });
 
           console.log('[Routine] Inserting activity log for goal completion, user:', userId);
           // Log the activity
@@ -476,6 +496,19 @@ router.patch(
         } catch (err) {
           console.error('Failed to log goal activity or check achievements:', err);
         }
+      } else if (becameUncompleted) {
+        // Fire-and-forget: remove today's history row when a goal is un-completed
+        const supabase = getSupabase();
+        supabase
+          .schema('oasis')
+          .from('goal_completion_history')
+          .delete()
+          .eq('user_id', userId)
+          .eq('goal_id', goal.id)
+          .eq('completed_date', getLocalDateString(timezone))
+          .then(({ error }) => {
+            if (error) console.error('[Routine] goal_completion_history delete failed:', error);
+          });
       }
 
       res.json({

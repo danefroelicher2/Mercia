@@ -450,7 +450,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async tickRoutineGoal(
     goalId: string,
     userId: string
-  ): Promise<{ goal: RoutineGoal; becameCompleted: boolean }> {
+  ): Promise<{ goal: RoutineGoal; becameCompleted: boolean; becameUncompleted: boolean }> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const { data: existing, error: fetchError } = await this.client
         .from('routine_goals')
@@ -496,7 +496,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       }
 
       if (data) {
-        return { goal: data, becameCompleted: !wasCompleted && newCompleted };
+        return {
+          goal: data,
+          becameCompleted: !wasCompleted && newCompleted,
+          becameUncompleted: wasCompleted && !newCompleted,
+        };
       }
       // current_count changed between fetch and update (concurrent tick) — retry up to 4 times
     }

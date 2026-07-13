@@ -175,7 +175,7 @@ export interface StorageAdapter {
    * target_count if already at 0 (undoing one step). Returns the updated
    * goal plus whether this call caused the true -> completed transition.
    */
-  tickRoutineGoal(goalId: string, userId: string): Promise<{ goal: RoutineGoal; becameCompleted: boolean }>;
+  tickRoutineGoal(goalId: string, userId: string): Promise<{ goal: RoutineGoal; becameCompleted: boolean; becameUncompleted: boolean }>;
 
   /**
    * Delete a routine goal

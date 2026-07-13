@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
+import { getLLM } from '../services/merciaCore';
 import { Achievement, UserAchievement } from '../types/stats';
 
 const router = Router();
@@ -306,6 +307,257 @@ router.get('/monthly-review', async (req: Request, res: Response): Promise<void>
     });
   } catch (error: any) {
     console.error('[Stats Monthly Review] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// YEARLY REVIEWS (Wrapped-style, completed calendar years only)
+// ============================================
+
+// Longest consecutive-day run within a sorted list of YYYY-MM-DD strings.
+function longestStreakInDates(dates: string[]): { length: number; start: string; end: string } | null {
+  const sorted = [...new Set(dates)].sort();
+  if (sorted.length === 0) return null;
+  let best = { length: 1, start: sorted[0], end: sorted[0] };
+  let runStart = sorted[0];
+  let runLen = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1] + 'T12:00:00Z');
+    prev.setUTCDate(prev.getUTCDate() + 1);
+    if (prev.toISOString().split('T')[0] === sorted[i]) {
+      runLen++;
+    } else {
+      runStart = sorted[i];
+      runLen = 1;
+    }
+    if (runLen > best.length) best = { length: runLen, start: runStart, end: sorted[i] };
+  }
+  return best;
+}
+
+// Gathers every stat a year's review needs. Data for a completed year is
+// frozen (the year ended), so this is computed live per request; only the
+// LLM narrative is cached (oasis.yearly_reviews).
+async function computeYearReviewStats(userId: string, year: number, supabase: any) {
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+
+  const [activityRes, gymRes, summariesRes, taskHistRes, goalHistRes, creationRes] = await Promise.all([
+    supabase.schema('oasis').from('user_activity_log')
+      .select('activity_type, activity_date')
+      .eq('user_id', userId).gte('activity_date', yearStart).lte('activity_date', yearEnd),
+    supabase.schema('oasis').from('gym_memory')
+      .select('session_date, workout_group')
+      .eq('user_id', userId).gte('session_date', yearStart).lte('session_date', yearEnd),
+    supabase.schema('oasis').from('weekly_summaries')
+      .select('week_end_date, today_completed, today_total, overall_percentage, has_complete_data')
+      .eq('user_id', userId).gte('week_end_date', yearStart).lte('week_end_date', yearEnd),
+    supabase.schema('oasis').from('task_completion_history')
+      .select('task_text')
+      .eq('user_id', userId).eq('completed', true)
+      .gte('snapshot_date', yearStart).lte('snapshot_date', yearEnd),
+    supabase.schema('oasis').from('goal_completion_history')
+      .select('goal_text, goal_type')
+      .eq('user_id', userId).eq('goal_type', 'weekly')
+      .gte('completed_date', yearStart).lte('completed_date', yearEnd),
+    supabase.rpc('get_account_creation_date', { p_user_id: userId }),
+  ]);
+
+  const activity = (activityRes.data ?? []) as Array<{ activity_type: string; activity_date: string }>;
+  const gymRows = (gymRes.data ?? []) as Array<{ session_date: string; workout_group: string }>;
+  const summaries = ((summariesRes.data ?? []) as any[]).filter(r => r.has_complete_data);
+
+  const taskCount = activity.filter(a => a.activity_type === 'task_completed').length;
+  const goalCount = activity.filter(a => a.activity_type === 'goal_completed').length;
+  const chatCount = activity.filter(a => a.activity_type === 'ai_chat_sent').length;
+
+  const gymDaysLogged = new Set(gymRows.map(r => r.session_date)).size;
+  const totalActions = taskCount + goalCount + chatCount + gymDaysLogged;
+
+  const perfectDays = summaries.filter(
+    r => (r.today_total ?? 0) > 0 && (r.today_completed ?? 0) >= (r.today_total ?? 0)
+  ).length;
+
+  // Top workouts: distinct days per workout name (a rename mid-day can leave
+  // two memory rows for one date; day-counting keeps it honest).
+  const workoutDays: Record<string, Set<string>> = {};
+  for (const r of gymRows) {
+    if (!workoutDays[r.workout_group]) workoutDays[r.workout_group] = new Set();
+    workoutDays[r.workout_group].add(r.session_date);
+  }
+  const topWorkouts = Object.entries(workoutDays)
+    .map(([name, days]) => ({ name, count: days.size }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  const countBy = (rows: Array<{ [k: string]: any }>, key: string): Array<{ text: string; count: number }> => {
+    const counts: Record<string, number> = {};
+    for (const r of rows) counts[r[key]] = (counts[r[key]] ?? 0) + 1;
+    return Object.entries(counts)
+      .map(([text, count]) => ({ text, count }))
+      .sort((a, b) => b.count - a.count);
+  };
+  const topTodayItems = countBy((taskHistRes.data ?? []) as any[], 'task_text').slice(0, 5);
+  const topWeeklyItems = countBy((goalHistRes.data ?? []) as any[], 'goal_text').slice(0, 3);
+
+  const longestStreak = longestStreakInDates(activity.map(a => a.activity_date));
+
+  // Best month: highest average momentum across that month's summary days.
+  const byMonth: Record<string, { sum: number; n: number }> = {};
+  for (const r of summaries) {
+    const m = (r.week_end_date as string).slice(0, 7);
+    if (!byMonth[m]) byMonth[m] = { sum: 0, n: 0 };
+    byMonth[m].sum += r.overall_percentage ?? 0;
+    byMonth[m].n++;
+  }
+  let bestMonth: { month: string; label: string; avgMomentum: number } | null = null;
+  for (const [m, { sum, n }] of Object.entries(byMonth)) {
+    const avg = Math.round(sum / n);
+    if (!bestMonth || avg > bestMonth.avgMomentum) {
+      const label = new Date(m + '-01T12:00:00Z').toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+      bestMonth = { month: m, label, avgMomentum: avg };
+    }
+  }
+
+  // First-year cards note the join date (it wasn't a full year).
+  const accountCreated = creationRes.data ? new Date(creationRes.data) : null;
+  const startedDate = accountCreated && accountCreated.getUTCFullYear() === year
+    ? accountCreated.toISOString().split('T')[0]
+    : null;
+
+  return {
+    year,
+    startedDate,
+    totalActions,
+    gymDaysLogged,
+    perfectDays,
+    tasksCompleted: taskCount,
+    goalsCompleted: goalCount,
+    chatsSent: chatCount,
+    topWorkouts,
+    topTodayItems,
+    topWeeklyItems,
+    longestStreak,
+    bestMonth,
+  };
+}
+
+/**
+ * GET /api/stats/yearly-reviews?timezone=
+ * Light list of completed-year cards (no LLM). A year qualifies only when it
+ * is fully over (user-local) AND has at least one action.
+ */
+router.get('/yearly-reviews', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+    const currentYear = parseInt(getLocalDateString(timezone).slice(0, 4), 10);
+
+    const { data: creationData, error: creationError } = await supabase
+      .rpc('get_account_creation_date', { p_user_id: userId });
+    if (creationError) throw creationError;
+    const accountYear = new Date(creationData).getUTCFullYear();
+
+    const cards: any[] = [];
+    for (let year = accountYear; year < currentYear; year++) {
+      const stats = await computeYearReviewStats(userId, year, supabase);
+      if (stats.totalActions > 0) {
+        cards.push({
+          year,
+          startedDate: stats.startedDate,
+          totalActions: stats.totalActions,
+          gymDaysLogged: stats.gymDaysLogged,
+        });
+      }
+    }
+
+    res.json({ success: true, data: cards.sort((a, b) => b.year - a.year) });
+  } catch (error: any) {
+    console.error('[Stats Yearly Reviews] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/stats/yearly-review/:year?timezone=
+ * Full review for one completed year: all stats + the coach retrospective.
+ * The narrative is generated ONCE from the complete stat set (so Mercia can
+ * reference items and workouts by name) and cached in oasis.yearly_reviews.
+ */
+router.get('/yearly-review/:year', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const supabase = getSupabase();
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+    const year = parseInt(req.params.year, 10);
+    const currentYear = parseInt(getLocalDateString(timezone).slice(0, 4), 10);
+
+    if (!Number.isInteger(year) || year >= currentYear) {
+      res.status(400).json({ success: false, error: 'Year must be a completed calendar year' });
+      return;
+    }
+
+    const stats = await computeYearReviewStats(userId, year, supabase);
+    if (stats.totalActions === 0) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    // Narrative: cached forever after first generation.
+    let narrative: string | null = null;
+    const { data: cached } = await supabase
+      .schema('oasis')
+      .from('yearly_reviews')
+      .select('narrative')
+      .eq('user_id', userId)
+      .eq('year', year)
+      .maybeSingle();
+
+    if (cached?.narrative) {
+      narrative = cached.narrative;
+    } else {
+      try {
+        const llm = getLLM();
+        const fmtList = (items: Array<{ text?: string; name?: string; count: number }>) =>
+          items.map(i => `${i.text ?? i.name} (${i.count}x)`).join(', ') || 'none';
+        const prompt =
+          `You are Mercia, a direct personal AI coach writing the opening paragraph of the user's ${year} year-in-review. ` +
+          `Here is the complete year data:\n` +
+          `- Total actions: ${stats.totalActions} (tasks ${stats.tasksCompleted}, goals ${stats.goalsCompleted}, chats ${stats.chatsSent}, gym days ${stats.gymDaysLogged})\n` +
+          `- Perfect days (100% of routine done): ${stats.perfectDays}\n` +
+          `- Top workouts: ${fmtList(stats.topWorkouts)}\n` +
+          `- Top routine items: ${fmtList(stats.topTodayItems)}\n` +
+          `- Top weekly goals: ${fmtList(stats.topWeeklyItems)}\n` +
+          `- Longest streak: ${stats.longestStreak ? `${stats.longestStreak.length} days (${stats.longestStreak.start} to ${stats.longestStreak.end})` : 'none'}\n` +
+          `- Best month: ${stats.bestMonth ? `${stats.bestMonth.label} (${stats.bestMonth.avgMomentum}% avg momentum)` : 'n/a'}\n` +
+          (stats.startedDate ? `- Note: the user joined ${stats.startedDate}, so this was a partial first year.\n` : '') +
+          `\nWrite ONE paragraph, 4-6 sentences. Reference specific items and workouts BY NAME with their numbers. ` +
+          `Call out the standout achievement and one honest area to push next year. ` +
+          `No greeting, no bullet points, no generic filler, never use the word "navigate".`;
+
+        narrative = await llm.chat(
+          [
+            { role: 'system', content: prompt },
+            { role: 'user', content: 'Write the year-in-review paragraph now.' },
+          ],
+          { temperature: 0.7, maxTokens: 260 }
+        );
+
+        await supabase
+          .schema('oasis')
+          .from('yearly_reviews')
+          .upsert({ user_id: userId, year, narrative }, { onConflict: 'user_id,year' });
+      } catch (llmError) {
+        console.error('[Stats Yearly Review] Narrative generation failed:', llmError);
+        // Stats still render; narrative retries on next open.
+      }
+    }
+
+    res.json({ success: true, data: { ...stats, narrative } });
+  } catch (error: any) {
+    console.error('[Stats Yearly Review] Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

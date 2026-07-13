@@ -13,6 +13,8 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SummaryDataScreen from '../screens/SummaryDataScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import GymArchiveScreen from '../screens/GymArchiveScreen';
+import YearlyReviewsScreen from '../screens/YearlyReviewsScreen';
+import YearlyReviewDetailScreen from '../screens/YearlyReviewDetailScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import RoutinePreferencesScreen from '../screens/RoutinePreferencesScreen';
@@ -44,6 +46,8 @@ export type ProfileStackParamList = {
   SummaryData: undefined;
   GymMemory: undefined;
   GymArchive: undefined;
+  YearlyReviews: undefined;
+  YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
   RoutinePreferences: undefined;
@@ -115,6 +119,30 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Gym Archive',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="YearlyReviews"
+        component={YearlyReviewsScreen}
+        options={{
+          headerShown: true,
+          title: 'Yearly Reviews',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
+        name="YearlyReviewDetail"
+        component={YearlyReviewDetailScreen}
+        options={{
+          headerShown: true,
+          title: 'Your Year',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
