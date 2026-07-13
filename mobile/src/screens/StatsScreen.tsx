@@ -61,6 +61,7 @@ interface Achievement {
 }
 
 interface LifetimeStats {
+  perfectDays: number;
   joinedDate: string;
   lifetimeActions: number;
   todayItemsCheckedOff: number;
@@ -393,9 +394,9 @@ const StatsScreen: React.FC = () => {
               <View style={styles.lifetimeRow}>
                 <View style={styles.lifetimeCard}>
                   <Text style={styles.lifetimeNumber}>
-                    {formatCount(lifetimeStats?.todayItemsCheckedOff ?? 0)}
+                    {formatCount(lifetimeStats?.perfectDays ?? 0)}
                   </Text>
-                  <Text style={styles.lifetimeLabel}>Today Items{'\n'}Checked Off</Text>
+                  <Text style={styles.lifetimeLabel}>Perfect{'\n'}Days</Text>
                 </View>
                 <View style={styles.lifetimeCard}>
                   <Text style={styles.lifetimeNumber}>

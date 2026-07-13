@@ -383,6 +383,7 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
       chatCountResult,
       gymCountResult,
       activityDatesResult,
+      perfectDaysResult,
     ] = await Promise.all([
       supabase.rpc('get_account_creation_date', { p_user_id: userId }),
       supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
@@ -398,6 +399,15 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
       supabase.schema('oasis').from('gym_memory').select('session_date')
         .eq('user_id', userId),
       supabase.schema('oasis').from('user_activity_log').select('activity_date').eq('user_id', userId),
+      // Perfect Days: days where 100% of routine tasks were completed, from
+      // the per-day weekly_summaries rows. completed >= total is compared in
+      // JS because PostgREST can't filter column-vs-column; row volume is one
+      // per day, so this stays tiny.
+      supabase.schema('oasis').from('weekly_summaries')
+        .select('today_completed, today_total')
+        .eq('user_id', userId)
+        .eq('has_complete_data', true)
+        .gt('today_total', 0),
     ]);
 
     if (creationResult.error) throw creationResult.error;
@@ -406,6 +416,7 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
     if (chatCountResult.error) throw chatCountResult.error;
     if (gymCountResult.error) throw gymCountResult.error;
     if (activityDatesResult.error) throw activityDatesResult.error;
+    if (perfectDaysResult.error) throw perfectDaysResult.error;
 
     const joinedDate = creationResult.data;
     const todayItemsCheckedOff = taskCountResult.count ?? 0;
@@ -414,6 +425,10 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
     const gymDaysLogged = new Set(
       (gymCountResult.data ?? []).map((row: any) => row.session_date as string)
     ).size;
+
+    const perfectDays = (perfectDaysResult.data ?? []).filter(
+      (row: any) => (row.today_completed ?? 0) >= (row.today_total ?? 0)
+    ).length;
 
     const lifetimeActions = todayItemsCheckedOff + goalsCompleted + chatMessagesSent + gymDaysLogged;
 
@@ -439,7 +454,8 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
       data: {
         joinedDate,
         lifetimeActions,
-        todayItemsCheckedOff,
+        todayItemsCheckedOff, // kept for older app builds; UI now shows perfectDays
+        perfectDays,
         gymDaysLogged,
         consistencyRatePercent,
       },
