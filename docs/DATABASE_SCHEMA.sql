@@ -1,272 +1,288 @@
--- ============================================
--- MERCIA - DATABASE SCHEMA v1.0
--- ============================================
--- Run this in your Supabase SQL editor
+-- ============================================================
+-- MERCIA — DATABASE SCHEMA REFERENCE (schema: oasis)
+-- ============================================================
+-- Snapshot generated from the LIVE Supabase project on 2026-07-12.
+-- This is DOCUMENTATION, not a migration. Per project convention
+-- (CLAUDE.md), schema changes are applied directly to Supabase —
+-- never as migration files. Regenerate this from
+-- information_schema when tables change.
+--
+-- RLS posture: RLS is ENABLED on all user tables with NO policies
+-- (deny-all for anon/authenticated keys). The backend uses the
+-- service-role key, which bypasses RLS; the mobile app has no
+-- direct Supabase access. If any client-side Supabase usage is
+-- ever added, per-user policies must be written first.
+-- ============================================================
 
--- Create schema for Mercia
-CREATE SCHEMA IF NOT EXISTS oasis;
-
 -- ============================================
--- 1. USERS (extends Supabase auth.users)
+-- USERS
 -- ============================================
+-- Extends auth.users. gym_target_days: weekly gym-day target (1-7),
+-- NULL = never set (app defaults to 4, labeled "default").
 CREATE TABLE oasis.user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username TEXT UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text UNIQUE,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  last_active_at timestamptz,
+  gym_target_days int CHECK (gym_target_days BETWEEN 1 AND 7)
 );
 
 -- ============================================
--- 2. DAILY QUESTIONS BANK
--- ============================================
-CREATE TABLE oasis.daily_questions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  question_text TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('values', 'beliefs', 'goals', 'experiences', 'relationships', 'decision_making')),
-  difficulty TEXT DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'deep')),
-  tags TEXT[],
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_questions_category ON oasis.daily_questions(category);
-CREATE INDEX idx_questions_active ON oasis.daily_questions(active);
-
--- ============================================
--- 3. USER QUESTION RESPONSES
--- ============================================
-CREATE TABLE oasis.user_question_responses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  question_id UUID NOT NULL REFERENCES oasis.daily_questions(id) ON DELETE CASCADE,
-  response_text TEXT NOT NULL,
-
-  -- AI-extracted structured insights (JSONB for flexibility)
-  extracted_insights JSONB DEFAULT '{}'::jsonb,
-
-  -- Tracking
-  answered_at TIMESTAMPTZ DEFAULT NOW(),
-  skip_count INT DEFAULT 0,
-
-  UNIQUE(user_id, question_id)
-);
-
-CREATE INDEX idx_user_responses_user ON oasis.user_question_responses(user_id);
-CREATE INDEX idx_user_responses_answered ON oasis.user_question_responses(answered_at DESC);
-
--- ============================================
--- 4. USER MEMORY PROFILES
--- ============================================
-CREATE TABLE oasis.user_memory_profiles (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-
-  -- Core Identity — derived views rebuilt from insights_metadata
-  core_values JSONB DEFAULT '[]'::jsonb,
-  beliefs JSONB DEFAULT '{}'::jsonb,
-  interests JSONB DEFAULT '{}'::jsonb,
-
-  -- Communication Style
-  communication_style JSONB DEFAULT '{}'::jsonb,
-
-  -- Supporting Evidence
-  supporting_quotes JSONB DEFAULT '[]'::jsonb,
-
-  -- Dual-source insight store (InsightMetadataEntry[])
-  insights_metadata JSONB DEFAULT '[]'::jsonb,
-
-  -- Staging area for conversation insights awaiting commit threshold
-  -- Same shape as InsightMetadataEntry; never exposed to clients.
-  pending_insights JSONB DEFAULT '[]'::jsonb,
-
-  -- Per-pool counts (maintained on every write for fast UI reads)
-  question_facts_count INTEGER DEFAULT 0,
-  conversation_facts_count INTEGER DEFAULT 0,
-
-  -- Per-pool completeness: count / cap (0.0–1.0)
-  question_facts_completeness FLOAT DEFAULT 0.0,
-  conversation_facts_completeness FLOAT DEFAULT 0.0,
-
-  -- Legacy completeness: average of the two above
-  profile_completeness FLOAT DEFAULT 0.0 CHECK (profile_completeness >= 0 AND profile_completeness <= 1),
-
-  questions_answered INT DEFAULT 0,
-  chat_messages_analyzed INTEGER DEFAULT 0,
-  chat_extractions_count INTEGER DEFAULT 0,
-  total_interactions INT DEFAULT 0,
-  last_updated TIMESTAMPTZ DEFAULT NOW(),
-
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_memory_profiles_completeness ON oasis.user_memory_profiles(profile_completeness);
-
--- ============================================
--- 5. DAILY QUESTION TRACKING
--- ============================================
-CREATE TABLE oasis.user_daily_questions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  question_id UUID NOT NULL REFERENCES oasis.daily_questions(id) ON DELETE CASCADE,
-
-  assigned_date DATE NOT NULL,
-  answered BOOLEAN DEFAULT FALSE,
-  skipped_on DATE[],
-
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-
-  UNIQUE(user_id, assigned_date)
-);
-
-CREATE INDEX idx_daily_questions_user_date ON oasis.user_daily_questions(user_id, assigned_date DESC);
-
--- ============================================
--- 6. CHATS
+-- CHAT
 -- ============================================
 CREATE TABLE oasis.chats (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL DEFAULT 'New Chat',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text NOT NULL DEFAULT 'New Chat',   -- 'Daily Outlook' / 'Day in Review' / 'Close Out Today' key the daily chats
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  pinned boolean DEFAULT false,
+  pinned_at timestamptz
 );
 
-CREATE INDEX idx_chats_user ON oasis.chats(user_id);
-CREATE INDEX idx_chats_updated ON oasis.chats(updated_at DESC);
-
--- ============================================
--- 7. CHAT MESSAGES
--- ============================================
 CREATE TABLE oasis.chat_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  chat_id UUID NOT NULL REFERENCES oasis.chats(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  chat_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role text NOT NULL,                        -- 'user' | 'assistant'
+  content text NOT NULL,
+  created_at timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_messages_chat ON oasis.chat_messages(chat_id, created_at ASC);
+-- ============================================
+-- ROUTINE (tasks + goals + notepad)
+-- ============================================
+-- Tasks are per-weekday templates. Countdown: current_count counts
+-- DOWN from target_count to 0 (= complete); weekly reset restores it.
+CREATE TABLE oasis.routine_tasks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  text text NOT NULL,
+  type text NOT NULL,                        -- always 'today'
+  day_of_week text NOT NULL,                 -- 'monday'..'sunday'
+  completed boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  sort_order int DEFAULT 0,
+  target_count int NOT NULL DEFAULT 1,       -- 1-999
+  current_count int NOT NULL DEFAULT 1
+);
+
+CREATE TABLE oasis.routine_goals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  text text NOT NULL,
+  type text NOT NULL,                        -- 'weekly' | 'monthly' | 'yearly'
+  week_number int,                           -- weekly only
+  month int,                                 -- monthly only
+  year int,
+  completed boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  sort_order int DEFAULT 0,
+  target_count int NOT NULL DEFAULT 1,
+  current_count int NOT NULL DEFAULT 1,
+  completed_at timestamptz                   -- drives ring "done before today" math
+);
+
+CREATE TABLE oasis.routine_notepad (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,                     -- UNIQUE (upsert onConflict user_id)
+  content text NOT NULL DEFAULT '',          -- max 10k enforced at API
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 -- ============================================
--- 8. HELPER FUNCTIONS
+-- PERMANENT HISTORY (what the coach/reviews build on)
 -- ============================================
+-- Every task completion BY NAME per date. Upserted on completion,
+-- deleted on un-complete. Survives task deletion/edit.
+CREATE TABLE oasis.task_completion_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  task_id uuid NOT NULL,
+  task_text text NOT NULL,
+  task_type text NOT NULL,
+  day_of_week text NOT NULL,
+  completed boolean NOT NULL DEFAULT true,
+  snapshot_date date NOT NULL,               -- user-local date
+  created_at timestamptz DEFAULT now()
+  -- UNIQUE (user_id, task_id, snapshot_date)
+);
 
--- Function: Get today's question for a user (EST timezone)
-CREATE OR REPLACE FUNCTION oasis.get_daily_question_for_user(p_user_id UUID)
-RETURNS TABLE (
-  question_id UUID,
-  question_text TEXT,
-  category TEXT,
-  assigned_date DATE,
-  skip_count INT
-) AS $$
-DECLARE
-  v_today DATE;
-  v_existing_question_id UUID;
-BEGIN
-  -- Get today's date in EST
-  v_today := (NOW() AT TIME ZONE 'America/New_York')::DATE;
+-- Every goal completion BY NAME per date (added 2026-07-12; enables
+-- yearly-review rankings and name-aware coaching). Same lifecycle as
+-- task history. History starts at that date — nothing earlier exists.
+CREATE TABLE oasis.goal_completion_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  goal_id uuid NOT NULL,
+  goal_text text NOT NULL,
+  goal_type text NOT NULL,                   -- 'weekly' | 'monthly' | 'yearly'
+  completed_date date NOT NULL,              -- user-local date
+  created_at timestamptz DEFAULT now(),
+  UNIQUE (user_id, goal_id, completed_date)
+);
 
-  -- Check if user already has a question assigned for today
-  SELECT udq.question_id INTO v_existing_question_id
-  FROM oasis.user_daily_questions udq
-  WHERE udq.user_id = p_user_id
-    AND udq.assigned_date = v_today
-    AND udq.answered = FALSE;
+-- One row per user per DAY (name is historical). Written by the daily
+-- summary pipeline; feeds LLM month-log context, Momentum routine
+-- numbers (via summary-data), monthly review, perfect days.
+CREATE TABLE oasis.weekly_summaries (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  week_start_date date NOT NULL,
+  week_end_date date NOT NULL,               -- effectively the row's DAY
+  today_completed int NOT NULL,
+  today_total int NOT NULL,
+  today_percentage numeric NOT NULL,
+  best_day_combined text,
+  most_consistent_day text,
+  tasks_missed_frequently jsonb,
+  weekly_goals_completed int NOT NULL,
+  weekly_goals_total int NOT NULL,
+  weekly_goals_percentage numeric NOT NULL,
+  monthly_goals_total int,
+  monthly_goals_change_from_last_week int,
+  improvement_percentage numeric,
+  is_improvement boolean,
+  created_at timestamptz DEFAULT now(),
+  is_saved boolean DEFAULT false,
+  has_complete_data boolean DEFAULT true,
+  overall_percentage int DEFAULT 0,
+  yesterday_overall_percentage int DEFAULT 0,
+  completed_weekly_goal_texts text[] DEFAULT '{}',
+  weekly_goals_change_today int DEFAULT 0,
+  monthly_goals_completed int DEFAULT 0,
+  monthly_goals_percentage int DEFAULT 0,
+  completed_monthly_goal_texts text[] DEFAULT '{}',
+  monthly_goals_change_today int DEFAULT 0,
+  weekly_missed_tasks jsonb DEFAULT '[]',
+  gym_days_this_week int NOT NULL DEFAULT 0, -- rolling Mon->day snapshot, excludes rest days
+  gym_days_possible int NOT NULL DEFAULT 1
+);
 
-  -- If question exists for today, return it
-  IF v_existing_question_id IS NOT NULL THEN
-    RETURN QUERY
-    SELECT
-      dq.id,
-      dq.question_text,
-      dq.category,
-      v_today,
-      COALESCE(array_length((SELECT skipped_on FROM oasis.user_daily_questions WHERE user_id = p_user_id AND question_id = dq.id), 1), 0)
-    FROM oasis.daily_questions dq
-    WHERE dq.id = v_existing_question_id;
-    RETURN;
-  END IF;
-
-  -- Otherwise, assign a new random question (not previously answered)
-  RETURN QUERY
-  WITH unanswered_questions AS (
-    SELECT dq.id
-    FROM oasis.daily_questions dq
-    WHERE dq.active = true
-      AND dq.id NOT IN (
-        SELECT question_id
-        FROM oasis.user_question_responses
-        WHERE user_id = p_user_id
-      )
-    ORDER BY RANDOM()
-    LIMIT 1
-  )
-  INSERT INTO oasis.user_daily_questions (user_id, question_id, assigned_date)
-  SELECT p_user_id, uq.id, v_today
-  FROM unanswered_questions uq
-  RETURNING
-    question_id,
-    (SELECT question_text FROM oasis.daily_questions WHERE id = question_id),
-    (SELECT category FROM oasis.daily_questions WHERE id = question_id),
-    v_today,
-    0;
-END;
-$$ LANGUAGE plpgsql;
-
--- ============================================
--- 9. ROW LEVEL SECURITY (RLS)
--- ============================================
-
-ALTER TABLE oasis.user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oasis.user_question_responses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oasis.user_memory_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oasis.user_daily_questions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oasis.chats ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oasis.chat_messages ENABLE ROW LEVEL SECURITY;
-
--- Users can only access their own data
-CREATE POLICY "Users access own profile" ON oasis.user_profiles
-  FOR ALL USING (auth.uid() = id);
-
-CREATE POLICY "Users access own responses" ON oasis.user_question_responses
-  FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users access own memory" ON oasis.user_memory_profiles
-  FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users access own daily questions" ON oasis.user_daily_questions
-  FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users access own chats" ON oasis.chats
-  FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users access own messages" ON oasis.chat_messages
-  FOR ALL USING (auth.uid() = user_id);
-
--- Daily questions are public (read-only)
-ALTER TABLE oasis.daily_questions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can view active questions" ON oasis.daily_questions
-  FOR SELECT USING (active = true);
+-- Every action event: streaks, heatmap, week strip, lifetime counts.
+CREATE TABLE oasis.user_activity_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  activity_type text NOT NULL,               -- 'task_completed' | 'goal_completed' | 'ai_chat_sent'
+  activity_date date NOT NULL,               -- user-local date
+  activity_count int DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
 
 -- ============================================
--- 10. SEED DATA - 10 Initial Questions
+-- GYM
 -- ============================================
+-- Weekly working table: one row per user+day+week+year. WIPED by the
+-- Monday reset — content persists via gym_memory. is_rest marks an
+-- intentional rest day (workout_group 'Rest', excluded from all gym
+-- counts, described to the LLM as planned recovery).
+CREATE TABLE oasis.gym_workout_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  day_of_week text NOT NULL,
+  workout_group text NOT NULL,
+  notes text NOT NULL DEFAULT '',
+  logged_date date NOT NULL DEFAULT CURRENT_DATE,
+  week_number int NOT NULL,
+  year int NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  is_rest boolean NOT NULL DEFAULT false
+  -- UNIQUE (user_id, day_of_week, week_number, year)
+);
 
-INSERT INTO oasis.daily_questions (question_text, category, difficulty, tags) VALUES
-  ('What childhood experience most shapes how you approach failure today?', 'experiences', 'deep', ARRAY['failure', 'childhood', 'resilience']),
-  ('If you could change one widely accepted belief in society, what would it be and why?', 'beliefs', 'deep', ARRAY['society', 'beliefs', 'change']),
-  ('What does success mean to you, independent of external validation?', 'values', 'medium', ARRAY['success', 'values', 'self-worth']),
-  ('Describe a moment when you felt most authentically yourself.', 'experiences', 'medium', ARRAY['authenticity', 'self-awareness']),
-  ('What legacy do you want to leave behind?', 'goals', 'deep', ARRAY['legacy', 'purpose', 'impact']),
-  ('If you could master any skill instantly, what would it be and why?', 'goals', 'easy', ARRAY['skills', 'aspirations']),
-  ('What relationship in your life has taught you the most about yourself?', 'relationships', 'medium', ARRAY['relationships', 'growth', 'self-discovery']),
-  ('When do you feel most at peace?', 'experiences', 'easy', ARRAY['peace', 'contentment', 'mindfulness']),
-  ('What principle or value would you never compromise on?', 'values', 'medium', ARRAY['principles', 'integrity', 'boundaries']),
-  ('How do you make important decisions - logic, intuition, or both?', 'decision_making', 'medium', ARRAY['decision-making', 'process', 'thinking']);
+-- THE permanent gym record. Active window: <=5 rows per workout name
+-- (archived=false); overflow flips archived=true (Gym Archive screen),
+-- never deleted. pinned (<=3 per group) never ages out but counts
+-- toward the 5. Rest days and note-less days write no row here.
+CREATE TABLE oasis.gym_memory (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  workout_group text NOT NULL,               -- normalized (trimmed, capitalized)
+  notes text NOT NULL,
+  session_date date NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  pinned boolean NOT NULL DEFAULT false,
+  archived boolean NOT NULL DEFAULT false
+  -- UNIQUE (user_id, workout_group, session_date)
+);
+
+CREATE TABLE oasis.gym_prs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  muscle_group text NOT NULL,                -- Chest/Back/Legs/Shoulders/Arms
+  exercise_name text NOT NULL,
+  weight numeric NOT NULL,
+  reps int NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
 -- ============================================
--- DONE!
+-- REVIEWS / ACHIEVEMENTS / QUOTES / PUSH
 -- ============================================
+-- Cached Wrapped narrative per completed calendar year (stats are
+-- recomputed live; only the LLM paragraph is stored).
+CREATE TABLE oasis.yearly_reviews (
+  user_id uuid NOT NULL,
+  year int NOT NULL,
+  narrative text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, year)
+);
 
-SELECT 'Mercia database schema created successfully!' as status;
+CREATE TABLE oasis.achievements (
+  id text PRIMARY KEY,
+  title text NOT NULL,
+  description text NOT NULL,
+  requirement_type text NOT NULL,
+  requirement_value int NOT NULL,
+  icon text,
+  display_order int NOT NULL
+);
+
+CREATE TABLE oasis.user_achievements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  achievement_id text NOT NULL,
+  unlocked_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE oasis.quote_interactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  quote_id int NOT NULL,
+  interaction_type text NOT NULL,            -- 'like' | 'dislike' | 'none'
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+-- View: oasis.quote_dislike_stats (aggregated dislikes per quote)
+
+CREATE TABLE oasis.push_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE oasis.notification_preferences (
+  user_id uuid PRIMARY KEY,
+  weekly_summary_enabled boolean NOT NULL DEFAULT true,
+  inactivity_reminder_enabled boolean NOT NULL DEFAULT true,
+  streak_at_risk_enabled boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- FUNCTIONS (oasis schema, live 2026-07-12)
+-- ============================================
+-- Resets:      reset_task_progress(), reset_goal_progress(goal_type),
+--              run_weekly_reset(), run_monthly_reset(), run_yearly_reset()
+-- Streaks:     get_current_streak(uuid), get_longest_streak(uuid),
+--              get_task_streak, get_full_engagement_streak
+-- Stats/etc:   get_heatmap_month, get_account_creation_date,
+--              get_active_months_count, get_first_month_activity_days,
+--              get_balanced_week_progress, get_triple_threat_status,
+--              get_all_quote_like_counts, get_quote_like_count

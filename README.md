@@ -1,5 +1,6 @@
 # Mercia
 
+A personal AI coach for routine + gym lifestyle management: habit tracking, free-text workout logging, progress rings, and an LLM that talks to you about *your actual behavioral data*.
 
 ## Core Philosophy
 
@@ -8,10 +9,19 @@
 3. **Portability:** AI Core works anywhere - mobile, desktop, IoT devices
 4. **Provider Agnostic:** Swap databases, LLMs, storage without rewriting logic
 
-
 ## Tech Stack
 
-- **AI Core:** TypeScript, database-agnostic, LLM-agnostic
-- **Backend:** Node.js, Express, TypeScript, Supabase
-- **LLM:** Groq API (primary), Ollama (batch processing)
-- **Database:** PostgreSQL (via Supabase)1
+- **Mobile:** React Native / Expo (EAS builds), RevenueCat subscriptions
+- **AI Core:** TypeScript (`packages/ai-core`), database-agnostic, LLM-agnostic — backend consumes its built `dist/`
+- **Backend:** Node.js, Express, TypeScript on Render
+- **LLM:** Groq API
+- **Database:** PostgreSQL via Supabase (schema `oasis`, service-role access only)
+
+## Documentation (`docs/`)
+
+- `ARCHITECTURE.md` — system overview, data flow, resets, what persists
+- `API.md` — endpoint index
+- `DATABASE_SCHEMA.sql` — live-schema reference snapshot
+- `FABLE_HOMESCREEN.md` — Home tab implementation reference (rings, check-in card, formulas)
+- `FABLE_ROUTINE.md` — Routine/Gym tab reference + roadmap
+- `FROMFABLE.md` — strategic assessment & priorities
