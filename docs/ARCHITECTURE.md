@@ -1,6 +1,6 @@
 # Mercia Architecture
 
-*Updated 2026-07-12. Deep-dives: `FABLE_HOMESCREEN.md` (Home tab), `FABLE_ROUTINE.md` (Routine/Gym tab), `API.md` (endpoint index), `DATABASE_SCHEMA.sql` (schema snapshot).*
+*Updated 2026-07-12. Companion docs: `API.md` (endpoint index), `DATABASE_SCHEMA.sql` (schema snapshot).*
 
 ## Core Principle: Memory Over Messages
 

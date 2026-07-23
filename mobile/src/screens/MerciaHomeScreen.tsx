@@ -90,7 +90,7 @@ const CHECK_IN_CARDS: Record<DayPhase, CheckInCardConfig> = {
 // goals are explicit weekly commitments, and monthly is deliberately a small
 // nudge — a month is ~4.3 weeks, so an on-track user may legitimately touch
 // zero monthly goals in a given week. A perfect week with untouched
-// monthlies reads 90%, not 70%. See docs/FABLE_HOMESCREEN.md §2.
+// monthlies reads 90%, not 70%.
 const ROUTINE_WEIGHT = 40;
 const GYM_WEIGHT = 25;
 const WEEKLY_WEIGHT = 25;

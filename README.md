@@ -22,6 +22,3 @@ A personal AI coach for routine + gym lifestyle management: habit tracking, free
 - `ARCHITECTURE.md` — system overview, data flow, resets, what persists
 - `API.md` — endpoint index
 - `DATABASE_SCHEMA.sql` — live-schema reference snapshot
-- `FABLE_HOMESCREEN.md` — Home tab implementation reference (rings, check-in card, formulas)
-- `FABLE_ROUTINE.md` — Routine/Gym tab reference + roadmap
-- `FROMFABLE.md` — strategic assessment & priorities

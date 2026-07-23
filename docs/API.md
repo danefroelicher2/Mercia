@@ -4,7 +4,7 @@ Base URL: `https://<render-backend>/api` (local: `http://localhost:3000/api`)
 
 All routes require `Authorization: Bearer <access token>` except `/auth/*` (public) and `/cron/*` (protected by a cron secret, called by schedulers only). Standard response envelope: `{ success: boolean, data?, error? }`. Clients send their IANA timezone (`timezone` in body or query) wherever "today/yesterday" matters — all date math is user-local.
 
-*Updated 2026-07-12. For behavior details see `FABLE_HOMESCREEN.md` and `FABLE_ROUTINE.md`.*
+*Updated 2026-07-12. For behavior details see `ARCHITECTURE.md`.*
 
 ## /auth
 | Method | Path | Purpose |
