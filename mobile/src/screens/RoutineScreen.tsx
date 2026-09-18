@@ -1000,7 +1000,7 @@ const RoutineScreen: React.FC = () => {
         {showWeekly && (
           <GoalCard
             type="weekly"
-            title="This week"
+            title="Weekly"
             goals={weeklyGoals}
             accent={accent}
             edgeAlpha={0.6}
@@ -1011,7 +1011,7 @@ const RoutineScreen: React.FC = () => {
         {showMonthly && (
           <GoalCard
             type="monthly"
-            title="This month"
+            title="Monthly"
             goals={monthlyGoals}
             accent={accent}
             edgeAlpha={0.38}
@@ -1022,7 +1022,7 @@ const RoutineScreen: React.FC = () => {
         {showYearly && (
           <GoalCard
             type="yearly"
-            title="This year"
+            title="Yearly"
             goals={yearlyGoals}
             accent={accent}
             edgeAlpha={0.2}
