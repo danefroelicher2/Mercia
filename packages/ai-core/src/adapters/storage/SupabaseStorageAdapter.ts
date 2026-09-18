@@ -388,6 +388,48 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return data;
   }
 
+  async deleteRoutineTasks(taskIds: string[], userId: string): Promise<void> {
+    if (taskIds.length === 0) return;
+    const { error } = await this.client
+      .from('routine_tasks')
+      .delete()
+      .in('id', taskIds)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to delete routine tasks: ${error.message}`);
+    }
+  }
+
+  async deleteRoutineGoals(goalIds: string[], userId: string): Promise<void> {
+    if (goalIds.length === 0) return;
+    const { error } = await this.client
+      .from('routine_goals')
+      .delete()
+      .in('id', goalIds)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to delete routine goals: ${error.message}`);
+    }
+  }
+
+  async clearRoutine(userId: string): Promise<void> {
+    const [tasks, goals, notepad] = await Promise.all([
+      this.client.from('routine_tasks').delete().eq('user_id', userId),
+      this.client.from('routine_goals').delete().eq('user_id', userId),
+      this.client
+        .from('routine_notepad')
+        .update({ content: '', updated_at: new Date().toISOString() })
+        .eq('user_id', userId),
+    ]);
+
+    const error = tasks.error ?? goals.error ?? notepad.error;
+    if (error) {
+      throw new Error(`Failed to clear routine: ${error.message}`);
+    }
+  }
+
   async deleteRoutineTask(taskId: string, userId: string): Promise<void> {
     const { error } = await this.client
       .from('routine_tasks')

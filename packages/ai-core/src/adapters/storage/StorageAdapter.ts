@@ -164,6 +164,22 @@ export interface StorageAdapter {
   deleteRoutineTask(taskId: string, userId: string): Promise<void>;
 
   /**
+   * Delete several of a user's routine tasks at once (ids not owned are ignored)
+   */
+  deleteRoutineTasks(taskIds: string[], userId: string): Promise<void>;
+
+  /**
+   * Delete several of a user's routine goals at once (ids not owned are ignored)
+   */
+  deleteRoutineGoals(goalIds: string[], userId: string): Promise<void>;
+
+  /**
+   * Wipe the Routine tab: every task (all days), every goal, and the notepad.
+   * Completion history is kept.
+   */
+  clearRoutine(userId: string): Promise<void>;
+
+  /**
    * Create a routine goal (weekly, monthly, or yearly). targetCount defaults to 1.
    */
   createRoutineGoal(userId: string, text: string, type: 'weekly' | 'monthly' | 'yearly', targetCount?: number): Promise<RoutineGoal>;
