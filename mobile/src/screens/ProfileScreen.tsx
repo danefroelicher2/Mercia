@@ -250,23 +250,6 @@ const ProfileScreen: React.FC = () => {
           )}
         </View>
 
-        {/* PREFERENCES SECTION */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionAccent} />
-          <Text style={styles.sectionTitle}>Preferences</Text>
-        </View>
-
-        <View style={styles.navGroup}>
-          <TouchableOpacity
-            style={[styles.navRow, styles.navRowLast]}
-            onPress={() => navigation.navigate('RoutinePreferences')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navRowLabel}>Routine Tab</Text>
-            <Text style={styles.navRowChevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* SETTINGS SECTION */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionAccent} />

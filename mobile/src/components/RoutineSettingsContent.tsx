@@ -11,8 +11,7 @@ import {
 } from '../utils/timeOfDay';
 
 // The Routine settings body — time-of-day boundaries and which cards show.
-// Rendered by Profile → Routine and by the Routine tab's gear sheet, so the
-// two can't drift apart.
+// Rendered inside the Routine tab's gear sheet.
 
 interface Props {
   // Switch / link color; the gear sheet passes the current section's color.

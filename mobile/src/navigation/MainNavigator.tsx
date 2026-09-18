@@ -17,7 +17,6 @@ import YearlyReviewsScreen from '../screens/YearlyReviewsScreen';
 import YearlyReviewDetailScreen from '../screens/YearlyReviewDetailScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
-import RoutinePreferencesScreen from '../screens/RoutinePreferencesScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
 import { MerciaStackParamList } from '../types/navigation';
@@ -50,7 +49,6 @@ export type ProfileStackParamList = {
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
-  RoutinePreferences: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -179,18 +177,6 @@ const ProfileStackNavigator: React.FC = () => {
         options={{
           headerShown: true,
           title: 'Yearly Goals',
-          headerBackTitle: 'Back',
-          headerStyle: { backgroundColor: '#1A1A1A' },
-          headerTintColor: '#FFFFFF',
-          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
-        }}
-      />
-      <ProfileStack.Screen
-        name="RoutinePreferences"
-        component={RoutinePreferencesScreen}
-        options={{
-          headerShown: true,
-          title: 'Routine Tab',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',

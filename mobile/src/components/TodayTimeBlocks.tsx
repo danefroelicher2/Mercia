@@ -263,8 +263,26 @@ const TodayTimeBlocks: React.FC<Props> = ({
   // PAGER
   // ============================================
 
+  // While a tab tap is scrolling the pager, the section is already decided:
+  // ignore the in-between offsets so the page color changes exactly once
+  // (otherwise Morning → Night flashes Morning/Afternoon on the way).
+  const scrollLockTarget = useRef<number | null>(null);
+  const scrollLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseScrollLock = () => {
+    scrollLockTarget.current = null;
+    if (scrollLockTimer.current) clearTimeout(scrollLockTimer.current);
+    scrollLockTimer.current = null;
+  };
+  useEffect(() => releaseScrollLock, []);
+
   const jumpToPage = useCallback((index: number, animated: boolean) => {
     if (width === 0) return;
+    if (animated) {
+      scrollLockTarget.current = index;
+      if (scrollLockTimer.current) clearTimeout(scrollLockTimer.current);
+      // Safety net in case the final scroll event never lands exactly.
+      scrollLockTimer.current = setTimeout(releaseScrollLock, 700);
+    }
     pagerRef.current?.scrollTo({ x: index * width, y: 0, animated });
     if (!animated) scrollX.setValue(index * width);
     setPageIndex(index);
@@ -287,12 +305,18 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
   const handleScroll = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     if (width === 0) return;
-    const index = Math.max(0, Math.min(2, Math.round(e.nativeEvent.contentOffset.x / width)));
+    const x = e.nativeEvent.contentOffset.x;
+    if (scrollLockTarget.current !== null) {
+      if (Math.abs(x - scrollLockTarget.current * width) < 1) releaseScrollLock();
+      return;
+    }
+    const index = Math.max(0, Math.min(2, Math.round(x / width)));
     if (index !== pageIndex) setPageIndex(index);
   };
 
   const handleMomentumEnd = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     if (width === 0) return;
+    releaseScrollLock();
     const index = Math.max(0, Math.min(2, Math.round(e.nativeEvent.contentOffset.x / width)));
     setPageIndex(index);
     if (index !== heightIndex) {
@@ -884,6 +908,8 @@ const TodayTimeBlocks: React.FC<Props> = ({
           )}
           onMomentumScrollEnd={handleMomentumEnd}
           onScrollBeginDrag={() => {
+            // A finger on the pager takes over from any tab-tap scroll.
+            releaseScrollLock();
             commitActive();
             Keyboard.dismiss();
           }}

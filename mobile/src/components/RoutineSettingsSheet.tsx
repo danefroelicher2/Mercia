@@ -14,8 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import RoutineSettingsContent from './RoutineSettingsContent';
 
-// The Routine tab's gear: the same settings as Profile → Routine Tab, plus
-// multi-select and Clear all.
+// The Routine tab's gear: time-of-day and visibility settings, plus
+// multi-select and Clear all. (The only home for Routine settings.)
 
 interface Props {
   visible: boolean;

@@ -564,6 +564,20 @@ const RoutineScreen: React.FC = () => {
     if (selected.size > 0) setBulkMenuVisible(true);
   };
 
+  // Last chance before a multi-select deletion (it can span days).
+  const confirmDeleteSelected = () => {
+    const count = selected.size;
+    if (count === 0) return;
+    Alert.alert(
+      count > 1 ? `Delete ${count} items?` : 'Delete this item?',
+      "This can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: handleDeleteSelected },
+      ],
+    );
+  };
+
   const handleDeleteSelected = async () => {
     const entries = Array.from(selected.entries());
     const taskIds = entries.filter(([, kind]) => kind === 'task').map(([id]) => id);
@@ -1235,7 +1249,7 @@ const RoutineScreen: React.FC = () => {
             label: selected.size > 1 ? `Delete ${selected.size} items` : 'Delete',
             icon: 'trash-outline',
             destructive: true,
-            onPress: handleDeleteSelected,
+            onPress: confirmDeleteSelected,
           },
         ]}
         accent={accent}

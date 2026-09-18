@@ -2,8 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DayBoundaries, DEFAULT_BOUNDARIES, clampBoundaries } from '../utils/timeOfDay';
 
-// Routine tab preferences, shared so a change made in the in-tab settings
-// sheet or in Profile → Routine applies everywhere immediately. Stored on
+// Routine tab preferences, shared so a change made in the Routine gear
+// sheet applies everywhere (Routine, Home, time sheet) immediately. Stored on
 // the device (AsyncStorage), same as the original visibility toggles.
 
 export interface RoutinePreferences {
