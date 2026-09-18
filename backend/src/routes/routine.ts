@@ -65,6 +65,13 @@ const toggleCompletionSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+const updateGoalSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    targetCount: z.number().int().min(1).max(999).optional(),
+  })
+  .refine(b => b.text !== undefined || b.targetCount !== undefined, { message: 'Nothing to update' });
+
 const toggleGoalSchema = z.object({
   timezone: z.string().optional(),
 });
@@ -638,6 +645,27 @@ router.patch(
  * DELETE /api/routine/goals/:id
  * Delete a goal
  */
+/**
+ * PUT /api/routine/goals/:id
+ * Edit a goal's text and/or countdown target
+ */
+router.put(
+  '/goals/:id',
+  validate(updateGoalSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { text, targetCount } = req.body;
+
+      const goal = await getStorage().updateRoutineGoal(id, userId, { text: text?.trim(), targetCount });
+      res.json({ success: true, data: goal });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 router.delete('/goals/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
