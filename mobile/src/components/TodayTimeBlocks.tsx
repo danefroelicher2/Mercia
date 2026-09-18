@@ -31,6 +31,7 @@ import {
   withAlpha,
 } from '../utils/timeOfDay';
 import TimeSheet from './TimeSheet';
+import Checkbox from './Checkbox';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 
 // Notepad-style Today card: three swipeable pages (Morning / Afternoon / Night).
@@ -106,29 +107,6 @@ const THEME: Record<TimeOfDay, { accent: string; tint: string; border: string }>
   return theme;
 })();
 
-// Checkbox with a small pop when it becomes checked.
-const Checkbox: React.FC<{ done: boolean; color: string }> = ({ done, color }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const wasDone = useRef(done);
-  useEffect(() => {
-    if (done && !wasDone.current) {
-      scale.setValue(0.6);
-      Animated.spring(scale, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }).start();
-    }
-    wasDone.current = done;
-  }, [done, scale]);
-  return (
-    <Animated.View
-      style={[
-        styles.checkbox,
-        { borderColor: color, transform: [{ scale }] },
-        done && { backgroundColor: color },
-      ]}
-    >
-      {done && <Ionicons name="checkmark" size={12} color="#0D0D0D" />}
-    </Animated.View>
-  );
-};
 
 const PAGE_BLEED = 8;
 

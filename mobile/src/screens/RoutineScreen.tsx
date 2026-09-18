@@ -4,13 +4,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Modal,
   TextInput,
   StyleSheet,
   Alert,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,8 +18,11 @@ import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
+import GoalCard from '../components/GoalCard';
 import { TimeOfDay } from '../types/routine';
-import { SECTION_COLORS, getCurrentTimeOfDay, textOnColor, withAlpha } from '../utils/timeOfDay';
+import { SECTION_COLORS, getCurrentTimeOfDay, parseCountSuffix, textOnColor, withAlpha } from '../utils/timeOfDay';
+
+type GoalType = 'weekly' | 'monthly' | 'yearly';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
@@ -85,12 +85,8 @@ const RoutineScreen: React.FC = () => {
   const [monthlyGoals, setMonthlyGoals] = useState<RoutineGoal[]>([]);
   const [yearlyGoals, setYearlyGoals] = useState<RoutineGoal[]>([]);
 
-  const [goalModalVisible, setGoalModalVisible] = useState(false);
 
-  const [newGoalText, setNewGoalText] = useState('');
-  const [newGoalCount, setNewGoalCount] = useState('1');
 
-  const [goalType, setGoalType] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
 
   // Bumped on every tab focus so the Today pager snaps back to the section
   // matching the current time.
@@ -139,11 +135,12 @@ const RoutineScreen: React.FC = () => {
   const tickingGoalIds = useRef<Set<string>>(new Set());
   const tickingTaskIds = useRef<Set<string>>(new Set());
 
-  // Edit mode state — each card manages its own independently
-  const [editingCard, setEditingCard] = useState<'weekly' | 'monthly' | 'yearly' | null>(null);
-  const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
-  const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
-  const [editYearly, setEditYearly] = useState<RoutineGoal[]>([]);
+  // Goals: hold menu, in-place editing, and client ids for goals typed in
+  // before the server has answered (same pattern as Today tasks).
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalMenu, setGoalMenu] = useState<{ title: string; items: ActionMenuItem[] }>({ title: '', items: [] });
+  const [goalMenuVisible, setGoalMenuVisible] = useState(false);
+  const pendingGoalIds = useRef<Map<string, Promise<string | null>>>(new Map());
 
   const availableQuotes = useMemo(() => {
     const filtered = QUOTES.filter(q => !dislikedQuoteIds.includes(q.id));
@@ -625,149 +622,229 @@ const RoutineScreen: React.FC = () => {
     setSelected(new Map());
   };
 
-  // Goal handlers
-  const handleAddGoal = async () => {
-    if (!newGoalText.trim()) return;
+  // ============================================
+  // GOAL HANDLERS
+  // Goals work like Today items: type on a card's last line to add, tap to
+  // check off (or select in multi-select), hold for Edit / Move / Delete.
+  // ============================================
 
-    const parsedCount = parseInt(newGoalCount, 10);
-    const targetCount = Number.isFinite(parsedCount) ? Math.min(999, Math.max(1, parsedCount)) : 1;
+  const setGoalsOf = (type: GoalType) =>
+    type === 'weekly' ? setWeeklyGoals : type === 'monthly' ? setMonthlyGoals : setYearlyGoals;
+  const goalsOf = (type: GoalType) =>
+    type === 'weekly' ? weeklyGoals : type === 'monthly' ? monthlyGoals : yearlyGoals;
 
-    try {
-      const response = await api.post('/api/routine/goals', {
-        text: newGoalText.trim(),
-        type: goalType,
-        targetCount,
-      });
-
-      if (response.data.success) {
-        if (goalType === 'weekly') {
-          setWeeklyGoals([...weeklyGoals, response.data.data]);
-        } else if (goalType === 'monthly') {
-          setMonthlyGoals([...monthlyGoals, response.data.data]);
-        } else {
-          setYearlyGoals([...yearlyGoals, response.data.data]);
-        }
-        setNewGoalText('');
-        setNewGoalCount('1');
-        setGoalModalVisible(false);
-      }
-    } catch (error) {
-      console.error('[RoutineScreen] Error adding goal:', error);
-      Alert.alert('Error', 'Failed to add goal. Please try again.');
-    }
+  const resolveGoalId = async (id: string): Promise<string | null> => {
+    const pending = pendingGoalIds.current.get(id);
+    return pending ? pending : id;
   };
 
-  const handleToggleGoal = async (goalId: string, type: 'weekly' | 'monthly' | 'yearly') => {
+  const handleCreateGoal = (type: GoalType, raw: string) => {
+    const parsed = parseCountSuffix(raw);
+    if (!parsed.text) return;
+    const targetCount = parsed.targetCount ?? 1;
+    const clientId = `tmp-goal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: RoutineGoal = {
+      id: clientId,
+      user_id: user?.id ?? '',
+      text: parsed.text,
+      type,
+      week_number: null,
+      month: null,
+      year: new Date().getFullYear(),
+      completed: false,
+      completed_at: null,
+      target_count: targetCount,
+      current_count: targetCount,
+      created_at: new Date().toISOString(),
+    };
+    setGoalsOf(type)(prev => [...prev, optimistic]);
+
+    const request = (async (): Promise<string | null> => {
+      try {
+        const response = await api.post('/api/routine/goals', { text: parsed.text, type, targetCount });
+        const saved: RoutineGoal = response.data.data;
+        // Keep anything changed locally in the meantime; take the real id.
+        setGoalsOf(type)(prev => prev.map(g => (g.id === clientId ? { ...saved, text: g.text } : g)));
+        setEditingGoalId(prev => (prev === clientId ? saved.id : prev));
+        setSelected(prev => {
+          if (!prev.has(clientId)) return prev;
+          const next = new Map(prev);
+          next.delete(clientId);
+          next.set(saved.id, 'goal');
+          return next;
+        });
+        return saved.id;
+      } catch (error) {
+        console.error('[RoutineScreen] Error adding goal:', error);
+        setGoalsOf(type)(prev => prev.filter(g => g.id !== clientId));
+        Alert.alert("Couldn't save", `"${parsed.text}" wasn't saved. Check your connection and try again.`);
+        return null;
+      }
+    })();
+    pendingGoalIds.current.set(clientId, request);
+  };
+
+  const handleToggleGoal = async (goalId: string, type: GoalType) => {
     if (tickingGoalIds.current.has(goalId)) return;
     tickingGoalIds.current.add(goalId);
+
+    // Same tick rule as the server: count down to done; tapping a done goal
+    // steps it back up one.
+    setGoalsOf(type)(prev => prev.map(g => {
+      if (g.id !== goalId) return g;
+      const newCount = g.current_count > 0 ? g.current_count - 1 : Math.min(g.current_count + 1, g.target_count);
+      return { ...g, current_count: newCount, completed: newCount === 0 };
+    }));
+
     try {
-      const response = await api.patch(`/api/routine/goals/${goalId}`, {
+      const serverId = await resolveGoalId(goalId);
+      if (!serverId) return;
+      const response = await api.patch(`/api/routine/goals/${serverId}`, {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-
       if (response.data.success) {
         const updated: RoutineGoal = response.data.data;
-        if (type === 'weekly') {
-          setWeeklyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
-        } else if (type === 'monthly') {
-          setMonthlyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
-        } else {
-          setYearlyGoals(prev => prev.map(g => (g.id === goalId ? updated : g)));
-        }
+        setGoalsOf(type)(prev => prev.map(g => (g.id === goalId
+          ? {
+              ...g,
+              completed: updated.completed,
+              completed_at: updated.completed_at,
+              current_count: updated.current_count,
+              target_count: updated.target_count,
+            }
+          : g)));
       }
     } catch (error) {
       console.error('[RoutineScreen] Error toggling goal:', error);
+      loadGoalsOf(type);
     } finally {
       tickingGoalIds.current.delete(goalId);
     }
   };
 
-  const handleDeleteGoal = (goalId: string, type: 'weekly' | 'monthly' | 'yearly') => {
-    Alert.alert(
-      'Delete Goal',
-      'Are you sure you want to delete this goal?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/api/routine/goals/${goalId}`);
-              if (type === 'weekly') {
-                setWeeklyGoals(weeklyGoals.filter(g => g.id !== goalId));
-              } else if (type === 'monthly') {
-                setMonthlyGoals(monthlyGoals.filter(g => g.id !== goalId));
-              } else {
-                setYearlyGoals(yearlyGoals.filter(g => g.id !== goalId));
-              }
-            } catch (error) {
-              console.error('[RoutineScreen] Error deleting goal:', error);
-              Alert.alert('Error', 'Failed to delete goal.');
-            }
-          },
-        },
-      ]
-    );
+  const loadGoalsOf = (type: GoalType) => {
+    if (type === 'weekly') loadWeeklyGoals();
+    else if (type === 'monthly') loadMonthlyGoals();
+    else loadYearlyGoals();
+  };
+
+  const handleDeleteGoal = async (goal: RoutineGoal) => {
+    setGoalsOf(goal.type)(prev => prev.filter(g => g.id !== goal.id));
+    setSelected(prev => {
+      if (!prev.has(goal.id)) return prev;
+      const next = new Map(prev);
+      next.delete(goal.id);
+      return next;
+    });
+    const serverId = await resolveGoalId(goal.id);
+    if (!serverId) return;
+    try {
+      await api.delete(`/api/routine/goals/${serverId}`);
+    } catch (error) {
+      console.error('[RoutineScreen] Error deleting goal:', error);
+      Alert.alert('Error', 'Failed to delete goal.');
+      loadGoalsOf(goal.type);
+    }
+  };
+
+  // Commit an in-place edit. Clearing the text deletes the goal; "Run x3"
+  // sets a 3-tap countdown, like Today items.
+  const handleGoalEditDone = async (goal: RoutineGoal, raw: string) => {
+    setEditingGoalId(null);
+    if (!raw.trim()) {
+      handleDeleteGoal(goal);
+      return;
+    }
+    const parsed = parseCountSuffix(raw);
+    const changes: { text?: string; targetCount?: number } = {};
+    if (parsed.text !== goal.text) changes.text = parsed.text;
+    if (parsed.targetCount !== null && parsed.targetCount !== goal.target_count) {
+      changes.targetCount = parsed.targetCount;
+    }
+    if (changes.text === undefined && changes.targetCount === undefined) return;
+
+    setGoalsOf(goal.type)(prev => prev.map(g => {
+      if (g.id !== goal.id) return g;
+      const next = { ...g };
+      if (changes.text !== undefined) next.text = changes.text;
+      if (changes.targetCount !== undefined) {
+        const tapsDone = g.target_count - g.current_count;
+        next.target_count = changes.targetCount;
+        next.current_count = Math.max(0, changes.targetCount - tapsDone);
+        next.completed = next.current_count === 0;
+      }
+      return next;
+    }));
+
+    const serverId = await resolveGoalId(goal.id);
+    if (!serverId) return;
+    try {
+      const response = await api.put(`/api/routine/goals/${serverId}`, changes);
+      const saved: RoutineGoal = response.data.data;
+      setGoalsOf(goal.type)(prev => prev.map(g => (g.id === goal.id
+        ? { ...g, target_count: saved.target_count, current_count: saved.current_count, completed: saved.completed, completed_at: saved.completed_at }
+        : g)));
+    } catch (error) {
+      console.error('[RoutineScreen] Error updating goal:', error);
+      Alert.alert("Couldn't save", "That change didn't save. Pull down to refresh and try again.");
+    }
+  };
+
+  const handleMoveGoal = async (goal: RoutineGoal, direction: -1 | 1) => {
+    const list = goalsOf(goal.type).slice();
+    const index = list.findIndex(g => g.id === goal.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    setGoalsOf(goal.type)(list);
+    try {
+      const ids = (await Promise.all(list.map(g => resolveGoalId(g.id)))).filter((id): id is string => !!id);
+      await api.patch('/api/routine/goals/reorder', { ids });
+    } catch (error) {
+      console.error('[RoutineScreen] Goal reorder failed:', error);
+      loadGoalsOf(goal.type);
+    }
+  };
+
+  const handleGoalPress = (goal: RoutineGoal) => {
+    if (multiSelect) toggleSelected(goal.id, 'goal');
+    else handleToggleGoal(goal.id, goal.type);
+  };
+
+  // Hold: in multi-select with several items selected (this one among them)
+  // the only option is deleting the selection; otherwise Edit / Move / Delete.
+  const handleGoalHold = (goal: RoutineGoal) => {
+    if (multiSelect && selected.has(goal.id) && selected.size > 1) {
+      openBulkMenu();
+      return;
+    }
+    const list = goalsOf(goal.type);
+    const index = list.findIndex(g => g.id === goal.id);
+    const items: ActionMenuItem[] = [
+      { label: 'Edit', icon: 'create-outline', onPress: () => setEditingGoalId(goal.id) },
+    ];
+    if (index > 0) items.push({ label: 'Move up', icon: 'arrow-up', onPress: () => handleMoveGoal(goal, -1) });
+    if (index >= 0 && index < list.length - 1) {
+      items.push({ label: 'Move down', icon: 'arrow-down', onPress: () => handleMoveGoal(goal, 1) });
+    }
+    items.push({ label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => handleDeleteGoal(goal) });
+    setGoalMenu({ title: goal.text, items });
+    setGoalMenuVisible(true);
   };
 
   // Filter tasks by type
   const todayTasks = tasks.filter(t => t.type === 'today');
 
-  // Reorder handlers
-  const handleReorderGoal = async (newData: RoutineGoal[], type: 'weekly' | 'monthly' | 'yearly') => {
-    if (type === 'weekly') setWeeklyGoals(newData);
-    else if (type === 'monthly') setMonthlyGoals(newData);
-    else setYearlyGoals(newData);
-    try {
-      await api.patch('/api/routine/goals/reorder', { ids: newData.map(g => g.id) });
-    } catch (error) {
-      console.error('[RoutineScreen] Goal reorder failed:', error);
-      loadWeeklyGoals();
-      loadMonthlyGoals();
-    }
-  };
-
-  // Edit mode handlers
-  const handleEnterEdit = (card: 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
-    else if (card === 'monthly') setEditMonthly(monthlyGoals.slice());
-    else setEditYearly(yearlyGoals.slice());
-    setEditingCard(card);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingCard(null);
-  };
-
-  const handleSaveEdit = (card: 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
-    else if (card === 'monthly') handleReorderGoal(editMonthly, 'monthly');
-    else handleReorderGoal(editYearly, 'yearly');
-    setEditingCard(null);
-  };
-
-  const moveGoalItem = (card: 'weekly' | 'monthly' | 'yearly', index: number, direction: 'up' | 'down') => {
-    const target = direction === 'up' ? index - 1 : index + 1;
-    if (card === 'weekly') {
-      const arr = editWeekly.slice();
-      if (target < 0 || target >= arr.length) return;
-      [arr[index], arr[target]] = [arr[target], arr[index]];
-      setEditWeekly(arr);
-    } else if (card === 'monthly') {
-      const arr = editMonthly.slice();
-      if (target < 0 || target >= arr.length) return;
-      [arr[index], arr[target]] = [arr[target], arr[index]];
-      setEditMonthly(arr);
-    } else {
-      const arr = editYearly.slice();
-      if (target < 0 || target >= arr.length) return;
-      [arr[index], arr[target]] = [arr[target], arr[index]];
-      setEditYearly(arr);
-    }
-  };
-
   const { day: yearDay, total: yearTotal } = getDayOfYear();
+
+  const goalCardHandlers = {
+    editingId: editingGoalId,
+    selectedIds,
+    onPress: handleGoalPress,
+    onHold: handleGoalHold,
+    onCreate: handleCreateGoal,
+    onEditDone: handleGoalEditDone,
+  };
 
   // Render helpers
   const renderWeekNavigator = () => {
@@ -808,78 +885,6 @@ const RoutineScreen: React.FC = () => {
       </View>
     );
   };
-
-  const renderGoalItem = (
-    item: RoutineGoal,
-    isEditing: boolean,
-    index: number,
-    listLength: number,
-    onMoveUp: () => void,
-    onMoveDown: () => void,
-  ) => (
-    <TouchableOpacity
-      key={item.id}
-      onPress={
-        isEditing
-          ? undefined
-          : multiSelect
-            ? () => toggleSelected(item.id, 'goal')
-            : () => handleToggleGoal(item.id, item.type)
-      }
-      // Goals have no hold menu of their own; in multi-select, holding a
-      // selected goal offers deleting the selection.
-      onLongPress={multiSelect && selectedIds.has(item.id) ? openBulkMenu : undefined}
-      delayLongPress={350}
-      style={[
-        styles.taskItem,
-        { width: '100%' },
-        selectedIds.has(item.id) && [styles.itemSelected, themed.itemSelected],
-      ]}
-      activeOpacity={isEditing ? 1 : 0.7}
-    >
-      <View style={[styles.checkbox, themed.checkbox]}>
-        {item.completed && <View style={[styles.checkboxChecked, themed.checkboxChecked]} />}
-      </View>
-      <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
-        {item.text}
-      </Text>
-      {item.target_count > 1 && item.current_count > 0 && (
-        <View style={[styles.goalCountBadge, themed.goalCountBadge]}>
-          <Text style={[styles.goalCountBadgeText, themed.goalCountBadgeText]}>{item.current_count}</Text>
-        </View>
-      )}
-      {isEditing ? (
-        <View style={styles.reorderButtons}>
-          <TouchableOpacity
-            onPress={onMoveUp}
-            disabled={index === 0}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            style={{ opacity: index === 0 ? 0.25 : 1 }}
-          >
-            <Ionicons name="chevron-up" size={18} color="#666" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onMoveDown}
-            disabled={index === listLength - 1}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            style={{ opacity: index === listLength - 1 ? 0.25 : 1 }}
-          >
-            <Ionicons name="chevron-down" size={18} color="#666" />
-          </TouchableOpacity>
-        </View>
-      ) : multiSelect ? (
-        selectedIds.has(item.id) ? <Ionicons name="checkmark-circle" size={18} color={accent} /> : null
-      ) : (
-        <TouchableOpacity
-          onPress={() => handleDeleteGoal(item.id, item.type)}
-          style={styles.deleteButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={styles.deleteButtonText}>×</Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -970,253 +975,48 @@ const RoutineScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Goals Section */}
-        <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* Goals */}
+        {(showWeekly || showMonthly || showYearly) && (
+          <View style={styles.sectionHeader}>
             <View style={[styles.sectionAccent, themed.sectionAccent]} />
             <Text style={styles.sectionTitle}>Goals</Text>
           </View>
-          <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
-            <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>+ Add</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Weekly Goals Card */}
+        )}
         {showWeekly && (
-          <View style={[styles.goalCard, themed.goalCardWeekly]}>
-            <View style={styles.goalCardHeader}>
-              <View style={styles.goalCardTitleRow}>
-                <Text style={styles.goalCardTitle}>This week</Text>
-                {weeklyCountdown.text ? (
-                  <Text style={[styles.goalCardCountdown, themed.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
-                    {weeklyCountdown.text}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {editingCard === 'weekly' ? (
-                  <>
-                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('weekly')}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color={accent} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            {weeklyGoals.length === 0
-              ? <Text style={styles.emptyText}>Nothing here yet</Text>
-              : (editingCard === 'weekly' ? editWeekly : weeklyGoals).map((item, index, arr) =>
-                  renderGoalItem(item, editingCard === 'weekly', index, arr.length,
-                    () => moveGoalItem('weekly', index, 'up'),
-                    () => moveGoalItem('weekly', index, 'down'),
-                  )
-                )
-            }
-          </View>
+          <GoalCard
+            type="weekly"
+            title="This week"
+            goals={weeklyGoals}
+            accent={accent}
+            edgeAlpha={0.6}
+            countdown={weeklyCountdown}
+            {...goalCardHandlers}
+          />
         )}
-
-        {/* Monthly Goals Card */}
         {showMonthly && (
-          <View style={[styles.goalCard, themed.goalCardMonthly]}>
-            <View style={styles.goalCardHeader}>
-              <View style={styles.goalCardTitleRow}>
-                <Text style={styles.goalCardTitle}>This month</Text>
-                {monthlyCountdown.text ? (
-                  <Text style={[styles.goalCardCountdown, themed.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
-                    {monthlyCountdown.text}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {editingCard === 'monthly' ? (
-                  <>
-                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('monthly')}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color={accent} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            {monthlyGoals.length === 0
-              ? <Text style={styles.emptyText}>Nothing here yet</Text>
-              : (editingCard === 'monthly' ? editMonthly : monthlyGoals).map((item, index, arr) =>
-                  renderGoalItem(item, editingCard === 'monthly', index, arr.length,
-                    () => moveGoalItem('monthly', index, 'up'),
-                    () => moveGoalItem('monthly', index, 'down'),
-                  )
-                )
-            }
-          </View>
+          <GoalCard
+            type="monthly"
+            title="This month"
+            goals={monthlyGoals}
+            accent={accent}
+            edgeAlpha={0.38}
+            countdown={monthlyCountdown}
+            {...goalCardHandlers}
+          />
         )}
-
-        {/* Yearly Goals Card */}
         {showYearly && (
-          <View style={[styles.goalCard, themed.goalCardYearly]}>
-            <View style={styles.goalCardHeader}>
-              <Text style={styles.goalCardTitle}>This year</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {editingCard === 'yearly' ? (
-                  <>
-                    <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('yearly')}>
-                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color={accent} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            <Text style={[styles.yearlyProgressText, themed.yearlyProgressText]}>Day {yearDay} / {yearTotal}</Text>
-            <View style={styles.yearlyProgressTrack}>
-              <View style={[styles.yearlyProgressFill, themed.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
-            </View>
-            {yearlyGoals.length === 0
-              ? <Text style={styles.emptyText}>Nothing here yet</Text>
-              : (editingCard === 'yearly' ? editYearly : yearlyGoals).map((item, index, arr) =>
-                  renderGoalItem(item, editingCard === 'yearly', index, arr.length,
-                    () => moveGoalItem('yearly', index, 'up'),
-                    () => moveGoalItem('yearly', index, 'down'),
-                  )
-                )
-            }
-          </View>
+          <GoalCard
+            type="yearly"
+            title="This year"
+            goals={yearlyGoals}
+            accent={accent}
+            edgeAlpha={0.2}
+            yearProgress={{ day: yearDay, total: yearTotal }}
+            {...goalCardHandlers}
+          />
         )}
       </ScrollView>
 
-      {/* Add Goal Modal */}
-      <Modal
-        visible={goalModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setGoalModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => { setGoalModalVisible(false); setNewGoalText(''); setNewGoalCount('1'); }}
-          >
-            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Goal</Text>
-
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  goalType === 'weekly' && [styles.typeButtonActive, themed.typeButtonActive],
-                ]}
-                onPress={() => setGoalType('weekly')}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  goalType === 'weekly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
-                ]}>
-                  This week
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  goalType === 'monthly' && [styles.typeButtonActive, themed.typeButtonActive],
-                ]}
-                onPress={() => setGoalType('monthly')}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  goalType === 'monthly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
-                ]}>
-                  This month
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  goalType === 'yearly' && [styles.typeButtonActive, themed.typeButtonActive],
-                ]}
-                onPress={() => setGoalType('yearly')}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  goalType === 'yearly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
-                ]}>
-                  This year
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Enter goal..."
-              placeholderTextColor={colors.textTertiary}
-              value={newGoalText}
-              onChangeText={setNewGoalText}
-              autoFocus
-              multiline
-            />
-
-            <View style={styles.goalCountRow}>
-              <Text style={styles.goalCountLabel}>How many times?</Text>
-              <TextInput
-                style={styles.goalCountInput}
-                keyboardType="number-pad"
-                value={newGoalCount}
-                onChangeText={(text) => setNewGoalCount(text.replace(/[^0-9]/g, ''))}
-                onBlur={() => {
-                  const parsed = parseInt(newGoalCount, 10);
-                  const clamped = Number.isFinite(parsed) ? Math.min(999, Math.max(1, parsed)) : 1;
-                  setNewGoalCount(String(clamped));
-                }}
-                maxLength={3}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setGoalModalVisible(false);
-                  setNewGoalText('');
-                  setNewGoalCount('1');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.saveButton, themed.saveButton]}
-                onPress={handleAddGoal}
-              >
-                <Text style={[styles.saveButtonText, themed.saveButtonText]}>Add</Text>
-              </TouchableOpacity>
-            </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
         </>
       ) : (
         <GymScreen />
@@ -1256,6 +1056,14 @@ const RoutineScreen: React.FC = () => {
         onClose={() => setBulkMenuVisible(false)}
       />
 
+      <ActionMenu
+        visible={goalMenuVisible}
+        title={goalMenu.title}
+        items={goalMenu.items}
+        accent={accent}
+        onClose={() => setGoalMenuVisible(false)}
+      />
+
       <RoutineSettingsSheet
         visible={settingsVisible}
         accent={accent}
@@ -1284,23 +1092,6 @@ const makeThemedStyles = (accent: string) => {
     weekDayLabelSelected: { color: onAccent, opacity: 0.7 },
     weekDayDateSelected: { color: onAccent },
     sectionAccent: { backgroundColor: accent },
-    taskCardAddButton: { backgroundColor: withAlpha(accent, 0.1), borderColor: withAlpha(accent, 0.3) },
-    taskCardAddButtonText: { color: accent },
-    goalCardWeekly: { borderLeftColor: withAlpha(accent, 0.6) },
-    goalCardMonthly: { borderLeftColor: withAlpha(accent, 0.38) },
-    goalCardYearly: { borderLeftColor: withAlpha(accent, 0.2) },
-    goalCardCountdown: { color: accent },
-    yearlyProgressText: { color: accent },
-    yearlyProgressFill: { backgroundColor: accent },
-    checkbox: { borderColor: accent },
-    checkboxChecked: { backgroundColor: accent },
-    goalCountBadge: { borderColor: accent },
-    goalCountBadgeText: { color: accent },
-    typeButtonActive: { backgroundColor: withAlpha(accent, 0.2), borderColor: withAlpha(accent, 0.4) },
-    typeButtonTextActive: { color: accent },
-    saveButton: { backgroundColor: accent },
-    itemSelected: { backgroundColor: withAlpha(accent, 0.13) },
-    saveButtonText: { color: onAccent },
   });
 };
 
@@ -1311,11 +1102,6 @@ const styles = StyleSheet.create({
   },
 
   // Multi-select
-  itemSelected: {
-    borderRadius: 8,
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
-  },
   selectionBarWrap: {
     position: 'absolute',
     left: 0,
@@ -1399,9 +1185,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     fontWeight: '500',
   },
-  weekDayLabelSelected: {
-    color: '#B3E5D6',
-  },
   weekDayDate: {
     fontSize: 14,
     color: '#888',
@@ -1458,20 +1241,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  taskCardAddButton: {
-    backgroundColor: 'rgba(29, 158, 117, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(29, 158, 117, 0.3)',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  taskCardAddButtonText: {
-    fontSize: 11,
-    color: '#5DCAA5',
-    fontWeight: '500',
-  },
-
   // Notepad
   notepadCard: {
     backgroundColor: '#161616',
@@ -1497,251 +1266,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // Goal cards (This week / This month)
-  goalCard: {
-    backgroundColor: '#161616',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#232323',
-    borderLeftWidth: 3,
-    borderLeftColor: 'rgba(29, 158, 117, 0.4)',
-  },
-  yearlyProgressText: {
-    fontSize: 11,
-    color: '#1D9E75',
-    fontWeight: '500',
-    marginBottom: 6,
-    marginTop: 2,
-  },
-  yearlyProgressTrack: {
-    height: 4,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  yearlyProgressFill: {
-    height: '100%',
-    backgroundColor: '#1D9E75',
-    borderRadius: 2,
-  },
-  goalCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  goalCardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  goalCardTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#E8E8E8',
-  },
-  goalCardCountdown: {
-    fontSize: 10,
-    color: '#1D9E75',
-    fontWeight: '500',
-  },
-  countdownUrgent: {
-    color: '#FF6B6B',
-  },
-
-  emptyText: {
-    fontSize: 13,
-    color: '#666',
-    fontStyle: 'italic',
-    paddingVertical: 4,
-  },
-
-  // Task/Goal Items
-  taskItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 7,
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#1D9E75',
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#1D9E75',
-  },
-  taskText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#E8E8E8',
-    fontWeight: '400',
-  },
-  taskTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#888',
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '400',
-  },
-  reorderButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  goalCountBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1D9E75',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  goalCountBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#5DCAA5',
-  },
-  goalCountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  goalCountLabel: {
-    fontSize: 14,
-    color: '#888',
-    fontWeight: '500',
-  },
-  goalCountInput: {
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: '#E8E8E8',
-    backgroundColor: '#1F1F1F',
-    minWidth: 60,
-    textAlign: 'center',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  modalContent: {
-    backgroundColor: '#161616',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: '#232323',
-    minHeight: 280,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 20,
-    color: '#E8E8E8',
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    gap: 8,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-  },
-  typeButtonActive: {
-    backgroundColor: 'rgba(29, 158, 117, 0.2)',
-    borderColor: 'rgba(29, 158, 117, 0.4)',
-  },
-  typeButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#888',
-    textAlign: 'center',
-  },
-  typeButtonTextActive: {
-    color: '#5DCAA5',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    minHeight: 120,
-    maxHeight: 180,
-    textAlignVertical: 'top',
-    marginBottom: 20,
-    color: '#E8E8E8',
-    backgroundColor: '#1F1F1F',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 4,
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#888',
-  },
-  saveButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#1D9E75',
-    borderRadius: 8,
-  },
-  saveButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
 });
 
 export default RoutineScreen;
