@@ -10,6 +10,8 @@ export interface RoutineTask {
   target_count: number;
   current_count: number;
   time_of_day: TimeOfDay;
+  // Optional clock time within the section, 24h "HH:MM"; null = anytime.
+  scheduled_time: string | null;
   created_at: string;
 }
 

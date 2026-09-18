@@ -217,7 +217,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     type: 'today',
     dayOfWeek: string,
     targetCount: number = 1,
-    timeOfDay?: TimeOfDay
+    timeOfDay?: TimeOfDay,
+    scheduledTime?: string | null
   ): Promise<RoutineTask> {
     const clampedTargetCount = Math.min(999, Math.max(1, Math.trunc(targetCount)));
 
@@ -246,6 +247,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         current_count: clampedTargetCount,
         // Omitted when not given so the column default ('morning') applies.
         ...(timeOfDay ? { time_of_day: timeOfDay } : {}),
+        ...(scheduledTime ? { scheduled_time: scheduledTime } : {}),
       })
       .select()
       .single();
@@ -343,11 +345,12 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async updateRoutineTask(
     taskId: string,
     userId: string,
-    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number }
+    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number; scheduledTime?: string | null }
   ): Promise<RoutineTask> {
     const update: Record<string, unknown> = {};
     if (changes.text !== undefined) update.text = changes.text;
     if (changes.timeOfDay !== undefined) update.time_of_day = changes.timeOfDay;
+    if (changes.scheduledTime !== undefined) update.scheduled_time = changes.scheduledTime;
 
     if (changes.targetCount !== undefined) {
       const { data: existing, error: fetchError } = await this.client

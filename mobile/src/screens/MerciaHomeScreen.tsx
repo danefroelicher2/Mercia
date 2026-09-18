@@ -15,7 +15,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal } from '../types/routine';
-import { TIME_OF_DAY_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay } from '../utils/timeOfDay';
+import { TIME_OF_DAY_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay, timeToMinutes } from '../utils/timeOfDay';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import DailyChatSheet from '../components/DailyChatSheet';
@@ -459,10 +459,15 @@ const MerciaHomeScreen: React.FC = () => {
   // still open from earlier blocks.
   const nowIndex = TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay());
   const blockRank = (t: RoutineTask) => (TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) - nowIndex + 3) % 3;
+  const timeRank = (t: RoutineTask) => (t.scheduled_time ? timeToMinutes(t.scheduled_time) : 24 * 60);
   const openTasks = todayTasks
     .map((task, index) => ({ task, index }))
     .filter(({ task }) => !task.completed)
-    .sort((a, b) => blockRank(a.task) - blockRank(b.task) || a.index - b.index)
+    .sort((a, b) =>
+      blockRank(a.task) - blockRank(b.task)
+      // within a block: timed items in clock order, then anytime items
+      || timeRank(a.task) - timeRank(b.task)
+      || a.index - b.index)
     .map(({ task }) => task);
   const upNextTasks = openTasks.slice(0, 2);
   const upNextRemaining = openTasks.length;

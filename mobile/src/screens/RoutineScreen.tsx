@@ -396,6 +396,7 @@ const RoutineScreen: React.FC = () => {
       const next = { ...t };
       if (changes.text !== undefined) next.text = changes.text;
       if (changes.timeOfDay !== undefined) next.time_of_day = changes.timeOfDay;
+      if (changes.scheduledTime !== undefined) next.scheduled_time = changes.scheduledTime;
       if (changes.targetCount !== undefined) {
         const tapsDone = t.target_count - t.current_count;
         next.target_count = changes.targetCount;
@@ -508,6 +509,7 @@ const RoutineScreen: React.FC = () => {
           // Preserve countdown targets and sections.
           targetCount: task.target_count ?? 1,
           timeOfDay: task.time_of_day ?? 'morning',
+          scheduledTime: task.scheduled_time ?? undefined,
         });
       }
       if (selectedDayRef.current === targetDay) await loadTasks();
@@ -818,6 +820,7 @@ const RoutineScreen: React.FC = () => {
           visible={copyMenuVisible}
           title="Copy tasks from…"
           items={copyMenuItems}
+          accent={accent}
           onClose={() => setCopyMenuVisible(false)}
         />
 

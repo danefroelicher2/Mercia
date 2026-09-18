@@ -126,7 +126,8 @@ export interface StorageAdapter {
     type: 'today',
     dayOfWeek: string,
     targetCount?: number,
-    timeOfDay?: TimeOfDay
+    timeOfDay?: TimeOfDay,
+    scheduledTime?: string | null
   ): Promise<RoutineTask>;
 
   /**
@@ -147,13 +148,14 @@ export interface StorageAdapter {
   tickRoutineTask(taskId: string, userId: string): Promise<{ task: RoutineTask; becameCompleted: boolean; becameUncompleted: boolean }>;
 
   /**
-   * Edit a task's text, time-of-day section, and/or countdown target.
-   * Changing the target keeps the taps already made this week.
+   * Edit a task's text, time-of-day section, countdown target, and/or
+   * scheduled time (null clears it). Changing the target keeps the taps
+   * already made this week.
    */
   updateRoutineTask(
     taskId: string,
     userId: string,
-    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number }
+    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number; scheduledTime?: string | null }
   ): Promise<RoutineTask>;
 
   /**

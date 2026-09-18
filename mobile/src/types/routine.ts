@@ -11,6 +11,8 @@ export interface RoutineTask {
   current_count: number;
   // Optional: rows served by a backend that predates the column read as 'morning'.
   time_of_day?: TimeOfDay;
+  // Optional clock time within the section, 24h "HH:MM"; null/absent = anytime.
+  scheduled_time?: string | null;
   created_at: string;
 }
 

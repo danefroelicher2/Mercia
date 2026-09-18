@@ -22,11 +22,15 @@ import {
   SECTION_COLORS,
   TIME_OF_DAY_LABELS,
   TIME_OF_DAY_ORDER,
+  formatTime,
+  formatTimeLabel,
   getCurrentTimeOfDay,
   parseCountSuffix,
   taskTimeOfDay,
+  timeToMinutes,
   withAlpha,
 } from '../utils/timeOfDay';
+import TimeSheet from './TimeSheet';
 
 // Notepad-style Today card: three swipeable pages (Morning / Afternoon / Night).
 // Typing a line and pressing return — or tapping away — turns it into a
@@ -45,6 +49,8 @@ export interface TaskChanges {
   text?: string;
   timeOfDay?: TimeOfDay;
   targetCount?: number;
+  // "HH:MM"; null moves the item back to Anytime
+  scheduledTime?: string | null;
 }
 
 interface Props {
@@ -146,7 +152,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
   const pagerRef = useRef<any>(null);
 
   // Content is kept after closing so the menu doesn't empty mid-fade.
-  const [menu, setMenu] = useState<{ title: string; items: ActionMenuItem[] }>({ title: '', items: [] });
+  const [menu, setMenu] = useState<{ title: string; items: ActionMenuItem[]; accent?: string }>({ title: '', items: [] });
   const [menuVisible, setMenuVisible] = useState(false);
 
   const [active, setActiveState] = useState<ActiveLine | null>(null);
@@ -195,6 +201,23 @@ const TodayTimeBlocks: React.FC<Props> = ({
     for (const task of tasks) groups[taskTimeOfDay(task)].push(task);
     return groups;
   }, [tasks]);
+
+  // Within a section: timed items run down the timeline in clock order,
+  // everything else stays in its own order under Anytime.
+  const layout = useMemo(() => {
+    const result = {} as Record<TimeOfDay, { timed: RoutineTask[]; anytime: RoutineTask[]; visual: RoutineTask[] }>;
+    for (const section of TIME_OF_DAY_ORDER) {
+      const items = bySection[section];
+      const timed = items
+        .filter(t => t.scheduled_time)
+        .sort((a, b) => timeToMinutes(a.scheduled_time!) - timeToMinutes(b.scheduled_time!));
+      const anytime = items.filter(t => !t.scheduled_time);
+      result[section] = { timed, anytime, visual: [...timed, ...anytime] };
+    }
+    return result;
+  }, [bySection]);
+
+  const [timeTask, setTimeTask] = useState<RoutineTask | null>(null);
 
   const nowSection = getCurrentTimeOfDay();
   const defaultIndex = isToday ? TIME_OF_DAY_ORDER.indexOf(nowSection) : 0;
@@ -412,9 +435,11 @@ const TodayTimeBlocks: React.FC<Props> = ({
       Keyboard.dismiss();
       return;
     }
-    const items = bySection[section];
-    const isLast = items[items.length - 1]?.id === line.id;
-    if (isLast) {
+    // New lines are untimed, so a line opened from a timed item (or the last
+    // Anytime item) goes to the bottom of Anytime.
+    const { anytime } = layout[section];
+    const isTimed = !!tasksRef.current.find(t => t.id === line.id)?.scheduled_time;
+    if (isTimed || anytime[anytime.length - 1]?.id === line.id) {
       focusTrail(section);
     } else {
       setActive({ kind: 'draft', section, afterId: line.id }, '');
@@ -435,7 +460,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
     if (line.kind === 'trail') return;
 
     const section = sectionOf(line.id);
-    const items = bySection[section];
+    const items = layout[section].visual;
     const index = items.findIndex(t => t.id === line.id);
     const above = index > 0 ? items[index - 1] : null;
     setActive(null);
@@ -448,8 +473,9 @@ const TodayTimeBlocks: React.FC<Props> = ({
   // LONG-PRESS MENU
   // ============================================
 
+  // Only Anytime items reorder by hand; timed ones follow the clock.
   const moveWithinSection = (task: RoutineTask, direction: -1 | 1) => {
-    const items = bySection[taskTimeOfDay(task)];
+    const items = layout[taskTimeOfDay(task)].anytime;
     const index = items.findIndex(t => t.id === task.id);
     const neighbor = items[index + direction];
     if (!neighbor) return;
@@ -488,16 +514,22 @@ const TodayTimeBlocks: React.FC<Props> = ({
     commitActive();
     Keyboard.dismiss();
 
-    const items = bySection[taskTimeOfDay(task)];
-    const index = items.findIndex(t => t.id === task.id);
+    const anytime = layout[taskTimeOfDay(task)].anytime;
+    const index = anytime.findIndex(t => t.id === task.id);
 
     const menuItems: ActionMenuItem[] = [
       { label: 'Edit', icon: 'create-outline', onPress: () => startEditingItem(task) },
+      {
+        label: task.scheduled_time ? 'Change time' : 'Add time',
+        icon: 'time-outline',
+        detail: task.scheduled_time ? formatTimeLabel(task.scheduled_time) : undefined,
+        onPress: () => setTimeTask(task),
+      },
     ];
     if (index > 0) {
       menuItems.push({ label: 'Move up', icon: 'arrow-up', onPress: () => moveWithinSection(task, -1) });
     }
-    if (index < items.length - 1) {
+    if (index >= 0 && index < anytime.length - 1) {
       menuItems.push({ label: 'Move down', icon: 'arrow-down', onPress: () => moveWithinSection(task, 1) });
     }
     menuItems.push({
@@ -507,7 +539,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
     });
     menuItems.push({ label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => onDelete(task.id) });
 
-    setMenu({ title: task.text, items: menuItems });
+    setMenu({ title: task.text, items: menuItems, accent: THEME[taskTimeOfDay(task)].accent });
     setMenuVisible(true);
   };
 
@@ -579,6 +611,46 @@ const TodayTimeBlocks: React.FC<Props> = ({
     );
   };
 
+  // A timed item on the timeline: time on the left, checkbox on the rail.
+  const renderTimelineRow = (task: RoutineTask, isFirst: boolean, isLast: boolean) => {
+    const editing = active?.kind === 'item' && active.id === task.id;
+    const showCount = task.target_count > 1 && task.current_count > 0;
+    const { time, period } = formatTime(task.scheduled_time!);
+    return (
+      <Pressable
+        key={task.id}
+        onPress={editing ? undefined : () => onToggle(task.id)}
+        onLongPress={editing ? undefined : () => openMenu(task)}
+        delayLongPress={350}
+        style={({ pressed }) => [styles.timelineRow, pressed && !editing && styles.rowPressed]}
+      >
+        <View style={styles.timeCol}>
+          <Text style={[styles.timeText, task.completed && styles.timeTextDone]}>{time}</Text>
+          <Text style={styles.periodText}>{period}</Text>
+        </View>
+        <View style={styles.rail}>
+          {!isFirst && <View style={[styles.railLine, styles.railLineTop]} />}
+          {!isLast && <View style={[styles.railLine, styles.railLineBottom]} />}
+          <View style={styles.railNode}>
+            <Checkbox done={task.completed} color={THEME[taskTimeOfDay(task)].accent} />
+          </View>
+        </View>
+        {editing ? (
+          renderInput({ kind: 'item', id: task.id }, { autoFocus: true })
+        ) : (
+          <Text style={[styles.lineText, task.completed && styles.lineTextDone]}>{task.text}</Text>
+        )}
+        {showCount && (
+          <View style={[styles.countBadge, { borderColor: THEME[taskTimeOfDay(task)].accent }]}>
+            <Text style={[styles.countBadgeText, { color: THEME[taskTimeOfDay(task)].accent }]}>
+              {task.current_count}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
   const renderDraftRow = (section: TimeOfDay, afterId: string) => (
     <View key="draft" style={styles.row}>
       <View style={styles.checkboxTouch}>
@@ -590,8 +662,18 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
   const renderSection = (section: TimeOfDay, index: number) => {
     const items = bySection[section];
+    const { timed, anytime } = layout[section];
     const rows: React.ReactNode[] = [];
-    for (const task of items) {
+    timed.forEach((task, i) => rows.push(renderTimelineRow(task, i === 0, i === timed.length - 1)));
+    if (timed.length > 0) {
+      rows.push(
+        <View key="anytime-header" style={styles.anytimeHeader}>
+          <Text style={styles.anytimeLabel}>ANYTIME</Text>
+          <View style={styles.anytimeRule} />
+        </View>,
+      );
+    }
+    for (const task of anytime) {
       rows.push(renderTaskRow(task));
       if (active?.kind === 'draft' && active.section === section && active.afterId === task.id) {
         rows.push(renderDraftRow(section, task.id));
@@ -622,7 +704,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
         </Pressable>
 
         {items.length > 0 ? (
-          <Text style={styles.hint}>Hold an item to edit, reorder, or delete</Text>
+          <Text style={styles.hint}>Hold an item to set a time, edit, or delete</Text>
         ) : tasks.length === 0 && onCopyFromDay ? (
           <TouchableOpacity onPress={onCopyFromDay} style={styles.copyLink} hitSlop={8}>
             <Ionicons name="copy-outline" size={12} color={THEME[section].accent} />
@@ -771,7 +853,21 @@ const TodayTimeBlocks: React.FC<Props> = ({
         visible={menuVisible}
         title={menu.title}
         items={menu.items}
+        accent={menu.accent}
         onClose={() => setMenuVisible(false)}
+      />
+
+      <TimeSheet
+        visible={timeTask !== null}
+        title={timeTask?.text ?? ''}
+        section={timeTask ? taskTimeOfDay(timeTask) : 'morning'}
+        value={timeTask?.scheduled_time ?? null}
+        onSave={value => {
+          if (timeTask && value !== (timeTask.scheduled_time ?? null)) {
+            onUpdate(timeTask.id, { scheduledTime: value });
+          }
+        }}
+        onClose={() => setTimeTask(null)}
       />
     </View>
   );
@@ -938,6 +1034,78 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#A0A0A0',
+  },
+
+  // Timeline
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 9,
+  },
+  timeCol: {
+    width: 38,
+    alignItems: 'flex-end',
+    marginRight: 8,
+  },
+  timeText: {
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '600',
+    color: '#D8D8D8',
+  },
+  timeTextDone: {
+    color: '#5A5A5A',
+  },
+  periodText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#666',
+  },
+  rail: {
+    width: 20,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  railLine: {
+    position: 'absolute',
+    width: 2,
+    backgroundColor: '#2A2A2A',
+  },
+  // Rows have 9pt vertical padding; the node is centered on the first line.
+  railLineTop: {
+    top: -9,
+    height: 19,
+  },
+  railLineBottom: {
+    top: 10,
+    bottom: -9,
+  },
+  railNode: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#161616',
+    borderRadius: 10,
+  },
+  anytimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  anytimeLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    color: '#555',
+  },
+  anytimeRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#2A2A2A',
   },
 
   hint: {

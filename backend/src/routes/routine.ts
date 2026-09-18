@@ -30,12 +30,15 @@ function getLocalDateString(timezone?: string): string {
 }
 
 // Validation schemas
+const SCHEDULED_TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
 const createTaskSchema = z.object({
   text: z.string().min(1).max(500),
   type: z.enum(['today']),
   dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   targetCount: z.number().int().min(1).max(999).optional(),
   timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
+  scheduledTime: z.string().regex(SCHEDULED_TIME).nullable().optional(),
 });
 
 const updateTaskSchema = z
@@ -43,10 +46,13 @@ const updateTaskSchema = z
     text: z.string().trim().min(1).max(500).optional(),
     timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
     targetCount: z.number().int().min(1).max(999).optional(),
+    // 24h "HH:MM"; null removes the time (item goes back to Anytime)
+    scheduledTime: z.string().regex(SCHEDULED_TIME).nullable().optional(),
   })
-  .refine(b => b.text !== undefined || b.timeOfDay !== undefined || b.targetCount !== undefined, {
-    message: 'Nothing to update',
-  });
+  .refine(
+    b => b.text !== undefined || b.timeOfDay !== undefined || b.targetCount !== undefined || b.scheduledTime !== undefined,
+    { message: 'Nothing to update' },
+  );
 
 const createGoalSchema = z.object({
   text: z.string().min(1).max(500),
@@ -87,9 +93,9 @@ router.post(
       const userId = req.user!.id;
       const { text, type, dayOfWeek } = req.body;
 
-      const { targetCount, timeOfDay } = req.body;
+      const { targetCount, timeOfDay, scheduledTime } = req.body;
       const storage = getStorage();
-      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek, targetCount, timeOfDay);
+      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek, targetCount, timeOfDay, scheduledTime);
 
       res.status(201).json({
         success: true,
@@ -278,10 +284,15 @@ router.put(
     try {
       const userId = req.user!.id;
       const { id } = req.params;
-      const { text, timeOfDay, targetCount } = req.body;
+      const { text, timeOfDay, targetCount, scheduledTime } = req.body;
 
       const storage = getStorage();
-      const task = await storage.updateRoutineTask(id, userId, { text: text?.trim(), timeOfDay, targetCount });
+      const task = await storage.updateRoutineTask(id, userId, {
+        text: text?.trim(),
+        timeOfDay,
+        targetCount,
+        scheduledTime,
+      });
 
       res.json({ success: true, data: task });
     } catch (error: any) {

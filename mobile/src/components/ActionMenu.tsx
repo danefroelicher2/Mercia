@@ -11,6 +11,8 @@ export interface ActionMenuItem {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   destructive?: boolean;
+  // Right-aligned value, e.g. the current time on "Change time"
+  detail?: string;
   onPress: () => void;
 }
 
@@ -18,10 +20,12 @@ interface Props {
   visible: boolean;
   title?: string;
   items: ActionMenuItem[];
+  // Icon/detail color; defaults to the app teal.
+  accent?: string;
   onClose: () => void;
 }
 
-const ActionMenu: React.FC<Props> = ({ visible, title, items, onClose }) => {
+const ActionMenu: React.FC<Props> = ({ visible, title, items, accent = '#5DCAA5', onClose }) => {
   // The chosen action runs after the menu has fully closed, so anything it
   // opens (keyboard focus, an alert) isn't blocked by the closing modal.
   const pendingAction = useRef<(() => void) | null>(null);
@@ -68,12 +72,13 @@ const ActionMenu: React.FC<Props> = ({ visible, title, items, onClose }) => {
                 <Ionicons
                   name={item.icon}
                   size={18}
-                  color={item.destructive ? '#FF6B6B' : '#5DCAA5'}
+                  color={item.destructive ? '#FF6B6B' : accent}
                 />
               )}
               <Text style={[styles.rowText, item.destructive && styles.rowTextDestructive]}>
                 {item.label}
               </Text>
+              {item.detail ? <Text style={[styles.detail, { color: accent }]}>{item.detail}</Text> : null}
             </Pressable>
           ))}
         </Pressable>
@@ -123,8 +128,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#242424',
   },
   rowText: {
+    flex: 1,
     fontSize: 16,
     color: '#E8E8E8',
+  },
+  detail: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   rowTextDestructive: {
     color: '#FF6B6B',
