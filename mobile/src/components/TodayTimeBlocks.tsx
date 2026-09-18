@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import ActionMenu, { ActionMenuItem } from './ActionMenu';
 import { RoutineTask, TimeOfDay } from '../types/routine';
 import {
@@ -77,8 +78,54 @@ const PLACEHOLDERS: Record<TimeOfDay, string> = {
   night: 'Add to your night…',
 };
 
-const TEAL = '#1D9E75';
 const TEAL_LIGHT = '#5DCAA5';
+
+// Each section carries its own color — morning sky, afternoon sun, night
+// indigo. The tab, glow, checkboxes and counters all pick it up, so the time
+// of day reads at a glance.
+const SECTION_COLORS: Record<TimeOfDay, string> = {
+  morning: '#86CCF4',
+  afternoon: '#F3BF4C',
+  night: '#7482F5',
+};
+
+function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+const THEME: Record<TimeOfDay, { accent: string; tint: string; border: string }> = (() => {
+  const theme = {} as Record<TimeOfDay, { accent: string; tint: string; border: string }>;
+  for (const section of TIME_OF_DAY_ORDER) {
+    const accent = SECTION_COLORS[section];
+    theme[section] = { accent, tint: withAlpha(accent, 0.14), border: withAlpha(accent, 0.4) };
+  }
+  return theme;
+})();
+
+// Checkbox with a small pop when it becomes checked.
+const Checkbox: React.FC<{ done: boolean; color: string }> = ({ done, color }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const wasDone = useRef(done);
+  useEffect(() => {
+    if (done && !wasDone.current) {
+      scale.setValue(0.6);
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }).start();
+    }
+    wasDone.current = done;
+  }, [done, scale]);
+  return (
+    <Animated.View
+      style={[
+        styles.checkbox,
+        { borderColor: color, transform: [{ scale }] },
+        done && { backgroundColor: color },
+      ]}
+    >
+      {done && <Ionicons name="checkmark" size={12} color="#0D0D0D" />}
+    </Animated.View>
+  );
+};
 
 function lineKey(line: ActiveLine | null): string {
   if (!line) return '';
@@ -475,9 +522,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
   const renderCheckbox = (task: RoutineTask) => (
     <View style={styles.checkboxTouch}>
-      <View style={[styles.checkbox, task.completed && styles.checkboxDone]}>
-        {task.completed && <Ionicons name="checkmark" size={12} color="#0D0D0D" />}
-      </View>
+      <Checkbox done={task.completed} color={THEME[taskTimeOfDay(task)].accent} />
     </View>
   );
 
@@ -502,7 +547,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
       scrollEnabled={false}
       maxLength={500}
       placeholderTextColor="#4E4E4E"
-      selectionColor={TEAL}
+      selectionColor={THEME[TIME_OF_DAY_ORDER[pageIndex]].accent}
       keyboardAppearance="dark"
       autoCapitalize="sentences"
       {...extra}
@@ -529,8 +574,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
           <Text style={[styles.lineText, task.completed && styles.lineTextDone]}>{task.text}</Text>
         )}
         {showCount && (
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{task.current_count}</Text>
+          <View style={[styles.countBadge, { borderColor: THEME[taskTimeOfDay(task)].accent }]}>
+            <Text style={[styles.countBadgeText, { color: THEME[taskTimeOfDay(task)].accent }]}>
+              {task.current_count}
+            </Text>
           </View>
         )}
       </Pressable>
@@ -601,8 +648,36 @@ const TodayTimeBlocks: React.FC<Props> = ({
       })
     : 0;
 
+  // 1 while a section's page is centered, fading to 0 one page away —
+  // drives the glow and indicator crossfades as you swipe.
+  const pageFocus = (index: number) =>
+    width > 0
+      ? scrollX.interpolate({
+          inputRange: [(index - 1) * width, index * width, (index + 1) * width],
+          outputRange: [0, 1, 0],
+          extrapolate: 'clamp',
+        })
+      : index === pageIndex ? 1 : 0;
+
   return (
     <View style={styles.card}>
+      {/* Ambient glow in the section's color */}
+      <View pointerEvents="none" style={styles.glowLayer}>
+        {TIME_OF_DAY_ORDER.map((section, index) => (
+          <Animated.View key={section} style={[StyleSheet.absoluteFill, { opacity: pageFocus(index) }]}>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <RadialGradient id={`glow-${section}`} cx="50%" cy="0%" rx="70%" ry="100%">
+                  <Stop offset="0" stopColor={THEME[section].accent} stopOpacity={0.2} />
+                  <Stop offset="1" stopColor={THEME[section].accent} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#glow-${section})`} />
+            </Svg>
+          </Animated.View>
+        ))}
+      </View>
+
       {/* Segmented header */}
       <View style={styles.tabs} onLayout={e => setTabsWidth(e.nativeEvent.layout.width)}>
         {indicatorWidth > 0 && (
@@ -612,11 +687,29 @@ const TodayTimeBlocks: React.FC<Props> = ({
               styles.tabIndicator,
               { width: indicatorWidth, transform: [{ translateX: indicatorTranslate }] },
             ]}
-          />
+          >
+            {TIME_OF_DAY_ORDER.map((section, index) => (
+              <Animated.View
+                key={section}
+                style={[
+                  styles.tabIndicatorFill,
+                  {
+                    backgroundColor: THEME[section].tint,
+                    borderColor: THEME[section].border,
+                    opacity: pageFocus(index),
+                  },
+                ]}
+              />
+            ))}
+          </Animated.View>
         )}
         {TIME_OF_DAY_ORDER.map((section, index) => {
           const selected = index === pageIndex;
           const isNow = isToday && section === nowSection;
+          const items = bySection[section];
+          const done = items.filter(t => t.completed).length;
+          const allDone = items.length > 0 && done === items.length;
+          const accent = THEME[section].accent;
           return (
             <TouchableOpacity
               key={section}
@@ -624,15 +717,28 @@ const TodayTimeBlocks: React.FC<Props> = ({
               onPress={() => handleTabPress(index)}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name={SECTION_ICONS[section]}
-                size={14}
-                color={selected ? TEAL_LIGHT : '#666'}
-              />
-              <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
-                {TIME_OF_DAY_LABELS[section]}
-              </Text>
-              {isNow && <View style={styles.nowDot} />}
+              <View style={styles.tabContent}>
+                <Ionicons
+                  name={allDone ? 'checkmark-circle' : SECTION_ICONS[section]}
+                  size={14}
+                  color={selected || allDone ? accent : '#666'}
+                />
+                <Text style={[styles.tabLabel, selected && { color: '#F2F2F2' }]}>
+                  {TIME_OF_DAY_LABELS[section]}
+                </Text>
+                {isNow && <View style={[styles.nowDot, { backgroundColor: accent }]} />}
+              </View>
+              {/* Section progress */}
+              {items.length > 0 && (
+                <View style={styles.tabProgressTrack}>
+                  <View
+                    style={[
+                      styles.tabProgressFill,
+                      { width: `${(done / items.length) * 100}%`, backgroundColor: accent },
+                    ]}
+                  />
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -678,6 +784,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   card: {
+    overflow: 'hidden',
     backgroundColor: '#161616',
     borderRadius: 12,
     padding: 16,
@@ -697,23 +804,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1E1E1E',
   },
+  glowLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+  },
   tabIndicator: {
     position: 'absolute',
     top: 3,
     bottom: 3,
     left: 3,
-    borderRadius: 8,
-    backgroundColor: 'rgba(29, 158, 117, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(29, 158, 117, 0.35)',
   },
-  tab: {
-    flex: 1,
+  tabIndicatorFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    paddingVertical: 8,
+  },
+  tabProgressTrack: {
+    position: 'absolute',
+    bottom: 4,
+    left: '30%',
+    right: '30%',
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    overflow: 'hidden',
+  },
+  tabProgressFill: {
+    height: '100%',
+    borderRadius: 1,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 11,
   },
   tabLabel: {
     fontSize: 12,
@@ -727,7 +861,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: TEAL,
+    backgroundColor: '#3A3A3A',
     marginLeft: 1,
   },
 
@@ -766,12 +900,9 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: TEAL,
+    borderColor: '#3A3A3A',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkboxDone: {
-    backgroundColor: TEAL,
   },
   checkboxGhost: {
     borderColor: '#3A3A3A',
@@ -803,7 +934,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: TEAL,
+    borderColor: '#3A3A3A',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
