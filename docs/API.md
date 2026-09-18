@@ -34,6 +34,7 @@ All routes require `Authorization: Bearer <access token>` except `/auth/*` (publ
 | PUT | /tasks/:id | Edit `text`, `timeOfDay`, `targetCount` (retarget keeps taps already made), and/or `scheduledTime` ("HH:MM", `null` = anytime) |
 | DELETE | /tasks/:id | Delete + history cleanup |
 | POST | /tasks/bulk-delete | `{ ids }` — delete many tasks (multi-select); same history cleanup as single delete |
+| PUT | /goals/:id | Edit a goal's `text` and/or `targetCount` (retarget keeps taps made) |
 | POST | /goals/bulk-delete | `{ ids }` — delete many goals (multi-select) |
 | POST | /clear | Wipe the Routine tab: all tasks (every day), all goals, notepad emptied. Completion history kept; Gym untouched |
 | POST | /goals | Create weekly/monthly/yearly goal (`targetCount` optional) |

@@ -388,6 +388,54 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return data;
   }
 
+  async updateRoutineGoal(
+    goalId: string,
+    userId: string,
+    changes: { text?: string; targetCount?: number }
+  ): Promise<RoutineGoal> {
+    const update: Record<string, unknown> = {};
+    if (changes.text !== undefined) update.text = changes.text;
+
+    if (changes.targetCount !== undefined) {
+      const { data: existing, error: fetchError } = await this.client
+        .from('routine_goals')
+        .select('current_count, target_count, completed, completed_at')
+        .eq('id', goalId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch goal for update: ${fetchError.message}`);
+      }
+
+      // Keep taps already made: 2 of 5 done, retargeted to 8 → 6 remaining.
+      const newTarget = Math.min(999, Math.max(1, Math.trunc(changes.targetCount)));
+      const tapsDone = existing.target_count - existing.current_count;
+      const newCurrent = Math.max(0, newTarget - tapsDone);
+      const completed = newCurrent === 0;
+      update.target_count = newTarget;
+      update.current_count = newCurrent;
+      update.completed = completed;
+      if (completed !== existing.completed) {
+        update.completed_at = completed ? new Date().toISOString() : null;
+      }
+    }
+
+    const { data, error } = await this.client
+      .from('routine_goals')
+      .update(update)
+      .eq('id', goalId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update routine goal: ${error.message}`);
+    }
+
+    return data;
+  }
+
   async deleteRoutineTasks(taskIds: string[], userId: string): Promise<void> {
     if (taskIds.length === 0) return;
     const { error } = await this.client

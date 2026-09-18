@@ -208,6 +208,15 @@ export interface StorageAdapter {
   tickRoutineGoal(goalId: string, userId: string): Promise<{ goal: RoutineGoal; becameCompleted: boolean; becameUncompleted: boolean }>;
 
   /**
+   * Edit a goal's text and/or countdown target (retarget keeps taps made).
+   */
+  updateRoutineGoal(
+    goalId: string,
+    userId: string,
+    changes: { text?: string; targetCount?: number }
+  ): Promise<RoutineGoal>;
+
+  /**
    * Delete a routine goal
    */
   deleteRoutineGoal(goalId: string, userId: string): Promise<void>;
