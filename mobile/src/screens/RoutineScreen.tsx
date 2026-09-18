@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
+import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
@@ -68,6 +68,8 @@ const getDayOfYear = (): { day: number; total: number } => {
 
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
+  const prefs = useRoutinePreferences();
+  const { showWeekly, showMonthly, showYearly, showNotepad, boundaries } = prefs;
 
   // Drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -94,7 +96,7 @@ const RoutineScreen: React.FC = () => {
   const [focusCount, setFocusCount] = useState(0);
   const [copyMenuVisible, setCopyMenuVisible] = useState(false);
   // The whole tab takes its accent from the Today section being shown.
-  const [todaySection, setTodaySection] = useState<TimeOfDay>(getCurrentTimeOfDay);
+  const [todaySection, setTodaySection] = useState<TimeOfDay>(() => getCurrentTimeOfDay(new Date(), boundaries));
   const accent = SECTION_COLORS[todaySection];
   const themed = useMemo(() => makeThemedStyles(accent), [accent]);
   const tasksRef = useRef<RoutineTask[]>([]);
@@ -114,10 +116,6 @@ const RoutineScreen: React.FC = () => {
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
 
   // Routine preferences (which goal sections to show)
-  const [showWeekly, setShowWeekly] = useState(true);
-  const [showMonthly, setShowMonthly] = useState(true);
-  const [showYearly, setShowYearly] = useState(true);
-  const [showNotepad, setShowNotepad] = useState(true);
 
   // Notepad
   const [notepadContent, setNotepadContent] = useState('');
@@ -172,25 +170,12 @@ const RoutineScreen: React.FC = () => {
     setFocusCount(c => c + 1);
   }, []));
 
-  // Load preferences and notepad content each time this tab gains focus
+  // Reload notepad content each time this tab gains focus. (Visibility and
+  // time-of-day settings come from RoutinePreferencesContext and are live.)
   useFocusEffect(useCallback(() => {
-    const loadOnFocus = async () => {
-      const [w, m, y, n] = await Promise.all([
-        AsyncStorage.getItem('routine_prefs_show_weekly'),
-        AsyncStorage.getItem('routine_prefs_show_monthly'),
-        AsyncStorage.getItem('routine_prefs_show_yearly'),
-        AsyncStorage.getItem('routine_prefs_show_notepad'),
-      ]);
-      if (w !== null) setShowWeekly(w === 'true');
-      if (m !== null) setShowMonthly(m === 'true');
-      if (y !== null) setShowYearly(y === 'true');
-      if (n !== null) setShowNotepad(n === 'true');
-
-      api.get('/api/routine/notepad')
-        .then(res => { if (res.data.success) setNotepadContent(res.data.data.content); })
-        .catch(() => {});
-    };
-    loadOnFocus();
+    api.get('/api/routine/notepad')
+      .then(res => { if (res.data.success) setNotepadContent(res.data.data.content); })
+      .catch(() => {});
   }, []));
 
   // Load disliked quotes on mount

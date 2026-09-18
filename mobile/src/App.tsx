@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
+import { RoutinePreferencesProvider } from './context/RoutinePreferencesContext';
 import RootNavigator from './navigation/RootNavigator';
 
 const App: React.FC = () => {
@@ -13,10 +14,12 @@ const App: React.FC = () => {
     <SafeAreaProvider>
       <AuthProvider>
         <SubscriptionProvider>
-          <BottomSheetModalProvider>
-            <StatusBar style="auto" />
-            <RootNavigator />
-          </BottomSheetModalProvider>
+          <RoutinePreferencesProvider>
+            <BottomSheetModalProvider>
+              <StatusBar style="auto" />
+              <RootNavigator />
+            </BottomSheetModalProvider>
+          </RoutinePreferencesProvider>
         </SubscriptionProvider>
       </AuthProvider>
     </SafeAreaProvider>

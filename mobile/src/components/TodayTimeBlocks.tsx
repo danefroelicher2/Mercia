@@ -31,6 +31,7 @@ import {
   withAlpha,
 } from '../utils/timeOfDay';
 import TimeSheet from './TimeSheet';
+import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 
 // Notepad-style Today card: three swipeable pages (Morning / Afternoon / Night).
 // Typing a line and pressing return — or tapping away — turns it into a
@@ -145,7 +146,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
   const [tabsWidth, setTabsWidth] = useState(0);
   // pageIndex follows the swipe live (tab highlight); heightIndex only
   // updates once a page settles, so the card doesn't resize mid-swipe.
-  const [pageIndex, setPageIndex] = useState(() => (isToday ? TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay()) : 0));
+  const { boundaries } = useRoutinePreferences();
+  const [pageIndex, setPageIndex] = useState(() =>
+    isToday ? TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay(new Date(), boundaries)) : 0,
+  );
   const [heightIndex, setHeightIndex] = useState(pageIndex);
   const [heights, setHeights] = useState<number[]>([0, 0, 0]);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -219,7 +223,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
   const [timeTask, setTimeTask] = useState<RoutineTask | null>(null);
 
-  const nowSection = getCurrentTimeOfDay();
+  const nowSection = getCurrentTimeOfDay(new Date(), boundaries);
   const defaultIndex = isToday ? TIME_OF_DAY_ORDER.indexOf(nowSection) : 0;
   // Starting offset is fixed per width: iOS re-applies contentOffset whenever
   // the prop changes, which would slide the pager on its own at noon / 6 PM.
@@ -254,11 +258,12 @@ const TodayTimeBlocks: React.FC<Props> = ({
     setHeightIndex(index);
   }, [width, scrollX]);
 
-  // Jump to the default page on focus / day change (and once width is known).
+  // Jump to the default page on focus / day change (and once width is known),
+  // and when the user moves the section boundaries in settings.
   useEffect(() => {
     jumpToPage(defaultIndex, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetToken, width]);
+  }, [resetToken, width, boundaries.afternoonStart, boundaries.nightStart]);
 
   const handleTabPress = (index: number) => {
     commitActive();

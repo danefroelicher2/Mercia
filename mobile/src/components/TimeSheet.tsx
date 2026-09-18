@@ -10,11 +10,12 @@ import {
   View,
 } from 'react-native';
 import { TimeOfDay } from '../types/routine';
+import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import {
-  QUICK_TIMES,
   SECTION_COLORS,
   formatTime,
   parseTimeInput,
+  quickTimes,
   textOnColor,
   togglePeriod,
   withAlpha,
@@ -35,6 +36,7 @@ interface Props {
 const TimeSheet: React.FC<Props> = ({ visible, title, section, value, onSave, onClose }) => {
   const [input, setInput] = useState('');
   const [flipped, setFlipped] = useState(false);
+  const { boundaries } = useRoutinePreferences();
   const accent = SECTION_COLORS[section];
   const onAccent = textOnColor(accent);
 
@@ -44,14 +46,14 @@ const TimeSheet: React.FC<Props> = ({ visible, title, section, value, onSave, on
     if (value) {
       const text = formatTime(value).time;
       setInput(text);
-      setFlipped(parseTimeInput(text, section) !== value);
+      setFlipped(parseTimeInput(text, section, boundaries) !== value);
     } else {
       setInput('');
       setFlipped(false);
     }
-  }, [visible, value, section]);
+  }, [visible, value, section, boundaries]);
 
-  const parsed = parseTimeInput(input, section);
+  const parsed = parseTimeInput(input, section, boundaries);
   const result = parsed && flipped ? togglePeriod(parsed) : parsed;
   const preview = result ? formatTime(result) : null;
 
@@ -127,7 +129,7 @@ const TimeSheet: React.FC<Props> = ({ visible, title, section, value, onSave, on
               </View>
 
               <View style={styles.quickRow}>
-                {QUICK_TIMES[section].map(time => {
+                {quickTimes(section, boundaries).map(time => {
                   const { time: label, period } = formatTime(time);
                   const on = result === time;
                   return (

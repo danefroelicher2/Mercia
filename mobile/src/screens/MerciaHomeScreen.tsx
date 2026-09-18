@@ -16,6 +16,7 @@ import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal } from '../types/routine';
 import { TIME_OF_DAY_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay, timeToMinutes } from '../utils/timeOfDay';
+import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import DailyChatSheet from '../components/DailyChatSheet';
@@ -160,6 +161,7 @@ const MerciaHomeScreen: React.FC = () => {
   const momentumRingSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
   const monthlyReviewSheetRef = useRef<React.ElementRef<typeof BottomSheetModal>>(null);
   const navigation = useNavigation<any>();
+  const { boundaries: routineBoundaries } = useRoutinePreferences();
 
   // ============================================
   // HOME EXTRAS STATE (streak / week strip / up next / monthly review)
@@ -457,7 +459,7 @@ const MerciaHomeScreen: React.FC = () => {
 
   // Current time block first, then the rest of the day, then anything
   // still open from earlier blocks.
-  const nowIndex = TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay());
+  const nowIndex = TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay(new Date(), routineBoundaries));
   const blockRank = (t: RoutineTask) => (TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) - nowIndex + 3) % 3;
   const timeRank = (t: RoutineTask) => (t.scheduled_time ? timeToMinutes(t.scheduled_time) : 24 * 60);
   const openTasks = todayTasks
