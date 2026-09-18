@@ -103,7 +103,7 @@ const GoalCard: React.FC<Props> = ({
         </Svg>
       </View>
 
-      {/* Centered title, then "x% - …" and the period's progress bar */}
+      {/* Centered script title; "x% - …" and the progress bar left-aligned */}
       <Text style={styles.title}>{title}</Text>
       <View style={styles.period}>
         <Text style={[styles.periodText, { color: period.urgent ? '#FF6B6B' : accent }]}>
@@ -215,10 +215,13 @@ const styles = StyleSheet.create({
     right: 0,
     height: 110,
   },
+  // Built-in iOS script face; the bold cut reads better on dark.
   title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E8E8E8',
+    fontFamily: 'Snell Roundhand',
+    fontWeight: '700',
+    fontSize: 26,
+    lineHeight: 34,
+    color: '#F2F2F2',
     textAlign: 'center',
   },
   period: {
@@ -228,7 +231,7 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 11,
     fontWeight: '500',
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 7,
     fontVariant: ['tabular-nums'],
   },
