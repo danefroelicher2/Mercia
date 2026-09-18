@@ -28,7 +28,14 @@ import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
 import { Ionicons } from '@expo/vector-icons';
-import { getNextMonday, getNextFirstOfMonth, formatTimeRemaining, shouldShowUrgent } from '../utils/weeklyReset';
+import {
+  getNextMonday,
+  getNextFirstOfMonth,
+  formatTimeRemaining,
+  shouldShowUrgent,
+  getWeekElapsedFraction,
+  getMonthElapsedFraction,
+} from '../utils/weeklyReset';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -121,8 +128,8 @@ const RoutineScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Countdown state
-  const [weeklyCountdown, setWeeklyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
-  const [monthlyCountdown, setMonthlyCountdown] = useState<{ text: string; urgent: boolean }>({ text: '', urgent: false });
+  const [weeklyCountdown, setWeeklyCountdown] = useState({ text: '', urgent: false, progress: 0 });
+  const [monthlyCountdown, setMonthlyCountdown] = useState({ text: '', urgent: false, progress: 0 });
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -162,8 +169,16 @@ const RoutineScreen: React.FC = () => {
       const now = new Date();
       const weeklyMs = getNextMonday().getTime() - now.getTime();
       const monthlyMs = getNextFirstOfMonth().getTime() - now.getTime();
-      setWeeklyCountdown({ text: formatTimeRemaining(weeklyMs), urgent: shouldShowUrgent(weeklyMs) });
-      setMonthlyCountdown({ text: formatTimeRemaining(monthlyMs), urgent: shouldShowUrgent(monthlyMs) });
+      setWeeklyCountdown({
+        text: formatTimeRemaining(weeklyMs),
+        urgent: shouldShowUrgent(weeklyMs),
+        progress: getWeekElapsedFraction(),
+      });
+      setMonthlyCountdown({
+        text: formatTimeRemaining(monthlyMs),
+        urgent: shouldShowUrgent(monthlyMs),
+        progress: getMonthElapsedFraction(),
+      });
     };
     updateCountdowns();
     const interval = setInterval(updateCountdowns, 60000);
@@ -989,7 +1004,7 @@ const RoutineScreen: React.FC = () => {
             goals={weeklyGoals}
             accent={accent}
             edgeAlpha={0.6}
-            countdown={weeklyCountdown}
+            period={{ progress: weeklyCountdown.progress, detail: weeklyCountdown.text, urgent: weeklyCountdown.urgent }}
             {...goalCardHandlers}
           />
         )}
@@ -1000,7 +1015,7 @@ const RoutineScreen: React.FC = () => {
             goals={monthlyGoals}
             accent={accent}
             edgeAlpha={0.38}
-            countdown={monthlyCountdown}
+            period={{ progress: monthlyCountdown.progress, detail: monthlyCountdown.text, urgent: monthlyCountdown.urgent }}
             {...goalCardHandlers}
           />
         )}
@@ -1011,7 +1026,7 @@ const RoutineScreen: React.FC = () => {
             goals={yearlyGoals}
             accent={accent}
             edgeAlpha={0.2}
-            yearProgress={{ day: yearDay, total: yearTotal }}
+            period={{ progress: yearDay / yearTotal, detail: `Day ${yearDay}/${yearTotal}` }}
             {...goalCardHandlers}
           />
         )}

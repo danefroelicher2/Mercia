@@ -58,3 +58,21 @@ export const getWeeklyCountdown = (): { text: string; urgent: boolean } => {
   const ms = getNextMonday().getTime() - Date.now();
   return { text: formatTimeRemaining(ms), urgent: shouldShowUrgent(ms) };
 };
+
+// How much of the current week / month has passed (0–1), on the same reset
+// clock as the countdowns above — drives the goal cards' progress bars.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+export const getWeekElapsedFraction = (): number => {
+  const end = getNextMonday().getTime();
+  const start = end - 7 * DAY_MS;
+  return clamp01((Date.now() - start) / (end - start));
+};
+
+export const getMonthElapsedFraction = (): number => {
+  const endDate = getNextFirstOfMonth();
+  const end = endDate.getTime();
+  const start = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - 1, 1, 5, 0, 0, 0);
+  return clamp01((Date.now() - start) / (end - start));
+};

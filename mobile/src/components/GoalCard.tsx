@@ -20,8 +20,9 @@ interface Props {
   accent: string;
   // Left-edge strength: weekly strongest, yearly faintest.
   edgeAlpha: number;
-  countdown?: { text: string; urgent: boolean };
-  yearProgress?: { day: number; total: number };
+  // How far through the week / month / year we are. `detail` is what follows
+  // the percentage: "12d 5h remaining" or "Day 261/365".
+  period: { progress: number; detail: string; urgent?: boolean };
   // Goal currently being edited in place (set by the hold menu's Edit).
   editingId: string | null;
   selectedIds: Set<string>;
@@ -43,8 +44,7 @@ const GoalCard: React.FC<Props> = ({
   goals,
   accent,
   edgeAlpha,
-  countdown,
-  yearProgress,
+  period,
   editingId,
   selectedIds,
   onPress,
@@ -103,30 +103,16 @@ const GoalCard: React.FC<Props> = ({
         </Svg>
       </View>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        {countdown?.text ? (
-          <Text style={[styles.countdown, { color: countdown.urgent ? '#FF6B6B' : accent }]}>
-            {countdown.text}
-          </Text>
-        ) : null}
-      </View>
-
-      {yearProgress && (
-        <View style={styles.yearProgress}>
-          <Text style={[styles.yearProgressText, { color: accent }]}>
-            Day {yearProgress.day} / {yearProgress.total}
-          </Text>
-          <View style={styles.yearTrack}>
-            <View
-              style={[
-                styles.yearFill,
-                { width: `${(yearProgress.day / yearProgress.total) * 100}%`, backgroundColor: accent },
-              ]}
-            />
-          </View>
+      {/* Centered title, then "x% - …" and the period's progress bar */}
+      <Text style={styles.title}>{title}</Text>
+      <View style={styles.period}>
+        <Text style={[styles.periodText, { color: period.urgent ? '#FF6B6B' : accent }]}>
+          {Math.floor(period.progress * 100)}% - {period.detail}
+        </Text>
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
         </View>
-      )}
+      </View>
 
       {goals.map(goal => {
         const editing = goal.id === editingId;
@@ -229,37 +215,30 @@ const styles = StyleSheet.create({
     right: 0,
     height: 110,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginBottom: 6,
-  },
   title: {
     fontSize: 14,
     fontWeight: '600',
     color: '#E8E8E8',
+    textAlign: 'center',
   },
-  countdown: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  yearProgress: {
-    marginTop: 2,
+  period: {
+    marginTop: 4,
     marginBottom: 8,
   },
-  yearProgressText: {
+  periodText: {
     fontSize: 11,
     fontWeight: '500',
-    marginBottom: 6,
+    textAlign: 'center',
+    marginBottom: 7,
+    fontVariant: ['tabular-nums'],
   },
-  yearTrack: {
+  track: {
     height: 4,
     backgroundColor: '#2A2A2A',
     borderRadius: 2,
     overflow: 'hidden',
   },
-  yearFill: {
+  fill: {
     height: '100%',
     borderRadius: 2,
   },
