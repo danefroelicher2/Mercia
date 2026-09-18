@@ -11,7 +11,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  ActionSheetIOS,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
+import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
@@ -79,22 +80,22 @@ const RoutineScreen: React.FC = () => {
   const [monthlyGoals, setMonthlyGoals] = useState<RoutineGoal[]>([]);
   const [yearlyGoals, setYearlyGoals] = useState<RoutineGoal[]>([]);
 
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
 
-  const [newTaskText, setNewTaskText] = useState('');
-  const [newTaskCount, setNewTaskCount] = useState('1');
-  // Multi-day creation: which days the new task should be created on.
-  // Defaults to just the selected day when the modal opens.
-  const [newTaskDays, setNewTaskDays] = useState<DayOfWeek[]>([]);
   const [newGoalText, setNewGoalText] = useState('');
   const [newGoalCount, setNewGoalCount] = useState('1');
 
   const [goalType, setGoalType] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
 
-  const [copyModeActive, setCopyModeActive] = useState(false);
-  const [isCopying, setIsCopying] = useState(false);
-  const [copyNoTasksMessage, setCopyNoTasksMessage] = useState('');
+  // Bumped on every tab focus so the Today pager snaps back to the section
+  // matching the current time.
+  const [focusCount, setFocusCount] = useState(0);
+  const tasksRef = useRef<RoutineTask[]>([]);
+  tasksRef.current = tasks;
+  // Tasks typed into the Today notepad get a client id immediately; this
+  // maps it to the server id once the create lands (null if it failed).
+  const pendingTaskIds = useRef<Map<string, Promise<string | null>>>(new Map());
+  const orderSyncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -118,8 +119,7 @@ const RoutineScreen: React.FC = () => {
   const tickingTaskIds = useRef<Set<string>>(new Set());
 
   // Edit mode state — each card manages its own independently
-  const [editingCard, setEditingCard] = useState<'today' | 'weekly' | 'monthly' | 'yearly' | null>(null);
-  const [editToday, setEditToday] = useState<RoutineTask[]>([]);
+  const [editingCard, setEditingCard] = useState<'weekly' | 'monthly' | 'yearly' | null>(null);
   const [editWeekly, setEditWeekly] = useState<RoutineGoal[]>([]);
   const [editMonthly, setEditMonthly] = useState<RoutineGoal[]>([]);
   const [editYearly, setEditYearly] = useState<RoutineGoal[]>([]);
@@ -162,6 +162,7 @@ const RoutineScreen: React.FC = () => {
     const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
     const dayIndex = today === 0 ? 6 : today - 1; // Convert to Mon=0, Tue=1, ..., Sun=6
     setSelectedDay(DAYS[dayIndex]);
+    setFocusCount(c => c + 1);
   }, []));
 
   // Load preferences and notepad content each time this tab gains focus
@@ -217,6 +218,11 @@ const RoutineScreen: React.FC = () => {
 
   // Load data when day changes
   useEffect(() => {
+    // A pending reorder belongs to the day being left — write it now.
+    if (orderSyncTimeout.current) {
+      clearTimeout(orderSyncTimeout.current);
+      syncOrderNow();
+    }
     if (user) {
       loadData();
     }
@@ -294,46 +300,147 @@ const RoutineScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  // Task handlers
-  const handleAddTask = async () => {
-    if (!newTaskText.trim()) return;
+  // ============================================
+  // TODAY NOTEPAD HANDLERS
+  // Every change applies locally first so typing and checking feel instant
+  // (Render cold starts can take a while), then syncs to the server.
+  // ============================================
 
-    const parsedCount = parseInt(newTaskCount, 10);
-    const targetCount = Number.isFinite(parsedCount) ? Math.min(999, Math.max(1, parsedCount)) : 1;
-    const days = newTaskDays.length > 0 ? newTaskDays : [selectedDay];
+  const resolveTaskId = async (id: string): Promise<string | null> => {
+    const pending = pendingTaskIds.current.get(id);
+    return pending ? pending : id;
+  };
 
+  // Persist the current on-screen order. Debounced so a burst of typed
+  // lines produces one reorder call; flushed early if the day changes.
+  const syncOrderNow = async () => {
+    orderSyncTimeout.current = null;
+    // Snapshot synchronously — before any await — so a day switch can't
+    // swap in the next day's tasks.
+    const clientIds = tasksRef.current.map(t => t.id);
+    const ids = await Promise.all(clientIds.map(resolveTaskId));
     try {
-      // One create per selected day — same task on Mon/Wed/Fri in one shot.
-      for (const day of days) {
-        await api.post('/api/routine/tasks', {
-          text: newTaskText.trim(),
-          type: 'today',
-          dayOfWeek: day,
-          targetCount,
-        });
-      }
-
-      await loadTasks();
-      setNewTaskText('');
-      setNewTaskCount('1');
-      setNewTaskDays([]);
-      setTaskModalVisible(false);
+      await api.patch('/api/routine/tasks/reorder', { ids: ids.filter((id): id is string => !!id) });
     } catch (error) {
-      console.error('[RoutineScreen] Error adding task:', error);
-      Alert.alert('Error', 'Failed to add task. Please try again.');
+      console.error('[RoutineScreen] Reorder failed:', error);
     }
   };
 
-  const toggleNewTaskDay = (day: DayOfWeek) => {
-    setNewTaskDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
+  const scheduleOrderSync = () => {
+    if (orderSyncTimeout.current) clearTimeout(orderSyncTimeout.current);
+    orderSyncTimeout.current = setTimeout(syncOrderNow, 600);
+  };
+
+  const handleCreateTask = ({ text, targetCount, timeOfDay, afterId }: CreateTaskInput): string => {
+    const clientId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const day = selectedDay;
+    const optimistic: RoutineTask = {
+      id: clientId,
+      user_id: user?.id ?? '',
+      text,
+      type: 'today',
+      day_of_week: day,
+      completed: false,
+      target_count: targetCount,
+      current_count: targetCount,
+      time_of_day: timeOfDay,
+      created_at: new Date().toISOString(),
+    };
+
+    setTasks(prev => {
+      const index = afterId ? prev.findIndex(t => t.id === afterId) : -1;
+      if (index === -1) return [...prev, optimistic];
+      const next = prev.slice();
+      next.splice(index + 1, 0, optimistic);
+      return next;
+    });
+
+    const request = (async (): Promise<string | null> => {
+      try {
+        const response = await api.post('/api/routine/tasks', {
+          text,
+          type: 'today',
+          dayOfWeek: day,
+          targetCount,
+          timeOfDay,
+        });
+        const saved: RoutineTask = response.data.data;
+        // The row keeps its client id for this session (so an input being
+        // edited isn't remounted); API calls go through resolveTaskId.
+        setTasks(prev => prev.map(t => (t.id === clientId ? { ...t, user_id: saved.user_id, created_at: saved.created_at } : t)));
+        // The server appends to the end of the day; an insert anywhere else
+        // needs the order written back.
+        if (afterId) scheduleOrderSync();
+        return saved.id;
+      } catch (error) {
+        console.error('[RoutineScreen] Error adding task:', error);
+        setTasks(prev => prev.filter(t => t.id !== clientId));
+        Alert.alert("Couldn't save", `"${text}" wasn't saved. Check your connection and try again.`);
+        return null;
+      }
+    })();
+    pendingTaskIds.current.set(clientId, request);
+    return clientId;
+  };
+
+  const handleUpdateTask = async (id: string, changes: TaskChanges) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const next = { ...t };
+      if (changes.text !== undefined) next.text = changes.text;
+      if (changes.timeOfDay !== undefined) next.time_of_day = changes.timeOfDay;
+      if (changes.targetCount !== undefined) {
+        const tapsDone = t.target_count - t.current_count;
+        next.target_count = changes.targetCount;
+        next.current_count = Math.max(0, changes.targetCount - tapsDone);
+        next.completed = next.current_count === 0;
+      }
+      return next;
+    }));
+
+    const serverId = await resolveTaskId(id);
+    if (!serverId) return;
+    try {
+      const response = await api.put(`/api/routine/tasks/${serverId}`, changes);
+      const saved: RoutineTask = response.data.data;
+      // Only take the server's count math; text/section stay as typed locally.
+      setTasks(prev => prev.map(t => (t.id === id
+        ? { ...t, target_count: saved.target_count, current_count: saved.current_count, completed: saved.completed }
+        : t)));
+    } catch (error) {
+      console.error('[RoutineScreen] Error updating task:', error);
+      Alert.alert("Couldn't save", 'That change didn\'t save. Pull down to refresh and try again.');
+    }
+  };
+
+  const handleReorderTasks = (orderedIds: string[]) => {
+    setTasks(prev => {
+      const byId = new Map(prev.map(t => [t.id, t]));
+      const ordered = orderedIds.map(id => byId.get(id)).filter((t): t is RoutineTask => !!t);
+      const missing = prev.filter(t => !orderedIds.includes(t.id));
+      return [...ordered, ...missing];
+    });
+    scheduleOrderSync();
   };
 
   const handleToggleTask = async (taskId: string) => {
     if (tickingTaskIds.current.has(taskId)) return;
     tickingTaskIds.current.add(taskId);
+
+    // Same tick rule as the server: count down to done; tapping a done
+    // task steps it back up one.
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const newCount = t.current_count > 0
+        ? t.current_count - 1
+        : Math.min(t.current_count + 1, t.target_count);
+      return { ...t, current_count: newCount, completed: newCount === 0 };
+    }));
+
     try {
+      const serverId = await resolveTaskId(taskId);
+      if (!serverId) return;
+
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const selectedDate = getCalendarDateForDay(selectedDay);
       const now = new Date();
@@ -345,81 +452,86 @@ const RoutineScreen: React.FC = () => {
         body.date = selectedDate;
       }
 
-      const response = await api.patch(`/api/routine/tasks/${taskId}`, body);
+      const response = await api.patch(`/api/routine/tasks/${serverId}`, body);
 
       if (response.data.success) {
         const updated: RoutineTask = response.data.data;
-        setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
+        setTasks(prev => prev.map(t => (t.id === taskId
+          ? { ...t, completed: updated.completed, current_count: updated.current_count, target_count: updated.target_count }
+          : t)));
       }
     } catch (error) {
       console.error('[RoutineScreen] Error toggling task:', error);
+      loadTasks();
     } finally {
       tickingTaskIds.current.delete(taskId);
     }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/api/routine/tasks/${taskId}`);
-              setTasks(tasks.filter(t => t.id !== taskId));
-            } catch (error) {
-              console.error('[RoutineScreen] Error deleting task:', error);
-              Alert.alert('Error', 'Failed to delete task.');
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteTask = async (taskId: string) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    const serverId = await resolveTaskId(taskId);
+    if (!serverId) return;
+    try {
+      await api.delete(`/api/routine/tasks/${serverId}`);
+    } catch (error) {
+      console.error('[RoutineScreen] Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task.');
+      loadTasks();
+    }
   };
 
+  // Copy every task (with its Morning/Afternoon/Night section) from another
+  // day onto the selected day. Offered when the selected day is empty.
   const handleCopyFromDay = async (sourceDay: DayOfWeek) => {
-    setIsCopying(true);
-    setCopyNoTasksMessage('');
+    const targetDay = selectedDay;
+    const sourceLabel = sourceDay.charAt(0).toUpperCase() + sourceDay.slice(1);
     try {
       const response = await api.get(`/api/routine/tasks/${sourceDay}`);
-      if (response.data.success) {
-        const allSourceTasks: RoutineTask[] = response.data.data;
-        const filtered = allSourceTasks.filter(t => t.type === 'today');
-        if (filtered.length === 0) {
-          const dayLabel = sourceDay.charAt(0).toUpperCase() + sourceDay.slice(1);
-          setCopyNoTasksMessage(`No Required tasks on ${dayLabel}`);
-          setCopyModeActive(false);
-          setIsCopying(false);
-          return;
-        }
-        for (const task of filtered) {
-          try {
-            await api.post('/api/routine/tasks', {
-              text: task.text,
-              type: 'today',
-              dayOfWeek: selectedDay,
-              // Preserve countdown targets — omitting this made every copied
-              // task default back to a single-tap task.
-              targetCount: task.target_count ?? 1,
-            });
-          } catch (err) {
-            console.error('[RoutineScreen] Error copying task:', err);
-          }
-        }
-        await loadTasks();
-        setTaskModalVisible(false);
-        setNewTaskText('');
-        setCopyModeActive(false);
-        setCopyNoTasksMessage('');
+      const sourceTasks: RoutineTask[] = (response.data.data ?? []).filter((t: RoutineTask) => t.type === 'today');
+      if (sourceTasks.length === 0) {
+        Alert.alert('Nothing to copy', `${sourceLabel} has no tasks yet.`);
+        return;
       }
+      for (const task of sourceTasks) {
+        await api.post('/api/routine/tasks', {
+          text: task.text,
+          type: 'today',
+          dayOfWeek: targetDay,
+          // Preserve countdown targets and sections.
+          targetCount: task.target_count ?? 1,
+          timeOfDay: task.time_of_day ?? 'morning',
+        });
+      }
+      if (selectedDayRef.current === targetDay) await loadTasks();
     } catch (error) {
-      console.error('[RoutineScreen] Error fetching source tasks for copy:', error);
+      console.error('[RoutineScreen] Error copying tasks:', error);
+      Alert.alert('Error', 'Failed to copy tasks. Please try again.');
+      loadTasks();
     }
-    setIsCopying(false);
+  };
+
+  const openCopyFromDay = () => {
+    const sourceDays = DAYS.filter(d => d !== selectedDay);
+    const labels = sourceDays.map(d => d.charAt(0).toUpperCase() + d.slice(1));
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Copy tasks from…',
+          options: [...labels, 'Cancel'],
+          cancelButtonIndex: labels.length,
+          userInterfaceStyle: 'dark',
+        },
+        index => {
+          if (index < sourceDays.length) handleCopyFromDay(sourceDays[index]);
+        },
+      );
+    } else {
+      Alert.alert('Copy tasks from…', undefined, [
+        ...sourceDays.slice(0, 2).map((d, i) => ({ text: labels[i], onPress: () => handleCopyFromDay(d) })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
   };
 
   // Goal handlers
@@ -512,16 +624,6 @@ const RoutineScreen: React.FC = () => {
   const todayTasks = tasks.filter(t => t.type === 'today');
 
   // Reorder handlers
-  const handleReorder = async (newData: RoutineTask[]) => {
-    setTasks([...newData, ...tasks.filter(t => t.type !== 'today')]);
-    try {
-      await api.patch('/api/routine/tasks/reorder', { ids: newData.map(t => t.id) });
-    } catch (error) {
-      console.error('[RoutineScreen] Reorder failed:', error);
-      loadTasks();
-    }
-  };
-
   const handleReorderGoal = async (newData: RoutineGoal[], type: 'weekly' | 'monthly' | 'yearly') => {
     if (type === 'weekly') setWeeklyGoals(newData);
     else if (type === 'monthly') setMonthlyGoals(newData);
@@ -536,9 +638,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Edit mode handlers
-  const handleEnterEdit = (card: 'today' | 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'today') setEditToday(todayTasks.slice());
-    else if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
+  const handleEnterEdit = (card: 'weekly' | 'monthly' | 'yearly') => {
+    if (card === 'weekly') setEditWeekly(weeklyGoals.slice());
     else if (card === 'monthly') setEditMonthly(monthlyGoals.slice());
     else setEditYearly(yearlyGoals.slice());
     setEditingCard(card);
@@ -548,20 +649,11 @@ const RoutineScreen: React.FC = () => {
     setEditingCard(null);
   };
 
-  const handleSaveEdit = (card: 'today' | 'weekly' | 'monthly' | 'yearly') => {
-    if (card === 'today') handleReorder(editToday);
-    else if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
+  const handleSaveEdit = (card: 'weekly' | 'monthly' | 'yearly') => {
+    if (card === 'weekly') handleReorderGoal(editWeekly, 'weekly');
     else if (card === 'monthly') handleReorderGoal(editMonthly, 'monthly');
     else handleReorderGoal(editYearly, 'yearly');
     setEditingCard(null);
-  };
-
-  const moveTaskItem = (index: number, direction: 'up' | 'down') => {
-    const target = direction === 'up' ? index - 1 : index + 1;
-    const arr = editToday.slice();
-    if (target < 0 || target >= arr.length) return;
-    [arr[index], arr[target]] = [arr[target], arr[index]];
-    setEditToday(arr);
   };
 
   const moveGoalItem = (card: 'weekly' | 'monthly' | 'yearly', index: number, direction: 'up' | 'down') => {
@@ -625,62 +717,6 @@ const RoutineScreen: React.FC = () => {
       </View>
     );
   };
-
-  const renderTaskItem = (
-    item: RoutineTask,
-    isEditing: boolean,
-    index: number,
-    listLength: number,
-    onMoveUp: () => void,
-    onMoveDown: () => void,
-  ) => (
-    <TouchableOpacity
-      key={item.id}
-      onPress={isEditing ? undefined : () => handleToggleTask(item.id)}
-      style={[styles.taskItem, { width: '100%' }]}
-      activeOpacity={isEditing ? 1 : 0.7}
-    >
-      <View style={styles.checkbox}>
-        {item.completed && <View style={styles.checkboxChecked} />}
-      </View>
-      <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
-        {item.text}
-      </Text>
-      {item.target_count > 1 && item.current_count > 0 && (
-        <View style={styles.goalCountBadge}>
-          <Text style={styles.goalCountBadgeText}>{item.current_count}</Text>
-        </View>
-      )}
-      {isEditing ? (
-        <View style={styles.reorderButtons}>
-          <TouchableOpacity
-            onPress={onMoveUp}
-            disabled={index === 0}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            style={{ opacity: index === 0 ? 0.25 : 1 }}
-          >
-            <Ionicons name="chevron-up" size={18} color="#666" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onMoveDown}
-            disabled={index === listLength - 1}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            style={{ opacity: index === listLength - 1 ? 0.25 : 1 }}
-          >
-            <Ionicons name="chevron-down" size={18} color="#666" />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity
-          onPress={() => handleDeleteTask(item.id)}
-          style={styles.deleteButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={styles.deleteButtonText}>×</Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
 
   const renderGoalItem = (
     item: RoutineGoal,
@@ -763,6 +799,9 @@ const RoutineScreen: React.FC = () => {
 
           <ScrollView
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -771,46 +810,18 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
-        {/* Today Card */}
-        <View style={styles.taskCard}>
-          <View style={styles.taskCardHeader}>
-            <View style={{ flex: 1 }} />
-            <Text style={styles.taskCardTitle}>Today</Text>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-              {editingCard === 'today' ? (
-                <>
-                  <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.taskCardAddButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('today')}>
-                    <Text style={styles.taskCardAddButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity onPress={() => handleEnterEdit('today')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.taskCardAddButton}
-                    onPress={() => { setNewTaskDays([selectedDay]); setTaskModalVisible(true); }}
-                  >
-                    <Text style={styles.taskCardAddButtonText}>+ Add</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-          {todayTasks.length === 0
-            ? <Text style={styles.emptyText}>Nothing here yet</Text>
-            : (editingCard === 'today' ? editToday : todayTasks).map((item, index, arr) =>
-                renderTaskItem(item, editingCard === 'today', index, arr.length,
-                  () => moveTaskItem(index, 'up'),
-                  () => moveTaskItem(index, 'down'),
-                )
-              )
-          }
-        </View>
+        {/* Today — Morning / Afternoon / Night notepad */}
+        <TodayTimeBlocks
+          tasks={todayTasks}
+          isToday={selectedDay === DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]}
+          resetToken={`${selectedDay}:${focusCount}`}
+          onToggle={handleToggleTask}
+          onCreate={handleCreateTask}
+          onUpdate={handleUpdateTask}
+          onDelete={handleDeleteTask}
+          onReorder={handleReorderTasks}
+          onCopyFromDay={openCopyFromDay}
+        />
 
         {/* Notepad */}
         {showNotepad && (
@@ -960,157 +971,6 @@ const RoutineScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
-
-      {/* Add Task Modal */}
-      <Modal
-        visible={taskModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setTaskModalVisible(false);
-          setNewTaskText('');
-          setNewTaskCount('1');
-          setCopyModeActive(false);
-          setCopyNoTasksMessage('');
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => {
-              setTaskModalVisible(false);
-              setNewTaskText('');
-              setNewTaskCount('1');
-              setCopyModeActive(false);
-              setCopyNoTasksMessage('');
-            }}
-          >
-            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
-
-            {copyModeActive ? (
-              <>
-                <Text style={styles.modalTitle}>Copy from...</Text>
-                {isCopying ? (
-                  <View style={styles.copyLoadingContainer}>
-                    <ActivityIndicator color={colors.primary} size="small" />
-                    <Text style={styles.copyLoadingText}>Copying tasks...</Text>
-                  </View>
-                ) : (
-                  <View style={styles.copyDayGrid}>
-                    {DAYS.filter(d => d !== selectedDay).map(day => (
-                      <TouchableOpacity
-                        key={day}
-                        style={styles.copyDayButton}
-                        onPress={() => handleCopyFromDay(day)}
-                      >
-                        <Text style={styles.copyDayButtonText}>
-                          {day.charAt(0).toUpperCase() + day.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-                {!isCopying && (
-                  <View style={styles.modalButtons}>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => setCopyModeActive(false)}
-                    >
-                      <Text style={styles.cancelButtonText}>Back</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Add Task</Text>
-
-                {copyNoTasksMessage !== '' && (
-                  <Text style={styles.copyNoTasksText}>{copyNoTasksMessage}</Text>
-                )}
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter task..."
-                  placeholderTextColor={colors.textTertiary}
-                  value={newTaskText}
-                  onChangeText={setNewTaskText}
-                  autoFocus
-                  multiline
-                />
-
-                <View style={styles.goalCountRow}>
-                  <Text style={styles.goalCountLabel}>How many times?</Text>
-                  <TextInput
-                    style={styles.goalCountInput}
-                    keyboardType="number-pad"
-                    value={newTaskCount}
-                    onChangeText={(text) => setNewTaskCount(text.replace(/[^0-9]/g, ''))}
-                    onBlur={() => {
-                      const parsed = parseInt(newTaskCount, 10);
-                      const clamped = Number.isFinite(parsed) ? Math.min(999, Math.max(1, parsed)) : 1;
-                      setNewTaskCount(String(clamped));
-                    }}
-                    maxLength={3}
-                  />
-                </View>
-
-                {/* Which days — create the same task on multiple days at once */}
-                <View style={styles.taskDaysRow}>
-                  {DAYS.map((day, index) => {
-                    const isOn = newTaskDays.includes(day);
-                    return (
-                      <TouchableOpacity
-                        key={day}
-                        style={[styles.taskDayChip, isOn && styles.taskDayChipActive]}
-                        onPress={() => toggleNewTaskDay(day)}
-                      >
-                        <Text style={[styles.taskDayChipText, isOn && styles.taskDayChipTextActive]}>
-                          {DAY_LABELS[index][0]}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <View style={[styles.modalButtons, { justifyContent: 'space-between', alignItems: 'center' }]}>
-                  <TouchableOpacity
-                    onPress={() => { setCopyNoTasksMessage(''); setCopyModeActive(true); }}
-                  >
-                    <Text style={styles.copyFromDayButtonText}>Copy</Text>
-                  </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => {
-                        setTaskModalVisible(false);
-                        setNewTaskText('');
-                        setNewTaskCount('1');
-                        setCopyModeActive(false);
-                        setCopyNoTasksMessage('');
-                      }}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.saveButton}
-                      onPress={handleAddTask}
-                    >
-                      <Text style={styles.saveButtonText}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </>
-            )}
-
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Add Goal Modal */}
       <Modal
@@ -1360,26 +1220,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Task cards (Required)
-  taskCard: {
-    backgroundColor: '#161616',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#232323',
-  },
-  taskCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  taskCardTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#E8E8E8',
-  },
   taskCardAddButton: {
     backgroundColor: 'rgba(29, 158, 117, 0.1)',
     borderWidth: 1,
@@ -1554,33 +1394,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  taskDaysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  taskDayChip: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-    backgroundColor: '#1F1F1F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskDayChipActive: {
-    borderColor: 'rgba(29, 158, 117, 0.5)',
-    backgroundColor: 'rgba(29, 158, 117, 0.18)',
-  },
-  taskDayChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  taskDayChipTextActive: {
-    color: '#5DCAA5',
-  },
   goalCountLabel: {
     fontSize: 14,
     color: '#888',
@@ -1696,52 +1509,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#FFFFFF',
-  },
-
-  // Copy from day
-  copyFromDayButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '400',
-  },
-  copyDayGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 24,
-  },
-  copyDayButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-    minWidth: '42%',
-    alignItems: 'center',
-  },
-  copyDayButtonText: {
-    fontSize: 14,
-    color: '#E8E8E8',
-    fontWeight: '400',
-  },
-  copyLoadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 40,
-  },
-  copyLoadingText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  copyNoTasksText: {
-    fontSize: 12,
-    color: '#888',
-    fontStyle: 'italic',
-    marginBottom: 12,
-    marginTop: -8,
   },
 });
 

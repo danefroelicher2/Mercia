@@ -65,7 +65,9 @@ CREATE TABLE oasis.routine_tasks (
   created_at timestamptz DEFAULT now(),
   sort_order int DEFAULT 0,
   target_count int NOT NULL DEFAULT 1,       -- 1-999
-  current_count int NOT NULL DEFAULT 1
+  current_count int NOT NULL DEFAULT 1,
+  time_of_day text NOT NULL DEFAULT 'morning' -- 'morning' | 'afternoon' | 'night' (Today card section)
+    CHECK (time_of_day IN ('morning', 'afternoon', 'night'))
 );
 
 CREATE TABLE oasis.routine_goals (

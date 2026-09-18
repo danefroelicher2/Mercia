@@ -27,10 +27,11 @@ All routes require `Authorization: Bearer <access token>` except `/auth/*` (publ
 ## /routine
 | Method | Path | Purpose |
 |---|---|---|
-| POST | /tasks | Create task; `targetCount` 1–999 (countdown), one call per day (client loops for multi-day chips) |
+| POST | /tasks | Create task; `targetCount` 1–999 (countdown), optional `timeOfDay` (`morning`/`afternoon`/`night`, default morning) |
 | GET | /tasks/:day | Tasks for a weekday |
 | PATCH | /tasks/:id | **Tick** (server-side countdown decrement; completes at 0). Side-effects fire on completion transition. Optional `date` for past days this week |
 | PATCH | /tasks/reorder | Persist sort order |
+| PUT | /tasks/:id | Edit `text`, `timeOfDay`, and/or `targetCount` (retarget keeps taps already made) |
 | DELETE | /tasks/:id | Delete + history cleanup |
 | POST | /goals | Create weekly/monthly/yearly goal (`targetCount` optional) |
 | GET | /goals/weekly · /monthly · /yearly | Goal lists |

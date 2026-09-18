@@ -15,6 +15,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal } from '../types/routine';
+import { TIME_OF_DAY_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay } from '../utils/timeOfDay';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
 import DailyChatSheet from '../components/DailyChatSheet';
@@ -454,8 +455,17 @@ const MerciaHomeScreen: React.FC = () => {
   // MAIN RENDER
   // ============================================
 
-  const upNextTasks = todayTasks.filter(t => !t.completed).slice(0, 2);
-  const upNextRemaining = todayTasks.filter(t => !t.completed).length;
+  // Current time block first, then the rest of the day, then anything
+  // still open from earlier blocks.
+  const nowIndex = TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay());
+  const blockRank = (t: RoutineTask) => (TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) - nowIndex + 3) % 3;
+  const openTasks = todayTasks
+    .map((task, index) => ({ task, index }))
+    .filter(({ task }) => !task.completed)
+    .sort((a, b) => blockRank(a.task) - blockRank(b.task) || a.index - b.index)
+    .map(({ task }) => task);
+  const upNextTasks = openTasks.slice(0, 2);
+  const upNextRemaining = openTasks.length;
   // Monthly review card only appears the first week of a new month, and only
   // when the prior month actually has logged data.
   const showMonthlyReview = monthlyReview != null && new Date().getDate() <= 7;
@@ -539,7 +549,9 @@ const MerciaHomeScreen: React.FC = () => {
         {/* Up Next — top unfinished tasks, completable in place */}
         {upNextTasks.length > 0 && (
           <View style={styles.upNextCard}>
-            <Text style={styles.upNextLabel}>UP NEXT</Text>
+            <Text style={styles.upNextLabel}>
+              UP NEXT · {TIME_OF_DAY_LABELS[taskTimeOfDay(upNextTasks[0])].toUpperCase()}
+            </Text>
             {upNextTasks.map(task => (
               <TouchableOpacity
                 key={task.id}

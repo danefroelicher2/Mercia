@@ -4,6 +4,7 @@ import {
   Chat,
   ChatMessage,
   RoutineTask,
+  TimeOfDay,
   RoutineGoal,
 } from '../../types';
 
@@ -215,7 +216,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     text: string,
     type: 'today',
     dayOfWeek: string,
-    targetCount: number = 1
+    targetCount: number = 1,
+    timeOfDay?: TimeOfDay
   ): Promise<RoutineTask> {
     const clampedTargetCount = Math.min(999, Math.max(1, Math.trunc(targetCount)));
 
@@ -242,6 +244,8 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         sort_order: nextSortOrder,
         target_count: clampedTargetCount,
         current_count: clampedTargetCount,
+        // Omitted when not given so the column default ('morning') applies.
+        ...(timeOfDay ? { time_of_day: timeOfDay } : {}),
       })
       .select()
       .single();
@@ -334,6 +338,51 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
 
     throw new Error('Failed to tick task: concurrent update conflict');
+  }
+
+  async updateRoutineTask(
+    taskId: string,
+    userId: string,
+    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number }
+  ): Promise<RoutineTask> {
+    const update: Record<string, unknown> = {};
+    if (changes.text !== undefined) update.text = changes.text;
+    if (changes.timeOfDay !== undefined) update.time_of_day = changes.timeOfDay;
+
+    if (changes.targetCount !== undefined) {
+      const { data: existing, error: fetchError } = await this.client
+        .from('routine_tasks')
+        .select('current_count, target_count')
+        .eq('id', taskId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch task for update: ${fetchError.message}`);
+      }
+
+      // Keep taps already made: 2 of 5 done, retargeted to 8 → 6 remaining.
+      const newTarget = Math.min(999, Math.max(1, Math.trunc(changes.targetCount)));
+      const tapsDone = existing.target_count - existing.current_count;
+      const newCurrent = Math.max(0, newTarget - tapsDone);
+      update.target_count = newTarget;
+      update.current_count = newCurrent;
+      update.completed = newCurrent === 0;
+    }
+
+    const { data, error } = await this.client
+      .from('routine_tasks')
+      .update(update)
+      .eq('id', taskId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update routine task: ${error.message}`);
+    }
+
+    return data;
   }
 
   async deleteRoutineTask(taskId: string, userId: string): Promise<void> {
