@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
+import { yearInfo } from '../utils/periodProgress';
 
 interface YearlyGoal {
   id: string;
@@ -21,17 +22,6 @@ interface YearlyGoal {
   completed: boolean;
   created_at: string;
 }
-
-const getDayOfYear = (): { day: number; total: number } => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const total = isLeap ? 366 : 365;
-  const start = new Date(year, 0, 0);
-  const diff = now.getTime() - start.getTime();
-  const day = Math.floor(diff / (1000 * 60 * 60 * 24));
-  return { day, total };
-};
 
 const YearlyGoalsScreen: React.FC = () => {
   const [goals, setGoals] = useState<YearlyGoal[]>([]);
@@ -42,7 +32,8 @@ const YearlyGoalsScreen: React.FC = () => {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const { day, total } = getDayOfYear();
+  // Same calendar math as the Routine tab's Yearly card (leap-year and DST safe).
+  const { day, total } = yearInfo();
   const progress = day / total;
 
   const fetchGoals = useCallback(async () => {

@@ -20,8 +20,8 @@ interface Props {
   accent: string;
   // Left-edge strength: weekly strongest, yearly faintest.
   edgeAlpha: number;
-  // How far through the week / month / year we are. `detail` is what follows
-  // the percentage: "12d 5h remaining" or "Day 261/365".
+  // How far through the week / month / year we are (0–1), and the caption
+  // under the bar: "Day 18 of 30 · 12 days left".
   period: { progress: number; detail: string; urgent?: boolean };
   // Goal currently being edited in place (set by the hold menu's Edit).
   editingId: string | null;
@@ -103,15 +103,17 @@ const GoalCard: React.FC<Props> = ({
         </Svg>
       </View>
 
-      {/* Centered script title; "x% - …" and the progress bar left-aligned */}
+      {/* Centered script title; progress bar with its % at the end, and
+          "Day x of y · … left" underneath */}
       <Text style={styles.title}>{title}</Text>
       <View style={styles.period}>
-        <Text style={[styles.periodText, { color: period.urgent ? '#FF6B6B' : accent }]}>
-          {Math.floor(period.progress * 100)}% - {period.detail}
-        </Text>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
+        <View style={styles.barRow}>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
+          </View>
+          <Text style={[styles.percent, { color: accent }]}>{Math.floor(period.progress * 100)}%</Text>
         </View>
+        <Text style={[styles.periodText, period.urgent && styles.periodTextUrgent]}>{period.detail}</Text>
       </View>
 
       {goals.map(goal => {
@@ -219,8 +221,8 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Snell Roundhand',
     fontWeight: '700',
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 27.7, // 26 + 6.5%
+    lineHeight: 36,
     color: '#F2F2F2',
     textAlign: 'center',
   },
@@ -228,14 +230,30 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-  periodText: {
-    fontSize: 11,
-    fontWeight: '500',
-    textAlign: 'left',
-    marginBottom: 7,
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  percent: {
+    minWidth: 34,
+    textAlign: 'right',
+    fontSize: 13,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
+  periodText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8A8A8A',
+    marginTop: 6,
+    fontVariant: ['tabular-nums'],
+  },
+  periodTextUrgent: {
+    color: '#FF6B6B',
+  },
   track: {
+    flex: 1,
     height: 4,
     backgroundColor: '#2A2A2A',
     borderRadius: 2,

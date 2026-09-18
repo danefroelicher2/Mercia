@@ -39,16 +39,16 @@ export const getNextFirstOfMonth = (): Date => {
   ));
 };
 
-export const formatTimeRemaining = (ms: number): string => {
+export const formatTimeRemaining = (ms: number, suffix: string = 'remaining'): string => {
   if (ms <= 0) return 'Resetting...';
   const totalMinutes = Math.floor(ms / 60000);
   const totalHours = Math.floor(totalMinutes / 60);
   const days = Math.floor(totalHours / 24);
   const hours = totalHours % 24;
   const minutes = totalMinutes % 60;
-  if (days > 0) return `${days}d ${hours}h remaining`;
-  if (totalHours > 0) return `${totalHours}h ${minutes}m remaining`;
-  return `${minutes}m remaining`;
+  if (days > 0) return `${days}d ${hours}h ${suffix}`;
+  if (totalHours > 0) return `${totalHours}h ${minutes}m ${suffix}`;
+  return `${minutes}m ${suffix}`;
 };
 
 export const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS;
@@ -59,20 +59,3 @@ export const getWeeklyCountdown = (): { text: string; urgent: boolean } => {
   return { text: formatTimeRemaining(ms), urgent: shouldShowUrgent(ms) };
 };
 
-// How much of the current week / month has passed (0–1), on the same reset
-// clock as the countdowns above — drives the goal cards' progress bars.
-const DAY_MS = 24 * 60 * 60 * 1000;
-const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
-
-export const getWeekElapsedFraction = (): number => {
-  const end = getNextMonday().getTime();
-  const start = end - 7 * DAY_MS;
-  return clamp01((Date.now() - start) / (end - start));
-};
-
-export const getMonthElapsedFraction = (): number => {
-  const endDate = getNextFirstOfMonth();
-  const end = endDate.getTime();
-  const start = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - 1, 1, 5, 0, 0, 0);
-  return clamp01((Date.now() - start) / (end - start));
-};

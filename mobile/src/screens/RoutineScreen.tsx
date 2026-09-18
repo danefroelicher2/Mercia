@@ -28,14 +28,8 @@ import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  getNextMonday,
-  getNextFirstOfMonth,
-  formatTimeRemaining,
-  shouldShowUrgent,
-  getWeekElapsedFraction,
-  getMonthElapsedFraction,
-} from '../utils/weeklyReset';
+import { getNextMonday, formatTimeRemaining, shouldShowUrgent } from '../utils/weeklyReset';
+import { daysLeftLabel, monthInfo, weekInfo, yearInfo } from '../utils/periodProgress';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -62,16 +56,6 @@ const getCalendarDateForDay = (day: DayOfWeek): string => {
   const mm = String(target.getMonth() + 1).padStart(2, '0');
   const dd = String(target.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
-};
-
-const getDayOfYear = (): { day: number; total: number } => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const total = isLeap ? 366 : 365;
-  const start = new Date(year, 0, 0);
-  const day = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  return { day, total };
 };
 
 const RoutineScreen: React.FC = () => {
@@ -128,8 +112,9 @@ const RoutineScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Countdown state
-  const [weeklyCountdown, setWeeklyCountdown] = useState({ text: '', urgent: false, progress: 0 });
-  const [monthlyCountdown, setMonthlyCountdown] = useState({ text: '', urgent: false, progress: 0 });
+  // Weekly reset countdown ("2d 5h left"); also ticks the goal cards'
+  // progress bars forward every minute.
+  const [weeklyCountdown, setWeeklyCountdown] = useState({ text: '', urgent: false });
 
   // Quote state - only need disliked IDs for rotation filtering
   const [dislikedQuoteIds, setDislikedQuoteIds] = useState<number[]>([]);
@@ -168,17 +153,7 @@ const RoutineScreen: React.FC = () => {
     const updateCountdowns = () => {
       const now = new Date();
       const weeklyMs = getNextMonday().getTime() - now.getTime();
-      const monthlyMs = getNextFirstOfMonth().getTime() - now.getTime();
-      setWeeklyCountdown({
-        text: formatTimeRemaining(weeklyMs),
-        urgent: shouldShowUrgent(weeklyMs),
-        progress: getWeekElapsedFraction(),
-      });
-      setMonthlyCountdown({
-        text: formatTimeRemaining(monthlyMs),
-        urgent: shouldShowUrgent(monthlyMs),
-        progress: getMonthElapsedFraction(),
-      });
+      setWeeklyCountdown({ text: formatTimeRemaining(weeklyMs, 'left'), urgent: shouldShowUrgent(weeklyMs) });
     };
     updateCountdowns();
     const interval = setInterval(updateCountdowns, 60000);
@@ -850,7 +825,11 @@ const RoutineScreen: React.FC = () => {
   // Filter tasks by type
   const todayTasks = tasks.filter(t => t.type === 'today');
 
-  const { day: yearDay, total: yearTotal } = getDayOfYear();
+  // "Day x of y" for each goal card, on the local calendar (leap-year and
+  // month-length aware — see utils/periodProgress).
+  const week = weekInfo();
+  const month = monthInfo();
+  const year = yearInfo();
 
   const goalCardHandlers = {
     editingId: editingGoalId,
@@ -1004,7 +983,11 @@ const RoutineScreen: React.FC = () => {
             goals={weeklyGoals}
             accent={accent}
             edgeAlpha={0.6}
-            period={{ progress: weeklyCountdown.progress, detail: weeklyCountdown.text, urgent: weeklyCountdown.urgent }}
+            period={{
+              progress: week.progress,
+              detail: `Day ${week.day} of ${week.total} · ${weeklyCountdown.text}`,
+              urgent: weeklyCountdown.urgent,
+            }}
             {...goalCardHandlers}
           />
         )}
@@ -1015,7 +998,11 @@ const RoutineScreen: React.FC = () => {
             goals={monthlyGoals}
             accent={accent}
             edgeAlpha={0.38}
-            period={{ progress: monthlyCountdown.progress, detail: monthlyCountdown.text, urgent: monthlyCountdown.urgent }}
+            period={{
+              progress: month.progress,
+              detail: `Day ${month.day} of ${month.total} · ${daysLeftLabel(month.daysLeft)}`,
+              urgent: month.daysLeft === 0,
+            }}
             {...goalCardHandlers}
           />
         )}
@@ -1026,7 +1013,11 @@ const RoutineScreen: React.FC = () => {
             goals={yearlyGoals}
             accent={accent}
             edgeAlpha={0.2}
-            period={{ progress: yearDay / yearTotal, detail: `Day ${yearDay}/${yearTotal}` }}
+            period={{
+              progress: year.progress,
+              detail: `Day ${year.day} of ${year.total} · ${daysLeftLabel(year.daysLeft)}`,
+              urgent: year.daysLeft === 0,
+            }}
             {...goalCardHandlers}
           />
         )}
