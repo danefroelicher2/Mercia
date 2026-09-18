@@ -71,12 +71,6 @@ const SECTION_ICONS: Record<TimeOfDay, keyof typeof Ionicons.glyphMap> = {
   night: 'moon-outline',
 };
 
-const SECTION_RANGES: Record<TimeOfDay, string> = {
-  morning: 'Until noon',
-  afternoon: 'Noon – 6 PM',
-  night: '6 PM – midnight',
-};
-
 const PLACEHOLDERS: Record<TimeOfDay, string> = {
   morning: 'Add to your morning…',
   afternoon: 'Add to your afternoon…',
@@ -392,12 +386,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
       return;
     }
 
-    if (line.kind === 'trail') {
-      const items = bySection[line.section];
-      const last = items[items.length - 1];
-      if (last) setActive({ kind: 'item', id: last.id }, last.text);
-      return;
-    }
+    if (line.kind === 'trail') return;
 
     const section = sectionOf(line.id);
     const items = bySection[section];
@@ -412,22 +401,6 @@ const TodayTimeBlocks: React.FC<Props> = ({
   // ============================================
   // LONG-PRESS MENU
   // ============================================
-
-  const moveToSection = (task: RoutineTask, target: TimeOfDay) => {
-    onUpdate(task.id, { timeOfDay: target });
-    // Land at the bottom of the target section.
-    const rest = tasksRef.current.filter(t => t.id !== task.id);
-    let insertAt = rest.length;
-    for (let i = rest.length - 1; i >= 0; i--) {
-      if (taskTimeOfDay(rest[i]) === target) {
-        insertAt = i + 1;
-        break;
-      }
-    }
-    const ids = rest.map(t => t.id);
-    ids.splice(insertAt, 0, task.id);
-    onReorder(ids);
-  };
 
   const moveWithinSection = (task: RoutineTask, direction: -1 | 1) => {
     const items = bySection[taskTimeOfDay(task)];
@@ -474,11 +447,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
     const index = items.findIndex(t => t.id === task.id);
 
     const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
-    for (const target of TIME_OF_DAY_ORDER) {
-      if (target !== section) {
-        actions.push({ label: `Move to ${TIME_OF_DAY_LABELS[target]}`, run: () => moveToSection(task, target) });
-      }
-    }
+    actions.push({ label: 'Edit', run: () => startEditingItem(task) });
     if (index > 0) actions.push({ label: 'Move up', run: () => moveWithinSection(task, -1) });
     if (index < items.length - 1) actions.push({ label: 'Move down', run: () => moveWithinSection(task, 1) });
     actions.push({
@@ -512,16 +481,11 @@ const TodayTimeBlocks: React.FC<Props> = ({
   // ============================================
 
   const renderCheckbox = (task: RoutineTask) => (
-    <TouchableOpacity
-      onPress={() => onToggle(task.id)}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
-      style={styles.checkboxTouch}
-      activeOpacity={0.6}
-    >
+    <View style={styles.checkboxTouch}>
       <View style={[styles.checkbox, task.completed && styles.checkboxDone]}>
         {task.completed && <Ionicons name="checkmark" size={12} color="#0D0D0D" />}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   const renderInput = (
@@ -558,8 +522,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
     return (
       <Pressable
         key={task.id}
-        onPress={() => startEditingItem(task)}
-        onLongPress={() => openMenu(task)}
+        // Tap checks off (or counts down), same as before; editing lives
+        // in the hold menu so a stray tap never opens the keyboard.
+        onPress={editing ? undefined : () => onToggle(task.id)}
+        onLongPress={editing ? undefined : () => openMenu(task)}
         delayLongPress={350}
         style={({ pressed }) => [styles.row, pressed && !editing && styles.rowPressed]}
       >
@@ -621,7 +587,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
         </Pressable>
 
         {items.length > 0 ? (
-          <Text style={styles.hint}>Hold an item to move it or make it a counter</Text>
+          <Text style={styles.hint}>Hold an item to edit, reorder, or delete</Text>
         ) : tasks.length === 0 && onCopyFromDay ? (
           <TouchableOpacity onPress={onCopyFromDay} style={styles.copyLink} hitSlop={8}>
             <Ionicons name="copy-outline" size={12} color={TEAL_LIGHT} />
@@ -641,10 +607,6 @@ const TodayTimeBlocks: React.FC<Props> = ({
         extrapolate: 'clamp',
       })
     : 0;
-
-  const activeSection = TIME_OF_DAY_ORDER[pageIndex];
-  const activeItems = bySection[activeSection];
-  const doneCount = activeItems.filter(t => t.completed).length;
 
   return (
     <View style={styles.card}>
@@ -681,19 +643,6 @@ const TodayTimeBlocks: React.FC<Props> = ({
             </TouchableOpacity>
           );
         })}
-      </View>
-
-      {/* Section caption */}
-      <View style={styles.caption}>
-        <Text style={styles.captionRange}>
-          {isToday && activeSection === nowSection ? 'NOW · ' : ''}
-          {SECTION_RANGES[activeSection].toUpperCase()}
-        </Text>
-        {activeItems.length > 0 && (
-          <Text style={[styles.captionCount, doneCount === activeItems.length && styles.captionCountDone]}>
-            {doneCount}/{activeItems.length} done
-          </Text>
-        )}
       </View>
 
       <View onLayout={e => setWidth(e.nativeEvent.layout.width)}>
@@ -741,6 +690,7 @@ const styles = StyleSheet.create({
   // Segmented header
   tabs: {
     flexDirection: 'row',
+    marginBottom: 6,
     backgroundColor: '#101010',
     borderRadius: 10,
     padding: 3,
@@ -781,28 +731,6 @@ const styles = StyleSheet.create({
     marginLeft: 1,
   },
 
-  caption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 4,
-    paddingHorizontal: 2,
-  },
-  captionRange: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    color: '#5A5A5A',
-  },
-  captionCount: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#777',
-  },
-  captionCountDone: {
-    color: TEAL_LIGHT,
-  },
 
   // Pager
   pagerContent: {
