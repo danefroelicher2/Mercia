@@ -11,7 +11,6 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
-  ActionSheetIOS,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
@@ -90,6 +90,7 @@ const RoutineScreen: React.FC = () => {
   // Bumped on every tab focus so the Today pager snaps back to the section
   // matching the current time.
   const [focusCount, setFocusCount] = useState(0);
+  const [copyMenuVisible, setCopyMenuVisible] = useState(false);
   const tasksRef = useRef<RoutineTask[]>([]);
   tasksRef.current = tasks;
   // Tasks typed into the Today notepad get a client id immediately; this
@@ -511,28 +512,12 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  const openCopyFromDay = () => {
-    const sourceDays = DAYS.filter(d => d !== selectedDay);
-    const labels = sourceDays.map(d => d.charAt(0).toUpperCase() + d.slice(1));
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: 'Copy tasks from…',
-          options: [...labels, 'Cancel'],
-          cancelButtonIndex: labels.length,
-          userInterfaceStyle: 'dark',
-        },
-        index => {
-          if (index < sourceDays.length) handleCopyFromDay(sourceDays[index]);
-        },
-      );
-    } else {
-      Alert.alert('Copy tasks from…', undefined, [
-        ...sourceDays.slice(0, 2).map((d, i) => ({ text: labels[i], onPress: () => handleCopyFromDay(d) })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
-    }
-  };
+  const openCopyFromDay = () => setCopyMenuVisible(true);
+
+  const copyMenuItems: ActionMenuItem[] = DAYS.filter(d => d !== selectedDay).map(day => ({
+    label: day.charAt(0).toUpperCase() + day.slice(1),
+    onPress: () => handleCopyFromDay(day),
+  }));
 
   // Goal handlers
   const handleAddGoal = async () => {
@@ -821,6 +806,12 @@ const RoutineScreen: React.FC = () => {
           onDelete={handleDeleteTask}
           onReorder={handleReorderTasks}
           onCopyFromDay={openCopyFromDay}
+        />
+        <ActionMenu
+          visible={copyMenuVisible}
+          title="Copy tasks from…"
+          items={copyMenuItems}
+          onClose={() => setCopyMenuVisible(false)}
         />
 
         {/* Notepad */}

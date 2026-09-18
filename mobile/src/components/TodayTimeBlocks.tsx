@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActionSheetIOS,
   Alert,
   Animated,
   Keyboard,
@@ -16,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ActionMenu, { ActionMenuItem } from './ActionMenu';
 import { RoutineTask, TimeOfDay } from '../types/routine';
 import {
   TIME_OF_DAY_LABELS,
@@ -107,6 +107,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
   const [heights, setHeights] = useState<number[]>([0, 0, 0]);
   const scrollX = useRef(new Animated.Value(0)).current;
   const pagerRef = useRef<any>(null);
+
+  // Content is kept after closing so the menu doesn't empty mid-fade.
+  const [menu, setMenu] = useState<{ title: string; items: ActionMenuItem[] }>({ title: '', items: [] });
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const [active, setActiveState] = useState<ActiveLine | null>(null);
   const [activeText, setActiveTextState] = useState('');
@@ -442,38 +446,27 @@ const TodayTimeBlocks: React.FC<Props> = ({
     commitActive();
     Keyboard.dismiss();
 
-    const section = taskTimeOfDay(task);
-    const items = bySection[section];
+    const items = bySection[taskTimeOfDay(task)];
     const index = items.findIndex(t => t.id === task.id);
 
-    const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
-    actions.push({ label: 'Edit', run: () => startEditingItem(task) });
-    if (index > 0) actions.push({ label: 'Move up', run: () => moveWithinSection(task, -1) });
-    if (index < items.length - 1) actions.push({ label: 'Move down', run: () => moveWithinSection(task, 1) });
-    actions.push({
-      label: task.target_count > 1 ? `Change count (${task.target_count})` : 'Make it a counter',
-      run: () => promptCount(task),
-    });
-    actions.push({ label: 'Delete', run: () => onDelete(task.id), destructive: true });
-
-    if (Platform.OS === 'ios') {
-      const options = [...actions.map(a => a.label), 'Cancel'];
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: task.text,
-          options,
-          cancelButtonIndex: options.length - 1,
-          destructiveButtonIndex: actions.findIndex(a => a.destructive),
-          userInterfaceStyle: 'dark',
-        },
-        buttonIndex => actions[buttonIndex]?.run(),
-      );
-    } else {
-      Alert.alert(task.text, undefined, [
-        ...actions.slice(0, 2).map(a => ({ text: a.label, onPress: a.run })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
+    const menuItems: ActionMenuItem[] = [
+      { label: 'Edit', icon: 'create-outline', onPress: () => startEditingItem(task) },
+    ];
+    if (index > 0) {
+      menuItems.push({ label: 'Move up', icon: 'arrow-up', onPress: () => moveWithinSection(task, -1) });
     }
+    if (index < items.length - 1) {
+      menuItems.push({ label: 'Move down', icon: 'arrow-down', onPress: () => moveWithinSection(task, 1) });
+    }
+    menuItems.push({
+      label: task.target_count > 1 ? `Change count (${task.target_count})` : 'Make it a counter',
+      icon: 'repeat',
+      onPress: () => promptCount(task),
+    });
+    menuItems.push({ label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => onDelete(task.id) });
+
+    setMenu({ title: task.text, items: menuItems });
+    setMenuVisible(true);
   };
 
   // ============================================
@@ -672,6 +665,13 @@ const TodayTimeBlocks: React.FC<Props> = ({
         </Animated.ScrollView>
       )}
       </View>
+
+      <ActionMenu
+        visible={menuVisible}
+        title={menu.title}
+        items={menu.items}
+        onClose={() => setMenuVisible(false)}
+      />
     </View>
   );
 };
