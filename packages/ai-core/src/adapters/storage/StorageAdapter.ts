@@ -2,6 +2,7 @@ import {
   Chat,
   ChatMessage,
   RoutineTask,
+  TimeOfDay,
   RoutineGoal,
 } from '../../types';
 
@@ -124,7 +125,8 @@ export interface StorageAdapter {
     text: string,
     type: 'today',
     dayOfWeek: string,
-    targetCount?: number
+    targetCount?: number,
+    timeOfDay?: TimeOfDay
   ): Promise<RoutineTask>;
 
   /**
@@ -143,6 +145,16 @@ export interface StorageAdapter {
    * completion side-effects (activity log, achievements, history).
    */
   tickRoutineTask(taskId: string, userId: string): Promise<{ task: RoutineTask; becameCompleted: boolean; becameUncompleted: boolean }>;
+
+  /**
+   * Edit a task's text, time-of-day section, and/or countdown target.
+   * Changing the target keeps the taps already made this week.
+   */
+  updateRoutineTask(
+    taskId: string,
+    userId: string,
+    changes: { text?: string; timeOfDay?: TimeOfDay; targetCount?: number }
+  ): Promise<RoutineTask>;
 
   /**
    * Delete a routine task

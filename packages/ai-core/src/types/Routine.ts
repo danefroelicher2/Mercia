@@ -1,3 +1,5 @@
+export type TimeOfDay = 'morning' | 'afternoon' | 'night';
+
 export interface RoutineTask {
   id: string;
   user_id: string;
@@ -7,6 +9,7 @@ export interface RoutineTask {
   completed: boolean;
   target_count: number;
   current_count: number;
+  time_of_day: TimeOfDay;
   created_at: string;
 }
 

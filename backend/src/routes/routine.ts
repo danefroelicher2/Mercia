@@ -35,7 +35,18 @@ const createTaskSchema = z.object({
   type: z.enum(['today']),
   dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   targetCount: z.number().int().min(1).max(999).optional(),
+  timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
 });
+
+const updateTaskSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500).optional(),
+    timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
+    targetCount: z.number().int().min(1).max(999).optional(),
+  })
+  .refine(b => b.text !== undefined || b.timeOfDay !== undefined || b.targetCount !== undefined, {
+    message: 'Nothing to update',
+  });
 
 const createGoalSchema = z.object({
   text: z.string().min(1).max(500),
@@ -76,9 +87,9 @@ router.post(
       const userId = req.user!.id;
       const { text, type, dayOfWeek } = req.body;
 
-      const { targetCount } = req.body;
+      const { targetCount, timeOfDay } = req.body;
       const storage = getStorage();
-      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek, targetCount);
+      const task = await storage.createRoutineTask(userId, text, type, dayOfWeek, targetCount, timeOfDay);
 
       res.status(201).json({
         success: true,
@@ -252,6 +263,29 @@ router.patch(
         success: false,
         error: error.message,
       });
+    }
+  }
+);
+
+/**
+ * PUT /api/routine/tasks/:id
+ * Edit a task's text, time-of-day section, and/or countdown target
+ */
+router.put(
+  '/tasks/:id',
+  validate(updateTaskSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { text, timeOfDay, targetCount } = req.body;
+
+      const storage = getStorage();
+      const task = await storage.updateRoutineTask(id, userId, { text: text?.trim(), timeOfDay, targetCount });
+
+      res.json({ success: true, data: task });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
   }
 );
