@@ -70,6 +70,13 @@ interface Props {
   onCopyFromDay?: () => void;
   // Reports the section being shown so the rest of the screen can match it.
   onSectionChange?: (section: TimeOfDay) => void;
+  // Multi-select (deletion only): tap toggles selection instead of checking
+  // off; holding a selected item while more than one is selected asks the
+  // parent to offer "Delete N items".
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onRequestBulkDelete?: () => void;
 }
 
 type ActiveLine =
@@ -123,6 +130,8 @@ const Checkbox: React.FC<{ done: boolean; color: string }> = ({ done, color }) =
   );
 };
 
+const PAGE_BLEED = 8;
+
 function lineKey(line: ActiveLine | null): string {
   if (!line) return '';
   if (line.kind === 'item') return `item:${line.id}`;
@@ -141,6 +150,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
   onReorder,
   onCopyFromDay,
   onSectionChange,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
+  onRequestBulkDelete,
 }) => {
   const [width, setWidth] = useState(0);
   const [tabsWidth, setTabsWidth] = useState(0);
@@ -552,6 +565,31 @@ const TodayTimeBlocks: React.FC<Props> = ({
   // RENDER
   // ============================================
 
+  const isSelected = (id: string) => !!selectedIds?.has(id);
+
+  const handleRowPress = (task: RoutineTask) => {
+    if (selectionMode) onToggleSelect?.(task.id);
+    else onToggle(task.id);
+  };
+
+  const handleRowHold = (task: RoutineTask) => {
+    if (selectionMode && isSelected(task.id) && (selectedIds?.size ?? 0) > 1) {
+      commitActive();
+      Keyboard.dismiss();
+      onRequestBulkDelete?.();
+    } else {
+      openMenu(task);
+    }
+  };
+
+  const selectedStyle = (task: RoutineTask) =>
+    isSelected(task.id) && [styles.rowSelected, { backgroundColor: withAlpha(THEME[taskTimeOfDay(task)].accent, 0.13) }];
+
+  const selectedMark = (task: RoutineTask) =>
+    isSelected(task.id) ? (
+      <Ionicons name="checkmark-circle" size={18} color={THEME[taskTimeOfDay(task)].accent} style={styles.selectedMark} />
+    ) : null;
+
   const renderCheckbox = (task: RoutineTask) => (
     <View style={styles.checkboxTouch}>
       <Checkbox done={task.completed} color={THEME[taskTimeOfDay(task)].accent} />
@@ -594,10 +632,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
         key={task.id}
         // Tap checks off (or counts down), same as before; editing lives
         // in the hold menu so a stray tap never opens the keyboard.
-        onPress={editing ? undefined : () => onToggle(task.id)}
-        onLongPress={editing ? undefined : () => openMenu(task)}
+        onPress={editing ? undefined : () => handleRowPress(task)}
+        onLongPress={editing ? undefined : () => handleRowHold(task)}
         delayLongPress={350}
-        style={({ pressed }) => [styles.row, pressed && !editing && styles.rowPressed]}
+        style={({ pressed }) => [styles.row, selectedStyle(task), pressed && !editing && styles.rowPressed]}
       >
         {renderCheckbox(task)}
         {editing ? (
@@ -612,6 +650,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
             </Text>
           </View>
         )}
+        {selectedMark(task)}
       </Pressable>
     );
   };
@@ -624,10 +663,10 @@ const TodayTimeBlocks: React.FC<Props> = ({
     return (
       <Pressable
         key={task.id}
-        onPress={editing ? undefined : () => onToggle(task.id)}
-        onLongPress={editing ? undefined : () => openMenu(task)}
+        onPress={editing ? undefined : () => handleRowPress(task)}
+        onLongPress={editing ? undefined : () => handleRowHold(task)}
         delayLongPress={350}
-        style={({ pressed }) => [styles.timelineRow, pressed && !editing && styles.rowPressed]}
+        style={({ pressed }) => [styles.timelineRow, selectedStyle(task), pressed && !editing && styles.rowPressed]}
       >
         <View style={styles.timeCol}>
           <Text style={[styles.timeText, task.completed && styles.timeTextDone]}>{time}</Text>
@@ -652,6 +691,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
             </Text>
           </View>
         )}
+        {selectedMark(task)}
       </Pressable>
     );
   };
@@ -826,7 +866,9 @@ const TodayTimeBlocks: React.FC<Props> = ({
         })}
       </View>
 
-      <View onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+      {/* Pages bleed 8pt into the card padding (and pad their content back
+          in) so a selected row's tint isn't clipped at the pager edge. */}
+      <View style={styles.pagerBleed} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && (
         <Animated.ScrollView
           ref={pagerRef}
@@ -968,6 +1010,10 @@ const styles = StyleSheet.create({
   },
   page: {
     paddingBottom: 2,
+    paddingHorizontal: PAGE_BLEED,
+  },
+  pagerBleed: {
+    marginHorizontal: -PAGE_BLEED,
   },
 
   // Lines
@@ -1039,6 +1085,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#A0A0A0',
+  },
+
+  // Multi-select
+  rowSelected: {
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    borderBottomColor: 'transparent',
+  },
+  selectedMark: {
+    marginLeft: 2,
   },
 
   // Timeline

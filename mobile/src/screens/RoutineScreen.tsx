@@ -20,6 +20,7 @@ import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
+import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import { TimeOfDay } from '../types/routine';
 import { SECTION_COLORS, getCurrentTimeOfDay, textOnColor, withAlpha } from '../utils/timeOfDay';
 import QuoteCard from '../components/QuoteCard';
@@ -95,6 +96,21 @@ const RoutineScreen: React.FC = () => {
   // matching the current time.
   const [focusCount, setFocusCount] = useState(0);
   const [copyMenuVisible, setCopyMenuVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
+  // Multi-select: id → kind. Survives day switches and section swipes so a
+  // deletion can gather items from anywhere; cleared on delete, "Deselect",
+  // or turning the mode off.
+  const multiSelect = prefs.multiSelect;
+  const [selected, setSelected] = useState<Map<string, 'task' | 'goal'>>(new Map());
+  const selectedIds = useMemo(() => new Set(selected.keys()), [selected]);
+  const [bulkMenuVisible, setBulkMenuVisible] = useState(false);
+  useEffect(() => {
+    if (!multiSelect) setSelected(new Map());
+  }, [multiSelect]);
+  // Client id → server id for tasks created this session, so a selection made
+  // before a reload still points at the right row afterwards.
+  const resolvedTaskIds = useRef<Map<string, string>>(new Map());
   // The whole tab takes its accent from the Today section being shown.
   const [todaySection, setTodaySection] = useState<TimeOfDay>(() => getCurrentTimeOfDay(new Date(), boundaries));
   const accent = SECTION_COLORS[todaySection];
@@ -247,6 +263,16 @@ const RoutineScreen: React.FC = () => {
       const response = await api.get(`/api/routine/tasks/${requestedDay}`);
       if (response.data.success && selectedDayRef.current === requestedDay) {
         setTasks(response.data.data);
+        setSelected(prev => {
+          let changed = false;
+          const next = new Map<string, 'task' | 'goal'>();
+          prev.forEach((kind, id) => {
+            const real = resolvedTaskIds.current.get(id);
+            if (real) changed = true;
+            next.set(real ?? id, kind);
+          });
+          return changed ? next : prev;
+        });
       }
     } catch (error) {
       console.error('[RoutineScreen] Error loading tasks:', error);
@@ -363,6 +389,7 @@ const RoutineScreen: React.FC = () => {
         // The server appends to the end of the day; an insert anywhere else
         // needs the order written back.
         if (afterId) scheduleOrderSync();
+        resolvedTaskIds.current.set(clientId, saved.id);
         return saved.id;
       } catch (error) {
         console.error('[RoutineScreen] Error adding task:', error);
@@ -463,6 +490,12 @@ const RoutineScreen: React.FC = () => {
 
   const handleDeleteTask = async (taskId: string) => {
     setTasks(prev => prev.filter(t => t.id !== taskId));
+    setSelected(prev => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Map(prev);
+      next.delete(taskId);
+      return next;
+    });
     const serverId = await resolveTaskId(taskId);
     if (!serverId) return;
     try {
@@ -511,6 +544,72 @@ const RoutineScreen: React.FC = () => {
     label: day.charAt(0).toUpperCase() + day.slice(1),
     onPress: () => handleCopyFromDay(day),
   }));
+
+  // ============================================
+  // MULTI-SELECT + CLEAR ALL
+  // ============================================
+
+  const toggleSelected = (id: string, kind: 'task' | 'goal') => {
+    setSelected(prev => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, kind);
+      return next;
+    });
+  };
+
+  // Hold on a selected item: the only action offered is deleting the whole
+  // selection (per spec: multi-select is for deletion only).
+  const openBulkMenu = () => {
+    if (selected.size > 0) setBulkMenuVisible(true);
+  };
+
+  const handleDeleteSelected = async () => {
+    const entries = Array.from(selected.entries());
+    const taskIds = entries.filter(([, kind]) => kind === 'task').map(([id]) => id);
+    const goalIds = entries.filter(([, kind]) => kind === 'goal').map(([id]) => id);
+    const doomed = new Set(entries.map(([id]) => id));
+
+    setTasks(prev => prev.filter(t => !doomed.has(t.id)));
+    setWeeklyGoals(prev => prev.filter(g => !doomed.has(g.id)));
+    setMonthlyGoals(prev => prev.filter(g => !doomed.has(g.id)));
+    setYearlyGoals(prev => prev.filter(g => !doomed.has(g.id)));
+    setSelected(new Map());
+
+    try {
+      const serverTaskIds = (await Promise.all(taskIds.map(resolveTaskId))).filter(
+        (id): id is string => !!id,
+      );
+      await Promise.all([
+        serverTaskIds.length > 0 ? api.post('/api/routine/tasks/bulk-delete', { ids: serverTaskIds }) : null,
+        goalIds.length > 0 ? api.post('/api/routine/goals/bulk-delete', { ids: goalIds }) : null,
+      ]);
+    } catch (error) {
+      console.error('[RoutineScreen] Bulk delete failed:', error);
+      Alert.alert("Couldn't delete", 'Some items may not have been deleted. Your list has been refreshed.');
+      loadData();
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await api.post('/api/routine/clear');
+    } catch (error) {
+      console.error('[RoutineScreen] Clear all failed:', error);
+      Alert.alert("Couldn't clear", 'Nothing was deleted. Check your connection and try again.');
+      throw error; // keeps the settings sheet open
+    }
+    // A pending notepad save or reorder would otherwise write old data back.
+    if (notepadSaveTimeout.current) clearTimeout(notepadSaveTimeout.current);
+    if (orderSyncTimeout.current) clearTimeout(orderSyncTimeout.current);
+    orderSyncTimeout.current = null;
+    setTasks([]);
+    setWeeklyGoals([]);
+    setMonthlyGoals([]);
+    setYearlyGoals([]);
+    setNotepadContent('');
+    setSelected(new Map());
+  };
 
   // Goal handlers
   const handleAddGoal = async () => {
@@ -706,8 +805,22 @@ const RoutineScreen: React.FC = () => {
   ) => (
     <TouchableOpacity
       key={item.id}
-      onPress={isEditing ? undefined : () => handleToggleGoal(item.id, item.type)}
-      style={[styles.taskItem, { width: '100%' }]}
+      onPress={
+        isEditing
+          ? undefined
+          : multiSelect
+            ? () => toggleSelected(item.id, 'goal')
+            : () => handleToggleGoal(item.id, item.type)
+      }
+      // Goals have no hold menu of their own; in multi-select, holding a
+      // selected goal offers deleting the selection.
+      onLongPress={multiSelect && selectedIds.has(item.id) ? openBulkMenu : undefined}
+      delayLongPress={350}
+      style={[
+        styles.taskItem,
+        { width: '100%' },
+        selectedIds.has(item.id) && [styles.itemSelected, themed.itemSelected],
+      ]}
       activeOpacity={isEditing ? 1 : 0.7}
     >
       <View style={[styles.checkbox, themed.checkbox]}>
@@ -740,6 +853,8 @@ const RoutineScreen: React.FC = () => {
             <Ionicons name="chevron-down" size={18} color="#666" />
           </TouchableOpacity>
         </View>
+      ) : multiSelect ? (
+        selectedIds.has(item.id) ? <Ionicons name="checkmark-circle" size={18} color={accent} /> : null
       ) : (
         <TouchableOpacity
           onPress={() => handleDeleteGoal(item.id, item.type)}
@@ -765,6 +880,17 @@ const RoutineScreen: React.FC = () => {
           <View style={styles.hamburgerLine} />
           <View style={styles.hamburgerLine} />
         </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        {activeSection === 'routine' && (
+          <TouchableOpacity
+            onPress={() => setSettingsVisible(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Routine settings"
+          >
+            {/* Tinted while multi-select is on, as a reminder of the mode */}
+            <Ionicons name="settings-outline" size={22} color={multiSelect ? accent : '#FFFFFF'} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {activeSection === 'routine' ? (
@@ -776,7 +902,7 @@ const RoutineScreen: React.FC = () => {
           {renderWeekNavigator()}
 
           <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, multiSelect && { paddingBottom: 96 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
@@ -800,6 +926,10 @@ const RoutineScreen: React.FC = () => {
           onReorder={handleReorderTasks}
           onCopyFromDay={openCopyFromDay}
           onSectionChange={setTodaySection}
+          selectionMode={multiSelect}
+          selectedIds={selectedIds}
+          onToggleSelect={id => toggleSelected(id, 'task')}
+          onRequestBulkDelete={openBulkMenu}
         />
         <ActionMenu
           visible={copyMenuVisible}
@@ -1078,6 +1208,47 @@ const RoutineScreen: React.FC = () => {
         <GymScreen />
       )}
 
+      {/* Multi-select counter — shown the whole time the mode is on */}
+      {activeSection === 'routine' && multiSelect && (
+        <View pointerEvents="box-none" style={styles.selectionBarWrap}>
+          <View style={[styles.selectionBar, { borderColor: withAlpha(accent, 0.45) }]}>
+            <Ionicons name="checkmark-done-outline" size={17} color={accent} />
+            <Text style={styles.selectionText}>
+              {selected.size === 0
+                ? 'Tap items to select'
+                : `${selected.size} selected · hold one to delete`}
+            </Text>
+            {selected.size > 0 && (
+              <TouchableOpacity onPress={() => setSelected(new Map())} hitSlop={8}>
+                <Text style={[styles.selectionAction, { color: accent }]}>Deselect</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
+      <ActionMenu
+        visible={bulkMenuVisible}
+        title={`${selected.size} selected`}
+        items={[
+          {
+            label: selected.size > 1 ? `Delete ${selected.size} items` : 'Delete',
+            icon: 'trash-outline',
+            destructive: true,
+            onPress: handleDeleteSelected,
+          },
+        ]}
+        accent={accent}
+        onClose={() => setBulkMenuVisible(false)}
+      />
+
+      <RoutineSettingsSheet
+        visible={settingsVisible}
+        accent={accent}
+        onClose={() => setSettingsVisible(false)}
+        onClearAll={handleClearAll}
+      />
+
       <DrawerMenu
         visible={drawerVisible}
         activeSection={activeSection}
@@ -1114,6 +1285,7 @@ const makeThemedStyles = (accent: string) => {
     typeButtonActive: { backgroundColor: withAlpha(accent, 0.2), borderColor: withAlpha(accent, 0.4) },
     typeButtonTextActive: { color: accent },
     saveButton: { backgroundColor: accent },
+    itemSelected: { backgroundColor: withAlpha(accent, 0.13) },
     saveButtonText: { color: onAccent },
   });
 };
@@ -1122,6 +1294,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0D0D0D',
+  },
+
+  // Multi-select
+  itemSelected: {
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  selectionBarWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 16,
+    alignItems: 'center',
+  },
+  selectionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    backgroundColor: '#1A1A1A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  selectionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E8E8E8',
+  },
+  selectionAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 
   // Hamburger header
