@@ -20,6 +20,8 @@ import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
 import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
+import { TimeOfDay } from '../types/routine';
+import { SECTION_COLORS, getCurrentTimeOfDay, textOnColor, withAlpha } from '../utils/timeOfDay';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
@@ -91,6 +93,10 @@ const RoutineScreen: React.FC = () => {
   // matching the current time.
   const [focusCount, setFocusCount] = useState(0);
   const [copyMenuVisible, setCopyMenuVisible] = useState(false);
+  // The whole tab takes its accent from the Today section being shown.
+  const [todaySection, setTodaySection] = useState<TimeOfDay>(getCurrentTimeOfDay);
+  const accent = SECTION_COLORS[todaySection];
+  const themed = useMemo(() => makeThemedStyles(accent), [accent]);
   const tasksRef = useRef<RoutineTask[]>([]);
   tasksRef.current = tasks;
   // Tasks typed into the Today notepad get a client id immediately; this
@@ -683,12 +689,12 @@ const RoutineScreen: React.FC = () => {
             <TouchableOpacity
               key={day}
               onPress={() => setSelectedDay(day)}
-              style={[styles.weekDay, isSelected && styles.weekDaySelected]}
+              style={[styles.weekDay, isSelected && [styles.weekDaySelected, themed.weekDaySelected]]}
             >
-              <Text style={[styles.weekDayLabel, isSelected && styles.weekDayLabelSelected]}>
+              <Text style={[styles.weekDayLabel, isSelected && themed.weekDayLabelSelected]}>
                 {DAY_LABELS[index].toUpperCase()}
               </Text>
-              <Text style={[styles.weekDayDate, isSelected && styles.weekDayDateSelected]}>
+              <Text style={[styles.weekDayDate, isSelected && [styles.weekDayDateSelected, themed.weekDayDateSelected]]}>
                 {weekDates[index]}
               </Text>
               {isPastDay && !isSelected && (
@@ -717,15 +723,15 @@ const RoutineScreen: React.FC = () => {
       style={[styles.taskItem, { width: '100%' }]}
       activeOpacity={isEditing ? 1 : 0.7}
     >
-      <View style={styles.checkbox}>
-        {item.completed && <View style={styles.checkboxChecked} />}
+      <View style={[styles.checkbox, themed.checkbox]}>
+        {item.completed && <View style={[styles.checkboxChecked, themed.checkboxChecked]} />}
       </View>
       <Text style={[styles.taskText, item.completed && styles.taskTextCompleted]}>
         {item.text}
       </Text>
       {item.target_count > 1 && item.current_count > 0 && (
-        <View style={styles.goalCountBadge}>
-          <Text style={styles.goalCountBadgeText}>{item.current_count}</Text>
+        <View style={[styles.goalCountBadge, themed.goalCountBadge]}>
+          <Text style={[styles.goalCountBadgeText, themed.goalCountBadgeText]}>{item.current_count}</Text>
         </View>
       )}
       {isEditing ? (
@@ -791,7 +797,7 @@ const RoutineScreen: React.FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.primary}
+            tintColor={accent}
           />
         }
       >
@@ -806,6 +812,7 @@ const RoutineScreen: React.FC = () => {
           onDelete={handleDeleteTask}
           onReorder={handleReorderTasks}
           onCopyFromDay={openCopyFromDay}
+          onSectionChange={setTodaySection}
         />
         <ActionMenu
           visible={copyMenuVisible}
@@ -834,22 +841,22 @@ const RoutineScreen: React.FC = () => {
         {/* Goals Section */}
         <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={styles.sectionAccent} />
+            <View style={[styles.sectionAccent, themed.sectionAccent]} />
             <Text style={styles.sectionTitle}>Goals</Text>
           </View>
-          <TouchableOpacity style={styles.taskCardAddButton} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
-            <Text style={styles.taskCardAddButtonText}>+ Add</Text>
+          <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => { setGoalType('weekly'); setGoalModalVisible(true); }}>
+            <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>+ Add</Text>
           </TouchableOpacity>
         </View>
 
         {/* Weekly Goals Card */}
         {showWeekly && (
-          <View style={styles.goalCard}>
+          <View style={[styles.goalCard, themed.goalCardWeekly]}>
             <View style={styles.goalCardHeader}>
               <View style={styles.goalCardTitleRow}>
                 <Text style={styles.goalCardTitle}>This week</Text>
                 {weeklyCountdown.text ? (
-                  <Text style={[styles.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
+                  <Text style={[styles.goalCardCountdown, themed.goalCardCountdown, weeklyCountdown.urgent && styles.countdownUrgent]}>
                     {weeklyCountdown.text}
                   </Text>
                 ) : null}
@@ -858,15 +865,15 @@ const RoutineScreen: React.FC = () => {
                 {editingCard === 'weekly' ? (
                   <>
                     <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('weekly')}>
-                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('weekly')}>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <TouchableOpacity onPress={() => handleEnterEdit('weekly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                    <Ionicons name="pencil-outline" size={14} color={accent} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -885,12 +892,12 @@ const RoutineScreen: React.FC = () => {
 
         {/* Monthly Goals Card */}
         {showMonthly && (
-          <View style={[styles.goalCard, styles.goalCardMonthly]}>
+          <View style={[styles.goalCard, themed.goalCardMonthly]}>
             <View style={styles.goalCardHeader}>
               <View style={styles.goalCardTitleRow}>
                 <Text style={styles.goalCardTitle}>This month</Text>
                 {monthlyCountdown.text ? (
-                  <Text style={[styles.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
+                  <Text style={[styles.goalCardCountdown, themed.goalCardCountdown, monthlyCountdown.urgent && styles.countdownUrgent]}>
                     {monthlyCountdown.text}
                   </Text>
                 ) : null}
@@ -899,15 +906,15 @@ const RoutineScreen: React.FC = () => {
                 {editingCard === 'monthly' ? (
                   <>
                     <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('monthly')}>
-                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('monthly')}>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <TouchableOpacity onPress={() => handleEnterEdit('monthly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                    <Ionicons name="pencil-outline" size={14} color={accent} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -926,29 +933,29 @@ const RoutineScreen: React.FC = () => {
 
         {/* Yearly Goals Card */}
         {showYearly && (
-          <View style={[styles.goalCard, styles.goalCardYearly]}>
+          <View style={[styles.goalCard, themed.goalCardYearly]}>
             <View style={styles.goalCardHeader}>
               <Text style={styles.goalCardTitle}>This year</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 {editingCard === 'yearly' ? (
                   <>
                     <TouchableOpacity onPress={handleCancelEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={styles.taskCardAddButtonText}>Cancel</Text>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.taskCardAddButton} onPress={() => handleSaveEdit('yearly')}>
-                      <Text style={styles.taskCardAddButtonText}>Save</Text>
+                    <TouchableOpacity style={[styles.taskCardAddButton, themed.taskCardAddButton]} onPress={() => handleSaveEdit('yearly')}>
+                      <Text style={[styles.taskCardAddButtonText, themed.taskCardAddButtonText]}>Save</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <TouchableOpacity onPress={() => handleEnterEdit('yearly')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="pencil-outline" size={14} color="#5DCAA5" />
+                    <Ionicons name="pencil-outline" size={14} color={accent} />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-            <Text style={styles.yearlyProgressText}>Day {yearDay} / {yearTotal}</Text>
+            <Text style={[styles.yearlyProgressText, themed.yearlyProgressText]}>Day {yearDay} / {yearTotal}</Text>
             <View style={styles.yearlyProgressTrack}>
-              <View style={[styles.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
+              <View style={[styles.yearlyProgressFill, themed.yearlyProgressFill, { width: `${(yearDay / yearTotal) * 100}%` }]} />
             </View>
             {yearlyGoals.length === 0
               ? <Text style={styles.emptyText}>Nothing here yet</Text>
@@ -986,13 +993,13 @@ const RoutineScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  goalType === 'weekly' && styles.typeButtonActive,
+                  goalType === 'weekly' && [styles.typeButtonActive, themed.typeButtonActive],
                 ]}
                 onPress={() => setGoalType('weekly')}
               >
                 <Text style={[
                   styles.typeButtonText,
-                  goalType === 'weekly' && styles.typeButtonTextActive,
+                  goalType === 'weekly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
                 ]}>
                   This week
                 </Text>
@@ -1001,13 +1008,13 @@ const RoutineScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  goalType === 'monthly' && styles.typeButtonActive,
+                  goalType === 'monthly' && [styles.typeButtonActive, themed.typeButtonActive],
                 ]}
                 onPress={() => setGoalType('monthly')}
               >
                 <Text style={[
                   styles.typeButtonText,
-                  goalType === 'monthly' && styles.typeButtonTextActive,
+                  goalType === 'monthly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
                 ]}>
                   This month
                 </Text>
@@ -1016,13 +1023,13 @@ const RoutineScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  goalType === 'yearly' && styles.typeButtonActive,
+                  goalType === 'yearly' && [styles.typeButtonActive, themed.typeButtonActive],
                 ]}
                 onPress={() => setGoalType('yearly')}
               >
                 <Text style={[
                   styles.typeButtonText,
-                  goalType === 'yearly' && styles.typeButtonTextActive,
+                  goalType === 'yearly' && [styles.typeButtonTextActive, themed.typeButtonTextActive],
                 ]}>
                   This year
                 </Text>
@@ -1068,10 +1075,10 @@ const RoutineScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.saveButton}
+                style={[styles.saveButton, themed.saveButton]}
                 onPress={handleAddGoal}
               >
-                <Text style={styles.saveButtonText}>Add</Text>
+                <Text style={[styles.saveButtonText, themed.saveButtonText]}>Add</Text>
               </TouchableOpacity>
             </View>
             </TouchableOpacity>
@@ -1094,6 +1101,33 @@ const RoutineScreen: React.FC = () => {
       />
     </SafeAreaView>
   );
+};
+
+// Accent-colored pieces of the tab, rebuilt when the Today section changes.
+const makeThemedStyles = (accent: string) => {
+  const onAccent = textOnColor(accent);
+  return StyleSheet.create({
+    weekDaySelected: { backgroundColor: accent, shadowColor: accent },
+    weekDayLabelSelected: { color: onAccent, opacity: 0.7 },
+    weekDayDateSelected: { color: onAccent },
+    sectionAccent: { backgroundColor: accent },
+    taskCardAddButton: { backgroundColor: withAlpha(accent, 0.1), borderColor: withAlpha(accent, 0.3) },
+    taskCardAddButtonText: { color: accent },
+    goalCardWeekly: { borderLeftColor: withAlpha(accent, 0.6) },
+    goalCardMonthly: { borderLeftColor: withAlpha(accent, 0.38) },
+    goalCardYearly: { borderLeftColor: withAlpha(accent, 0.2) },
+    goalCardCountdown: { color: accent },
+    yearlyProgressText: { color: accent },
+    yearlyProgressFill: { backgroundColor: accent },
+    checkbox: { borderColor: accent },
+    checkboxChecked: { backgroundColor: accent },
+    goalCountBadge: { borderColor: accent },
+    goalCountBadgeText: { color: accent },
+    typeButtonActive: { backgroundColor: withAlpha(accent, 0.2), borderColor: withAlpha(accent, 0.4) },
+    typeButtonTextActive: { color: accent },
+    saveButton: { backgroundColor: accent },
+    saveButtonText: { color: onAccent },
+  });
 };
 
 const styles = StyleSheet.create({
@@ -1260,12 +1294,6 @@ const styles = StyleSheet.create({
     borderColor: '#232323',
     borderLeftWidth: 3,
     borderLeftColor: 'rgba(29, 158, 117, 0.4)',
-  },
-  goalCardMonthly: {
-    borderLeftColor: 'rgba(15, 110, 86, 0.5)',
-  },
-  goalCardYearly: {
-    borderLeftColor: 'rgba(8, 60, 45, 0.7)',
   },
   yearlyProgressText: {
     fontSize: 11,

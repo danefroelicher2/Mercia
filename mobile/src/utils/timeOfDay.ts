@@ -30,3 +30,24 @@ export function parseCountSuffix(raw: string): { text: string; targetCount: numb
   if (count < 1) return { text: trimmed, targetCount: null };
   return { text: match[1], targetCount: count };
 }
+
+// Each section's color — morning sky, afternoon sun, night indigo. The
+// Routine tab takes its accent from whichever section is showing.
+export const SECTION_COLORS: Record<TimeOfDay, string> = {
+  morning: '#86CCF4',
+  afternoon: '#F3BF4C',
+  night: '#7482F5',
+};
+
+export function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+// Dark text on light accents (sky, gold), white on dark ones (indigo).
+export function textOnColor(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#0D0D0D' : '#FFFFFF';
+}

@@ -19,11 +19,13 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import ActionMenu, { ActionMenuItem } from './ActionMenu';
 import { RoutineTask, TimeOfDay } from '../types/routine';
 import {
+  SECTION_COLORS,
   TIME_OF_DAY_LABELS,
   TIME_OF_DAY_ORDER,
   getCurrentTimeOfDay,
   parseCountSuffix,
   taskTimeOfDay,
+  withAlpha,
 } from '../utils/timeOfDay';
 
 // Notepad-style Today card: three swipeable pages (Morning / Afternoon / Night).
@@ -59,6 +61,8 @@ interface Props {
   onDelete: (id: string) => void;
   onReorder: (orderedIds: string[]) => void;
   onCopyFromDay?: () => void;
+  // Reports the section being shown so the rest of the screen can match it.
+  onSectionChange?: (section: TimeOfDay) => void;
 }
 
 type ActiveLine =
@@ -78,21 +82,6 @@ const PLACEHOLDERS: Record<TimeOfDay, string> = {
   night: 'Add to your night…',
 };
 
-const TEAL_LIGHT = '#5DCAA5';
-
-// Each section carries its own color — morning sky, afternoon sun, night
-// indigo. The tab, glow, checkboxes and counters all pick it up, so the time
-// of day reads at a glance.
-const SECTION_COLORS: Record<TimeOfDay, string> = {
-  morning: '#86CCF4',
-  afternoon: '#F3BF4C',
-  night: '#7482F5',
-};
-
-function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
 
 const THEME: Record<TimeOfDay, { accent: string; tint: string; border: string }> = (() => {
   const theme = {} as Record<TimeOfDay, { accent: string; tint: string; border: string }>;
@@ -144,6 +133,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
   onDelete,
   onReorder,
   onCopyFromDay,
+  onSectionChange,
 }) => {
   const [width, setWidth] = useState(0);
   const [tabsWidth, setTabsWidth] = useState(0);
@@ -216,6 +206,11 @@ const TodayTimeBlocks: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [width],
   );
+
+  useEffect(() => {
+    onSectionChange?.(TIME_OF_DAY_ORDER[pageIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageIndex]);
 
   // Drop an active item whose task vanished (reload, delete).
   useEffect(() => {
@@ -630,8 +625,8 @@ const TodayTimeBlocks: React.FC<Props> = ({
           <Text style={styles.hint}>Hold an item to edit, reorder, or delete</Text>
         ) : tasks.length === 0 && onCopyFromDay ? (
           <TouchableOpacity onPress={onCopyFromDay} style={styles.copyLink} hitSlop={8}>
-            <Ionicons name="copy-outline" size={12} color={TEAL_LIGHT} />
-            <Text style={styles.copyLinkText}>Copy from another day</Text>
+            <Ionicons name="copy-outline" size={12} color={THEME[section].accent} />
+            <Text style={[styles.copyLinkText, { color: THEME[section].accent }]}>Copy from another day</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -942,7 +937,7 @@ const styles = StyleSheet.create({
   countBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: TEAL_LIGHT,
+    color: '#A0A0A0',
   },
 
   hint: {
@@ -961,7 +956,7 @@ const styles = StyleSheet.create({
   },
   copyLinkText: {
     fontSize: 12,
-    color: TEAL_LIGHT,
+    color: '#A0A0A0',
     fontWeight: '500',
   },
 });
