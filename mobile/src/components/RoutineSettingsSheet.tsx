@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +35,21 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
   const prefs = useRoutinePreferences();
   const [clearing, setClearing] = useState(false);
   const [copyVisible, setCopyVisible] = useState(false);
+  // After a successful copy, close this sheet only once the copy window has
+  // finished dismissing — closing both at once leaves iOS showing a blank
+  // sheet.
+  const closeAfterCopy = useRef(false);
+
+  const confirmCopy = async (fromDay: DayOfWeek, toDays: DayOfWeek[]) => {
+    await onCopyDay(fromDay, toDays);
+    closeAfterCopy.current = true;
+  };
+
+  const handleCopyDismissed = () => {
+    if (!closeAfterCopy.current) return;
+    closeAfterCopy.current = false;
+    onClose();
+  };
 
   const confirmClearAll = () => {
     Alert.alert(
@@ -138,7 +153,8 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
         visible={copyVisible}
         accent={accent}
         onClose={() => setCopyVisible(false)}
-        onConfirm={onCopyDay}
+        onDismissed={handleCopyDismissed}
+        onConfirm={confirmCopy}
       />
     </Modal>
   );

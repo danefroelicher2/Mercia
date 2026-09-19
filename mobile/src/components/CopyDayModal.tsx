@@ -25,6 +25,9 @@ interface Props {
   visible: boolean;
   accent: string;
   onClose: () => void;
+  // Called once the window has fully disappeared (iOS), so a parent sheet can
+  // close after it rather than at the same time.
+  onDismissed?: () => void;
   // Performs the copy; resolves when done, rejects (after alerting) on failure.
   onConfirm: (fromDay: DayOfWeek, toDays: DayOfWeek[]) => Promise<void>;
 }
@@ -32,7 +35,7 @@ interface Props {
 // 'from', or the index of a target slot
 type Picker = 'from' | number | null;
 
-const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) => {
+const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onDismissed, onConfirm }) => {
   const [fromDay, setFromDay] = useState<DayOfWeek | null>(null);
   // Chosen target days, in the order picked; one more (empty) slot is shown
   // after them until all six other days are used.
@@ -161,7 +164,14 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
   const targetSlots = Math.min(toDays.length + 1, MAX_TARGETS);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={onDismissed}
+      statusBarTranslucent
+    >
       <Pressable style={styles.backdrop} onPress={copying ? undefined : onClose}>
         <Pressable style={styles.card} onPress={() => setOpen(null)}>
           <ScrollView bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

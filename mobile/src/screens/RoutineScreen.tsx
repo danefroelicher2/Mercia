@@ -593,8 +593,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Gear → Copy a day: replace each target day with an exact copy of
-  // fromDay (one server call per day, in order), then close the sheet and
-  // show the result.
+  // fromDay (one server call per day, in order) and show the result. The
+  // sheet closes itself once the copy window is gone.
   const handleCopyDay = async (fromDay: DayOfWeek, toDays: DayOfWeek[]) => {
     const dayLabel = (d: DayOfWeek) => d.charAt(0).toUpperCase() + d.slice(1);
     const done: DayOfWeek[] = [];
@@ -632,7 +632,6 @@ const RoutineScreen: React.FC = () => {
     } else {
       setSelectedDay(toDays[0]); // show the first copied day
     }
-    setSettingsVisible(false);
   };
 
   const handleClearAll = async () => {
