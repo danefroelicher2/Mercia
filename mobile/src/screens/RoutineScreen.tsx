@@ -28,7 +28,7 @@ import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import DrawerMenu from '../components/DrawerMenu';
 import { Ionicons } from '@expo/vector-icons';
-import { getNextMonday, formatTimeRemaining, shouldShowUrgent } from '../utils/weeklyReset';
+import { getNextMonday, formatTimeLeftLong, shouldShowUrgent } from '../utils/weeklyReset';
 import { daysLeftLabel, monthInfo, weekInfo, yearInfo } from '../utils/periodProgress';
 
 const colors = {
@@ -153,7 +153,7 @@ const RoutineScreen: React.FC = () => {
     const updateCountdowns = () => {
       const now = new Date();
       const weeklyMs = getNextMonday().getTime() - now.getTime();
-      setWeeklyCountdown({ text: formatTimeRemaining(weeklyMs, 'left'), urgent: shouldShowUrgent(weeklyMs) });
+      setWeeklyCountdown({ text: formatTimeLeftLong(weeklyMs), urgent: shouldShowUrgent(weeklyMs) });
     };
     updateCountdowns();
     const interval = setInterval(updateCountdowns, 60000);
@@ -752,7 +752,11 @@ const RoutineScreen: React.FC = () => {
       changes.targetCount = parsed.targetCount;
     }
     if (changes.text === undefined && changes.targetCount === undefined) return;
+    updateGoal(goal, changes);
+  };
 
+  // Apply a text and/or count change locally, then save it.
+  const updateGoal = async (goal: RoutineGoal, changes: { text?: string; targetCount?: number }) => {
     setGoalsOf(goal.type)(prev => prev.map(g => {
       if (g.id !== goal.id) return g;
       const next = { ...g };
@@ -780,6 +784,29 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
+  // Same prompt as Today items' "Make it a counter".
+  const promptGoalCount = (goal: RoutineGoal) => {
+    Alert.prompt(
+      'How many times?',
+      'Each tap counts one down. Set 1 for a regular checkbox.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: (value?: string) => {
+            const parsed = parseInt(value ?? '', 10);
+            if (!Number.isFinite(parsed)) return;
+            const count = Math.min(999, Math.max(1, parsed));
+            if (count !== goal.target_count) updateGoal(goal, { targetCount: count });
+          },
+        },
+      ],
+      'plain-text',
+      String(goal.target_count),
+      'number-pad',
+    );
+  };
+
   const handleMoveGoal = async (goal: RoutineGoal, direction: -1 | 1) => {
     const list = goalsOf(goal.type).slice();
     const index = list.findIndex(g => g.id === goal.id);
@@ -802,7 +829,8 @@ const RoutineScreen: React.FC = () => {
   };
 
   // Hold: in multi-select with several items selected (this one among them)
-  // the only option is deleting the selection; otherwise Edit / Move / Delete.
+  // the only option is deleting the selection; otherwise Edit / Move /
+  // counter / Delete (Today items' menu minus time).
   const handleGoalHold = (goal: RoutineGoal) => {
     if (multiSelect && selected.has(goal.id) && selected.size > 1) {
       openBulkMenu();
@@ -817,6 +845,11 @@ const RoutineScreen: React.FC = () => {
     if (index >= 0 && index < list.length - 1) {
       items.push({ label: 'Move down', icon: 'arrow-down', onPress: () => handleMoveGoal(goal, 1) });
     }
+    items.push({
+      label: goal.target_count > 1 ? `Change count (${goal.target_count})` : 'Make it a counter',
+      icon: 'repeat',
+      onPress: () => promptGoalCount(goal),
+    });
     items.push({ label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => handleDeleteGoal(goal) });
     setGoalMenu({ title: goal.text, items });
     setGoalMenuVisible(true);

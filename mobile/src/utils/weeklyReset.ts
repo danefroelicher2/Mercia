@@ -51,6 +51,21 @@ export const formatTimeRemaining = (ms: number, suffix: string = 'remaining'): s
   return `${minutes}m ${suffix}`;
 };
 
+// Spelled-out version for the Weekly goal card: "2 days 4 hours left",
+// "1 day 1 hour left", "5 hours 12 minutes left", "12 minutes left".
+export const formatTimeLeftLong = (ms: number): string => {
+  if (ms <= 0) return 'Resetting...';
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+  const totalMinutes = Math.floor(ms / 60000);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = totalMinutes % 60;
+  if (days > 0) return hours > 0 ? `${plural(days, 'day')} ${plural(hours, 'hour')} left` : `${plural(days, 'day')} left`;
+  if (totalHours > 0) return minutes > 0 ? `${plural(totalHours, 'hour')} ${plural(minutes, 'minute')} left` : `${plural(totalHours, 'hour')} left`;
+  return minutes > 0 ? `${plural(minutes, 'minute')} left` : 'Less than a minute left';
+};
+
 export const shouldShowUrgent = (ms: number): boolean => ms > 0 && ms < TWELVE_HOURS_MS;
 
 // Convenience: the weekly countdown as display state.
