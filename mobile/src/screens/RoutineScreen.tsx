@@ -985,7 +985,7 @@ const RoutineScreen: React.FC = () => {
             edgeAlpha={0.6}
             period={{
               progress: week.progress,
-              detail: `Day ${week.day} of ${week.total} · ${weeklyCountdown.text}`,
+              detail: weeklyCountdown.text,
               urgent: weeklyCountdown.urgent,
             }}
             {...goalCardHandlers}
