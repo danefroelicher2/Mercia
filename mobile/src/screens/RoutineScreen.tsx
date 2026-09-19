@@ -592,20 +592,33 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
-  // Gear → Copy a day: replace toDay with an exact copy of fromDay, then
-  // close the sheet and show the result.
-  const handleCopyDay = async (fromDay: DayOfWeek, toDay: DayOfWeek) => {
-    let copied: RoutineTask[];
-    try {
-      const response = await api.post('/api/routine/tasks/copy-day', { fromDay, toDay });
-      copied = response.data.data;
-    } catch (error) {
-      console.error('[RoutineScreen] Copy day failed:', error);
-      Alert.alert("Couldn't copy", 'Nothing was changed. Check your connection and try again.');
-      throw error; // keeps the copy window open
+  // Gear → Copy a day: replace each target day with an exact copy of
+  // fromDay (one server call per day, in order), then close the sheet and
+  // show the result.
+  const handleCopyDay = async (fromDay: DayOfWeek, toDays: DayOfWeek[]) => {
+    const dayLabel = (d: DayOfWeek) => d.charAt(0).toUpperCase() + d.slice(1);
+    const done: DayOfWeek[] = [];
+    let currentDayCopy: RoutineTask[] | null = null;
+    for (const toDay of toDays) {
+      try {
+        const response = await api.post('/api/routine/tasks/copy-day', { fromDay, toDay });
+        done.push(toDay);
+        if (toDay === selectedDayRef.current) currentDayCopy = response.data.data;
+      } catch (error) {
+        console.error(`[RoutineScreen] Copy ${fromDay} → ${toDay} failed:`, error);
+        Alert.alert(
+          "Couldn't finish copying",
+          done.length > 0
+            ? `${done.map(dayLabel).join(', ')} ${done.length === 1 ? 'was' : 'were'} replaced; ${dayLabel(toDay)} and any after it weren't. Try again for the rest.`
+            : 'Nothing was changed. Check your connection and try again.',
+        );
+        if (done.length > 0) loadTasks();
+        throw error; // keeps the copy window open
+      }
     }
-    // Items that were on toDay are gone; drop any that were selected.
-    if (selectedDayRef.current === toDay) {
+
+    // Items that were on the day being viewed are gone; drop any selected.
+    if (currentDayCopy) {
       const replaced = new Set(tasksRef.current.map(t => t.id));
       setSelected(prev => {
         let changed = false;
@@ -615,9 +628,9 @@ const RoutineScreen: React.FC = () => {
         });
         return changed ? next : prev;
       });
-      setTasks(copied);
+      setTasks(currentDayCopy);
     } else {
-      setSelectedDay(toDay); // loads its (new) tasks
+      setSelectedDay(toDays[0]); // show the first copied day
     }
     setSettingsVisible(false);
   };

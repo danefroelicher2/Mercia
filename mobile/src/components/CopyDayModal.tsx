@@ -1,30 +1,42 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { DayOfWeek } from '../types/routine';
 import { textOnColor, withAlpha } from '../utils/timeOfDay';
 
-// "Copy [Monday ▾] to [Thursday ▾]" — replaces the second day's routine with
-// an exact copy of the first (items, sections, times, counters, order).
-// Save only lights up once both days are chosen, and asks one last time.
+// "Copy [Monday ▾] to [Thursday ▾] [Friday ▾] …" — replaces each target day's
+// routine with an exact copy of the first (items, sections, times, counters,
+// order). Choosing a target reveals another optional one, up to all six other
+// days. Save lights up once a source and at least one target are chosen, and
+// asks one last time.
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const label = (day: DayOfWeek) => day.charAt(0).toUpperCase() + day.slice(1);
 const todayKey = (): DayOfWeek => DAYS[(new Date().getDay() + 6) % 7];
+const MAX_TARGETS = DAYS.length - 1;
+
+// "Saturday", "Saturday and Sunday", "Saturday, Sunday and Tuesday"
+const listDays = (days: DayOfWeek[]): string => {
+  const names = days.map(label);
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+};
 
 interface Props {
   visible: boolean;
   accent: string;
   onClose: () => void;
   // Performs the copy; resolves when done, rejects (after alerting) on failure.
-  onConfirm: (fromDay: DayOfWeek, toDay: DayOfWeek) => Promise<void>;
+  onConfirm: (fromDay: DayOfWeek, toDays: DayOfWeek[]) => Promise<void>;
 }
 
-type Picker = 'from' | 'to' | null;
+// 'from', or the index of a target slot
+type Picker = 'from' | number | null;
 
 const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) => {
   const [fromDay, setFromDay] = useState<DayOfWeek | null>(null);
-  const [toDay, setToDay] = useState<DayOfWeek | null>(null);
+  // Chosen target days, in the order picked; one more (empty) slot is shown
+  // after them until all six other days are used.
+  const [toDays, setToDays] = useState<DayOfWeek[]>([]);
   const [open, setOpen] = useState<Picker>(null);
   const [copying, setCopying] = useState(false);
 
@@ -32,26 +44,41 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
   useEffect(() => {
     if (visible) {
       setFromDay(null);
-      setToDay(null);
+      setToDays([]);
       setOpen(null);
       setCopying(false);
     }
   }, [visible]);
 
-  const ready = !!fromDay && !!toDay && fromDay !== toDay;
+  const ready = !!fromDay && toDays.length > 0;
   const today = todayKey();
 
-  const choose = (picker: 'from' | 'to', day: DayOfWeek) => {
-    if (picker === 'from') setFromDay(day);
-    else setToDay(day);
+  const choose = (picker: 'from' | number, day: DayOfWeek) => {
+    if (picker === 'from') {
+      setFromDay(day);
+      // A day can't be copied onto itself.
+      setToDays(prev => prev.filter(d => d !== day));
+    } else {
+      setToDays(prev => {
+        const next = prev.slice();
+        next[picker] = day;
+        return next;
+      });
+    }
+    setOpen(null);
+  };
+
+  const removeTarget = (index: number) => {
+    setToDays(prev => prev.filter((_, i) => i !== index));
     setOpen(null);
   };
 
   const save = () => {
-    if (!ready || !fromDay || !toDay) return;
+    if (!ready || !fromDay) return;
+    const targets = listDays(toDays);
     Alert.alert(
-      `Replace ${label(toDay)}?`,
-      `Everything currently on ${label(toDay)} will be replaced with ${label(fromDay)}'s routine — ` +
+      `Replace ${targets}?`,
+      `Everything currently on ${targets} will be replaced with ${label(fromDay)}'s routine — ` +
         "every item, section and time.\n\nThis can't be undone.",
       [
         { text: 'Cancel', style: 'cancel' },
@@ -61,7 +88,7 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
           onPress: async () => {
             setCopying(true);
             try {
-              await onConfirm(fromDay, toDay);
+              await onConfirm(fromDay, toDays);
               onClose();
             } catch {
               // onConfirm already told the user; keep the window open to retry.
@@ -74,12 +101,17 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
     );
   };
 
-  const renderPicker = (picker: 'from' | 'to') => {
-    const value = picker === 'from' ? fromDay : toDay;
-    const other = picker === 'from' ? toDay : fromDay;
+  const renderPicker = (picker: 'from' | number) => {
+    const value = picker === 'from' ? fromDay : toDays[picker] ?? null;
+    // Days taken elsewhere: the source for targets; the source and the other
+    // targets for each target; the targets for the source (picking one of
+    // those as the source just removes it from the targets).
+    const taken = (day: DayOfWeek) =>
+      picker !== 'from' && (day === fromDay || toDays.some((d, i) => d === day && i !== picker));
     const isOpen = open === picker;
+    const optional = typeof picker === 'number' && picker > 0;
     return (
-      <View>
+      <View style={typeof picker === 'number' && picker > 0 ? { marginTop: 8 } : undefined}>
         <Pressable
           onPress={() => setOpen(isOpen ? null : picker)}
           style={[
@@ -88,24 +120,30 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
           ]}
         >
           <Text style={[styles.pillText, !value && styles.pillPlaceholder]}>
-            {value ? label(value) : 'Choose a day'}
+            {value ? label(value) : optional ? 'Add another day (optional)' : 'Choose a day'}
           </Text>
-          <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={value ? accent : '#666'} />
+          {optional && value ? (
+            <Pressable onPress={() => removeTarget(picker as number)} hitSlop={10}>
+              <Ionicons name="close-circle" size={18} color="#666" />
+            </Pressable>
+          ) : (
+            <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={value ? accent : '#666'} />
+          )}
         </Pressable>
 
         {isOpen && (
           <View style={styles.list}>
             {DAYS.map(day => {
-              const taken = day === other;
+              const isTaken = taken(day);
               const selected = day === value;
               return (
                 <Pressable
                   key={day}
-                  disabled={taken}
+                  disabled={isTaken}
                   onPress={() => choose(picker, day)}
                   style={({ pressed }) => [styles.listRow, pressed && styles.listRowPressed]}
                 >
-                  <Text style={[styles.listText, taken && styles.listTextTaken, selected && { color: accent }]}>
+                  <Text style={[styles.listText, isTaken && styles.listTextTaken, selected && { color: accent }]}>
                     {label(day)}
                     {day === today ? <Text style={styles.todayTag}>  Today</Text> : null}
                   </Text>
@@ -119,17 +157,23 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
     );
   };
 
+  // Filled target slots plus one empty slot, until all six other days are used.
+  const targetSlots = Math.min(toDays.length + 1, MAX_TARGETS);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={copying ? undefined : onClose}>
         <Pressable style={styles.card} onPress={() => setOpen(null)}>
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Copy a day</Text>
-          <Text style={styles.subtitle}>Every item, section and time, onto another day.</Text>
+          <Text style={styles.subtitle}>Every item, section and time, onto other days.</Text>
 
           <Text style={styles.fieldLabel}>Copy</Text>
           {renderPicker('from')}
           <Text style={[styles.fieldLabel, { marginTop: 14 }]}>to</Text>
-          {renderPicker('to')}
+          {Array.from({ length: targetSlots }).map((_, i) => (
+            <React.Fragment key={i}>{renderPicker(i)}</React.Fragment>
+          ))}
 
           <View style={styles.buttons}>
             <Pressable onPress={onClose} disabled={copying} hitSlop={8} style={styles.cancelButton}>
@@ -149,6 +193,7 @@ const CopyDayModal: React.FC<Props> = ({ visible, accent, onClose, onConfirm }) 
               )}
             </Pressable>
           </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -166,6 +211,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 360,
+    maxHeight: '88%',
     backgroundColor: '#1A1A1A',
     borderRadius: 16,
     borderWidth: 1,

@@ -26,9 +26,9 @@ interface Props {
   // Deletes every task, goal and the notepad. Resolves when done; rejects
   // (after alerting) if nothing was cleared.
   onClearAll: () => Promise<void>;
-  // Replaces toDay with a copy of fromDay. Resolves when done; rejects
-  // (after alerting) on failure.
-  onCopyDay: (fromDay: DayOfWeek, toDay: DayOfWeek) => Promise<void>;
+  // Replaces each of toDays with a copy of fromDay. Resolves when done;
+  // rejects (after alerting) on failure.
+  onCopyDay: (fromDay: DayOfWeek, toDays: DayOfWeek[]) => Promise<void>;
 }
 
 const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onClearAll, onCopyDay }) => {
