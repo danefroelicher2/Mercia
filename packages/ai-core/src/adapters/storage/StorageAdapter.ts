@@ -174,6 +174,18 @@ export interface StorageAdapter {
   deleteRoutineGoals(goalIds: string[], userId: string): Promise<void>;
 
   /**
+   * Replace everything on `toDay` with an exact copy of `fromDay`'s tasks —
+   * text, section, scheduled time, countdown target and order; copies start
+   * unchecked. Returns the ids that were removed from `toDay` (for history
+   * cleanup) and the new tasks in order.
+   */
+  copyRoutineDay(
+    userId: string,
+    fromDay: string,
+    toDay: string
+  ): Promise<{ deletedIds: string[]; tasks: RoutineTask[] }>;
+
+  /**
    * Wipe the Routine tab: every task (all days), every goal, and the notepad.
    * Completion history is kept.
    */

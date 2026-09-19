@@ -462,6 +462,56 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     }
   }
 
+  async copyRoutineDay(
+    userId: string,
+    fromDay: string,
+    toDay: string
+  ): Promise<{ deletedIds: string[]; tasks: RoutineTask[] }> {
+    const [source, target] = await Promise.all([
+      this.client
+        .from('routine_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('day_of_week', fromDay)
+        .order('sort_order', { ascending: true }),
+      this.client.from('routine_tasks').select('id').eq('user_id', userId).eq('day_of_week', toDay),
+    ]);
+    if (source.error) throw new Error(`Failed to read ${fromDay}: ${source.error.message}`);
+    if (target.error) throw new Error(`Failed to read ${toDay}: ${target.error.message}`);
+
+    const deletedIds = (target.data ?? []).map((t: { id: string }) => t.id);
+    if (deletedIds.length > 0) {
+      const { error } = await this.client
+        .from('routine_tasks')
+        .delete()
+        .in('id', deletedIds)
+        .eq('user_id', userId);
+      if (error) throw new Error(`Failed to clear ${toDay}: ${error.message}`);
+    }
+
+    const rows = (source.data ?? []).map((t: RoutineTask & { sort_order?: number }, index: number) => ({
+      user_id: userId,
+      text: t.text,
+      type: t.type,
+      day_of_week: toDay,
+      completed: false,
+      sort_order: index,
+      target_count: t.target_count,
+      current_count: t.target_count,
+      time_of_day: t.time_of_day,
+      scheduled_time: t.scheduled_time,
+    }));
+    if (rows.length === 0) return { deletedIds, tasks: [] };
+
+    const { data, error } = await this.client.from('routine_tasks').insert(rows).select();
+    if (error) throw new Error(`Failed to copy ${fromDay} to ${toDay}: ${error.message}`);
+
+    const tasks = ((data ?? []) as (RoutineTask & { sort_order: number })[]).sort(
+      (a, b) => a.sort_order - b.sort_order
+    );
+    return { deletedIds, tasks };
+  }
+
   async clearRoutine(userId: string): Promise<void> {
     const [tasks, goals, notepad] = await Promise.all([
       this.client.from('routine_tasks').delete().eq('user_id', userId),

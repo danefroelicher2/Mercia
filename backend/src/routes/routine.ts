@@ -393,6 +393,35 @@ router.post(
   }
 );
 
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+const copyDaySchema = z
+  .object({ fromDay: z.enum(DAYS_OF_WEEK), toDay: z.enum(DAYS_OF_WEEK) })
+  .refine(b => b.fromDay !== b.toDay, { message: 'Pick two different days' });
+
+/**
+ * POST /api/routine/tasks/copy-day
+ * Replace everything on toDay with an exact copy of fromDay (text, section,
+ * time, counter, order; copies start unchecked). The replaced tasks get the
+ * same cleanup as a delete.
+ */
+router.post(
+  '/tasks/copy-day',
+  validate(copyDaySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { fromDay, toDay } = req.body;
+
+      const { deletedIds, tasks } = await getStorage().copyRoutineDay(userId, fromDay, toDay);
+      res.json({ success: true, data: tasks });
+
+      if (deletedIds.length > 0) cleanupDeletedTasks(userId, deletedIds);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 /**
  * POST /api/routine/clear
  * Wipe the Routine tab: all tasks on every day, all goals, and the notepad.

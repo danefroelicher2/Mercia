@@ -33,6 +33,7 @@ All routes require `Authorization: Bearer <access token>` except `/auth/*` (publ
 | PATCH | /tasks/reorder | Persist sort order |
 | PUT | /tasks/:id | Edit `text`, `timeOfDay`, `targetCount` (retarget keeps taps already made), and/or `scheduledTime` ("HH:MM", `null` = anytime) |
 | DELETE | /tasks/:id | Delete + history cleanup |
+| POST | /tasks/copy-day | `{ fromDay, toDay }` — replace toDay with an exact copy of fromDay (text, section, time, counter, order; unchecked). Replaced tasks get delete cleanup |
 | POST | /tasks/bulk-delete | `{ ids }` — delete many tasks (multi-select); same history cleanup as single delete |
 | PUT | /goals/:id | Edit a goal's `text` and/or `targetCount` (retarget keeps taps made) |
 | POST | /goals/bulk-delete | `{ ids }` — delete many goals (multi-select) |
