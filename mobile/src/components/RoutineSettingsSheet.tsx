@@ -13,6 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import RoutineSettingsContent from './RoutineSettingsContent';
+import CopyDayModal from './CopyDayModal';
+import { DayOfWeek } from '../types/routine';
 
 // The Routine tab's gear: time-of-day and visibility settings, plus
 // multi-select and Clear all. (The only home for Routine settings.)
@@ -24,11 +26,15 @@ interface Props {
   // Deletes every task, goal and the notepad. Resolves when done; rejects
   // (after alerting) if nothing was cleared.
   onClearAll: () => Promise<void>;
+  // Replaces toDay with a copy of fromDay. Resolves when done; rejects
+  // (after alerting) on failure.
+  onCopyDay: (fromDay: DayOfWeek, toDay: DayOfWeek) => Promise<void>;
 }
 
-const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onClearAll }) => {
+const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onClearAll, onCopyDay }) => {
   const prefs = useRoutinePreferences();
   const [clearing, setClearing] = useState(false);
+  const [copyVisible, setCopyVisible] = useState(false);
 
   const confirmClearAll = () => {
     Alert.alert(
@@ -73,12 +79,10 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-          <RoutineSettingsContent accent={accent} />
-
-          {/* Multi-select */}
+          {/* Selecting & copying — first */}
           <Text style={styles.sectionTitle}>SELECTING</Text>
           <View style={styles.group}>
-            <View style={styles.row}>
+            <View style={[styles.row, styles.rowDivider]}>
               <View style={styles.rowLabelWrap}>
                 <Ionicons name="checkmark-done-outline" size={18} color={accent} />
                 <Text style={styles.rowLabel}>Multi-select</Text>
@@ -90,11 +94,24 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
                 thumbColor="#FFFFFF"
               />
             </View>
+            <Pressable
+              onPress={() => setCopyVisible(true)}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            >
+              <View style={styles.rowLabelWrap}>
+                <Ionicons name="copy-outline" size={18} color={accent} />
+                <Text style={styles.rowLabel}>Copy a day</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </Pressable>
           </View>
           <Text style={styles.footnote}>
-            While on, tapping an item selects it instead of checking it off — across Morning,
+            Multi-select: tapping an item selects it instead of checking it off — across Morning,
             Afternoon, Night, any day, and your goals. Hold a selected item to delete them all at once.
+            {'\n'}Copy a day: replace one day's routine with another's, times included.
           </Text>
+
+          <RoutineSettingsContent accent={accent} />
 
           {/* Clear all — always last */}
           <Pressable
@@ -116,6 +133,13 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
           </Text>
         </ScrollView>
       </View>
+
+      <CopyDayModal
+        visible={copyVisible}
+        accent={accent}
+        onClose={() => setCopyVisible(false)}
+        onConfirm={onCopyDay}
+      />
     </Modal>
   );
 };
@@ -176,6 +200,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
     minHeight: 54,
+  },
+  rowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#232323',
+  },
+  rowPressed: {
+    backgroundColor: '#1D1D1D',
   },
   rowLabelWrap: {
     flexDirection: 'row',

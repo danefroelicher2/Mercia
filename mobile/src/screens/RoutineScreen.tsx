@@ -592,6 +592,36 @@ const RoutineScreen: React.FC = () => {
     }
   };
 
+  // Gear → Copy a day: replace toDay with an exact copy of fromDay, then
+  // close the sheet and show the result.
+  const handleCopyDay = async (fromDay: DayOfWeek, toDay: DayOfWeek) => {
+    let copied: RoutineTask[];
+    try {
+      const response = await api.post('/api/routine/tasks/copy-day', { fromDay, toDay });
+      copied = response.data.data;
+    } catch (error) {
+      console.error('[RoutineScreen] Copy day failed:', error);
+      Alert.alert("Couldn't copy", 'Nothing was changed. Check your connection and try again.');
+      throw error; // keeps the copy window open
+    }
+    // Items that were on toDay are gone; drop any that were selected.
+    if (selectedDayRef.current === toDay) {
+      const replaced = new Set(tasksRef.current.map(t => t.id));
+      setSelected(prev => {
+        let changed = false;
+        const next = new Map(prev);
+        replaced.forEach(id => {
+          if (next.delete(id)) changed = true;
+        });
+        return changed ? next : prev;
+      });
+      setTasks(copied);
+    } else {
+      setSelectedDay(toDay); // loads its (new) tasks
+    }
+    setSettingsVisible(false);
+  };
+
   const handleClearAll = async () => {
     try {
       await api.post('/api/routine/clear');
@@ -1108,6 +1138,7 @@ const RoutineScreen: React.FC = () => {
         accent={accent}
         onClose={() => setSettingsVisible(false)}
         onClearAll={handleClearAll}
+        onCopyDay={handleCopyDay}
       />
 
       <DrawerMenu
