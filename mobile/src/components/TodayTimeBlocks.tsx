@@ -35,8 +35,7 @@ import {
 import TimeSheet from './TimeSheet';
 import Checkbox from './Checkbox';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useDrawer } from '../context/DrawerContext';
+
 
 // Notepad-style Today card: three swipeable pages (Morning / Afternoon / Night).
 // Typing a line and pressing return — or tapping away — turns it into a
@@ -152,29 +151,6 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
   requestedSection = null,
 }, ref) => {
   const [width, setWidth] = useState(0);
-  const { drag: drawerDrag } = useDrawer();
-  // True while the pager rests on its first page (Morning); a right swipe
-  // there opens the side drawer instead.
-  const atFirstPage = useRef(true);
-  const handingOff = useRef(false);
-  const pagerGesture = useMemo(() => {
-    const native = Gesture.Native();
-    const handOff = Gesture.Pan()
-      .runOnJS(true)
-      .activeOffsetX([-12, 12])
-      .failOffsetY([-12, 12])
-      .onStart(e => {
-        handingOff.current = atFirstPage.current && e.translationX > 0 && drawerDrag.current.begin();
-      })
-      .onUpdate(e => {
-        if (handingOff.current) drawerDrag.current.update(e.translationX);
-      })
-      .onEnd(e => {
-        if (handingOff.current) drawerDrag.current.end(e.velocityX);
-        handingOff.current = false;
-      });
-    return Gesture.Simultaneous(native, handOff);
-  }, [drawerDrag]);
   const [tabsWidth, setTabsWidth] = useState(0);
   // pageIndex follows the swipe live (tab highlight); heightIndex only
   // updates once a page settles, so the card doesn't resize mid-swipe.
@@ -303,7 +279,6 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
       scrollLockTimer.current = setTimeout(releaseScrollLock, 700);
     }
     pagerRef.current?.scrollTo({ x: index * width, y: 0, animated });
-    atFirstPage.current = index === 0;
     if (!animated) scrollX.setValue(index * width);
     setPageIndex(index);
     setHeightIndex(index);
@@ -331,7 +306,6 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
   }, [requestedSection?.token]);
 
   const handleScroll = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
-    atFirstPage.current = e.nativeEvent.contentOffset.x < 1;
     if (width === 0) return;
     const x = e.nativeEvent.contentOffset.x;
     if (scrollLockTarget.current !== null) {
@@ -957,7 +931,6 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
           in) so a selected row's tint isn't clipped at the pager edge. */}
       <View style={styles.pagerBleed} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && (
-        <GestureDetector gesture={pagerGesture}>
         <Animated.ScrollView
           ref={pagerRef}
           horizontal
@@ -978,15 +951,15 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
             Keyboard.dismiss();
           }}
           contentOffset={initialOffset}
-          // No rubber-band at the ends: on the first page a right swipe
-          // belongs to the side drawer.
+          // Switching parts of the day is by tapping a ring (the pager still
+          // slides when it's told to); side-swipes belong to the drawer.
+          scrollEnabled={false}
           bounces={false}
           contentContainerStyle={styles.pagerContent}
           style={heights[heightIndex] > 0 ? { height: heights[heightIndex] } : undefined}
         >
           {TIME_OF_DAY_ORDER.map(renderSection)}
         </Animated.ScrollView>
-        </GestureDetector>
       )}
       </View>
 
