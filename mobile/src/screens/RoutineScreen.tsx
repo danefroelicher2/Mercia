@@ -21,7 +21,7 @@ import TodayTimeBlocks, { CreateTaskInput, TaskChanges, TodayTimeBlocksHandle } 
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import GoalCard from '../components/GoalCard';
-import DayBar from '../components/DayBar';
+import DayRings from '../components/DayRings';
 import EarlierCard from '../components/EarlierCard';
 import { TimeOfDay } from '../types/routine';
 import {
@@ -1149,11 +1149,10 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
-        {/* Where the day stands; each part switches the Today card */}
-        <DayBar
+        {/* One ring per part of the day; tap one to switch the Today card */}
+        <DayRings
           tasks={todayTasks}
           isToday={isToday}
-          dayName={DAY_NAMES[selectedDay]}
           now={now}
           boundaries={boundaries}
           shownSection={todaySection}
