@@ -21,7 +21,7 @@ interface Props {
 }
 
 const DONE_GREEN = '#4ADE80';
-const CELEBRATE_MS = 1400;
+const CELEBRATE_MS = 2800;
 // Longer lists show this many rows until "Show all" is tapped.
 const PREVIEW_ROWS = 4;
 
