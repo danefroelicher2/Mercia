@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -8,7 +8,6 @@ import {
   SECTION_COLORS,
   TIME_OF_DAY_LABELS,
   TIME_OF_DAY_ORDER,
-  formatMinutes,
   sectionRange,
   taskTimeOfDay,
   withAlpha,
@@ -77,6 +76,28 @@ const Ring: React.FC<{
   const translateY = grow.interpolate({ inputRange: [0, 1], outputRange: [(BOX * (1 - SMALL)) / 2, 0] });
   const iconOpacity = grow.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] });
 
+  // Caption fades between texts; when it goes away (a finished ring), the
+  // old text fades out in place. Its line stays reserved so nothing moves.
+  const [shownCaption, setShownCaption] = useState(caption);
+  const captionOpacity = useRef(new Animated.Value(caption ? 1 : 0)).current;
+  useEffect(() => {
+    if (caption === shownCaption) {
+      if (caption) captionOpacity.setValue(1);
+      return;
+    }
+    if (!caption) {
+      Animated.timing(captionOpacity, { toValue: 0, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true })
+        .start(({ finished }) => finished && setShownCaption(''));
+    } else if (!shownCaption) {
+      setShownCaption(caption);
+      captionOpacity.setValue(0);
+      Animated.timing(captionOpacity, { toValue: 1, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    } else {
+      setShownCaption(caption); // text changed (count ticked, time moved): swap in place
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caption]);
+
   return (
     <Pressable
       onPress={onPress}
@@ -111,9 +132,12 @@ const Ring: React.FC<{
         </Animated.View>
       </Animated.View>
       <Text style={[styles.name, { color }, shown && styles.nameShown]}>{TIME_OF_DAY_LABELS[section]}</Text>
-      <Text style={[styles.caption, captionStrong && styles.captionStrong]} numberOfLines={1}>
-        {caption}
-      </Text>
+      <Animated.Text
+        style={[styles.caption, captionStrong && styles.captionStrong, { opacity: captionOpacity }]}
+        numberOfLines={1}
+      >
+        {shownCaption || ' '}
+      </Animated.Text>
     </Pressable>
   );
 };
@@ -150,15 +174,22 @@ const DayRings: React.FC<Props> = ({ tasks, isToday, now, boundaries, shownSecti
     const done = items.filter(t => t.completed).length;
     const fraction = items.length === 0 ? 0 : done / items.length;
 
-    let caption: string;
+    // Under each ring: the current part shows its time left; later parts
+    // show nothing; earlier parts show "4 of 5" until they're finished, then
+    // nothing (the checkmark says it). Night is the day's last part, so it
+    // also carries its count next to the time left until it's finished.
+    const complete = items.length > 0 && done === items.length;
+    const count = items.length > 0 && !complete ? `${done} of ${items.length}` : '';
+    let caption = '';
     let strong = false;
     if (isToday && index === nowIndex) {
-      caption = formatLeft(sectionRange(section, boundaries)[1] - minutes);
+      const left = formatLeft(sectionRange(section, boundaries)[1] - minutes);
+      caption = section === 'night' && count ? `${count} · ${left}` : left;
       strong = true;
     } else if (isToday && index > nowIndex) {
-      caption = `from ${formatMinutes(sectionRange(section, boundaries)[0]).replace(':00', '')}`;
+      caption = '';
     } else {
-      caption = items.length === 0 ? 'Nothing yet' : `${done} of ${items.length}`;
+      caption = count;
     }
     return { section, fraction, caption, strong };
   });
