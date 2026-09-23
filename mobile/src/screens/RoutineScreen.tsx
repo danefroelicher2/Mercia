@@ -180,12 +180,34 @@ const RoutineScreen: React.FC = () => {
     });
   };
 
+  // Today's skips, kept on the device for the rest of the day. The earlier
+  // card waits for them to load so skipped items never flash back in.
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [skipsLoaded, setSkipsLoaded] = useState(false);
   const todayDate = getCalendarDateForDay(todayDayOfWeek());
   useEffect(() => {
+    let cancelled = false;
+    setSkipsLoaded(false);
     AsyncStorage.getItem(skippedKey(todayDate))
-      .then(raw => setSkippedIds(new Set(raw ? JSON.parse(raw) : [])))
-      .catch(() => setSkippedIds(new Set()));
+      .then(raw => {
+        if (!cancelled) setSkippedIds(new Set(raw ? JSON.parse(raw) : []));
+      })
+      .catch(() => {
+        if (!cancelled) setSkippedIds(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setSkipsLoaded(true);
+      });
+    // Earlier days' skips no longer matter.
+    AsyncStorage.getAllKeys()
+      .then(keys => {
+        const stale = keys.filter(k => k.startsWith('routine_skipped_') && k !== skippedKey(todayDate));
+        if (stale.length > 0) return AsyncStorage.multiRemove(stale);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [todayDate]);
 
   // Countdown state
@@ -1162,7 +1184,7 @@ const RoutineScreen: React.FC = () => {
         {/* Still open from earlier today. Hidden while the Today card itself
             shows one of those earlier sections, so checking or unchecking
             there doesn't make a card pop in above the list. */}
-        {isToday && TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex && (
+        {isToday && skipsLoaded && TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex && (
           <EarlierCard
             tasks={earlierTasks}
             resetKey={`${selectedDay}:${nowSection}`}
