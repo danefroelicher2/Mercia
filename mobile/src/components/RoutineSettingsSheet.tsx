@@ -94,39 +94,44 @@ const RoutineSettingsSheet: React.FC<Props> = ({ visible, accent, onClose, onCle
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-          {/* Selecting & copying — first */}
-          <Text style={styles.sectionTitle}>SELECTING</Text>
-          <View style={styles.group}>
-            <View style={[styles.row, styles.rowDivider]}>
-              <View style={styles.rowLabelWrap}>
-                <Ionicons name="checkmark-done-outline" size={18} color={accent} />
-                <Text style={styles.rowLabel}>Multi-select</Text>
+          <RoutineSettingsContent
+            accent={accent}
+            middle={
+              <>
+              {/* Selecting & copying — between Time of day and Show on Routine tab */}
+              <Text style={styles.sectionTitle}>SELECTING</Text>
+              <View style={styles.group}>
+                <View style={[styles.row, styles.rowDivider]}>
+                  <View style={styles.rowLabelWrap}>
+                    <Ionicons name="checkmark-done-outline" size={18} color={accent} />
+                    <Text style={styles.rowLabel}>Multi-select</Text>
+                  </View>
+                  <Switch
+                    value={prefs.multiSelect}
+                    onValueChange={v => prefs.setToggle('multiSelect', v)}
+                    trackColor={{ false: '#333333', true: accent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+                <Pressable
+                  onPress={() => setCopyVisible(true)}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <View style={styles.rowLabelWrap}>
+                    <Ionicons name="copy-outline" size={18} color={accent} />
+                    <Text style={styles.rowLabel}>Copy a day</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#555" />
+                </Pressable>
               </View>
-              <Switch
-                value={prefs.multiSelect}
-                onValueChange={v => prefs.setToggle('multiSelect', v)}
-                trackColor={{ false: '#333333', true: accent }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-            <Pressable
-              onPress={() => setCopyVisible(true)}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            >
-              <View style={styles.rowLabelWrap}>
-                <Ionicons name="copy-outline" size={18} color={accent} />
-                <Text style={styles.rowLabel}>Copy a day</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#555" />
-            </Pressable>
-          </View>
-          <Text style={styles.footnote}>
-            Multi-select: tapping an item selects it instead of checking it off — across Morning,
-            Afternoon, Night, any day, and your goals. Hold a selected item to delete them all at once.
-            {'\n'}Copy a day: replace one day's routine with another's, times included.
-          </Text>
-
-          <RoutineSettingsContent accent={accent} />
+              <Text style={styles.footnote}>
+                Multi-select: tapping an item selects it instead of checking it off — across Morning,
+                Afternoon, Night, any day, and your goals. Hold a selected item to delete them all at once.
+                {'\n'}Copy a day: replace one day's routine with another's, times included.
+              </Text>
+              </>
+            }
+          />
 
           {/* Clear all — always last */}
           <Pressable

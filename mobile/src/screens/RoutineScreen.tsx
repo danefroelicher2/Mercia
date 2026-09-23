@@ -1196,6 +1196,10 @@ const RoutineScreen: React.FC = () => {
                 onSkip={handleSkipEarlier}
                 onHold={(id, startEdit) => todayCardRef.current?.openItemMenu(id, startEdit)}
                 onEditDone={handleEarlierEditDone}
+                selectionMode={multiSelect}
+                selectedIds={selectedIds}
+                onToggleSelect={id => toggleSelected(id, 'task')}
+                onRequestBulkDelete={openBulkMenu}
               />
           </SlidePresence>
         )}

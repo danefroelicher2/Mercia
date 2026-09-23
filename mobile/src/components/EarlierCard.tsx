@@ -22,6 +22,13 @@ interface Props {
   onHold: (id: string, startEdit: () => void) => void;
   // Finished editing a row in place (empty text deletes it).
   onEditDone: (id: string, text: string) => void;
+  // Multi-select (gear): tap selects instead of checking off, like the
+  // Today card; holding a selected row with others selected offers the
+  // bulk delete.
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onRequestBulkDelete?: () => void;
 }
 
 const DONE_GREEN = '#4ADE80';
@@ -40,7 +47,18 @@ const SOURCE_LABEL: Record<TimeOfDay, string> = {
   night: 'tonight',
 };
 
-const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onHold, onEditDone }) => {
+const EarlierCard: React.FC<Props> = ({
+  tasks,
+  resetKey,
+  onTick,
+  onSkip,
+  onHold,
+  onEditDone,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
+  onRequestBulkDelete,
+}) => {
   const taskIds = tasks.map(t => t.id);
   const pendingIds = tasks.filter(t => !t.completed).map(t => t.id);
 
@@ -251,19 +269,29 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onHold,
           const live = tasks.find(t => t.id === task.id) ?? task;
           const showCount = live.target_count > 1 && live.current_count > 0;
           const editing = editingId === task.id;
+          const selected = !!selectedIds?.has(task.id);
           return (
             <Pressable
               key={task.id}
               onPress={editing ? undefined : () => {
+                if (selectionMode) {
+                  onToggleSelect?.(task.id);
+                  return;
+                }
                 lastAction.current = 'tap';
                 onTick(task.id);
               }}
               onLongPress={editing ? undefined : () => {
                 Keyboard.dismiss();
-                onHold(task.id, () => startEdit(live));
+                if (selectionMode && selected && (selectedIds?.size ?? 0) > 1) onRequestBulkDelete?.();
+                else onHold(task.id, () => startEdit(live));
               }}
               delayLongPress={350}
-              style={({ pressed }) => [styles.row, pressed && !editing && styles.pressed]}
+              style={({ pressed }) => [
+                styles.row,
+                selected && [styles.rowSelected, { backgroundColor: withAlpha(color, 0.13) }],
+                pressed && !editing && styles.pressed,
+              ]}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: live.completed }}
               accessibilityHint="Hold for more options"
@@ -292,6 +320,7 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onHold,
               {!editing && live.scheduled_time && (
                 <Text style={styles.timeText}>{formatTimeLabel(live.scheduled_time)}</Text>
               )}
+              {selected && <Ionicons name="checkmark-circle" size={18} color={color} />}
               {showCount && !editing && (
                 <View style={[styles.countBadge, { borderColor: color }]}>
                   <Text style={[styles.countText, { color }]}>{live.current_count}</Text>
@@ -399,6 +428,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#E8E8E8',
+  },
+  rowSelected: {
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
   },
   rowInput: {
     flex: 1,

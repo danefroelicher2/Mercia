@@ -14,6 +14,8 @@ import {
 // Rendered inside the Routine tab's gear sheet.
 
 interface Props {
+  // Rendered between Time of day and Show on Routine tab.
+  middle?: React.ReactNode;
   // Switch / link color; the gear sheet passes the current section's color.
   accent?: string;
 }
@@ -66,7 +68,7 @@ const StepButton: React.FC<{
   );
 };
 
-const RoutineSettingsContent: React.FC<Props> = ({ accent = '#1D9E75' }) => {
+const RoutineSettingsContent: React.FC<Props> = ({ accent = '#1D9E75', middle }) => {
   const prefs = useRoutinePreferences();
   const { boundaries } = prefs;
   const limits = boundaryLimits(boundaries);
@@ -167,6 +169,10 @@ const RoutineSettingsContent: React.FC<Props> = ({ accent = '#1D9E75' }) => {
         Morning runs from midnight until afternoon starts. Routine opens to the current part of the day,
         and a typed time like "8" becomes AM or PM based on these.
       </Text>
+
+      {/* Whatever the host puts between the two sections (the sheet's
+          Selecting group). */}
+      {middle}
 
       {/* Visibility */}
       <View style={styles.sectionHeader}>
