@@ -39,7 +39,8 @@ type GoalType = 'weekly' | 'monthly' | 'yearly';
 import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
-import DrawerMenu from '../components/DrawerMenu';
+import StreaksScreen from './StreaksScreen';
+import { useDrawer } from '../context/DrawerContext';
 import { Ionicons } from '@expo/vector-icons';
 import { getNextMonday, formatTimeLeftLong, shouldShowUrgent } from '../utils/weeklyReset';
 import { daysLeftLabel, monthInfo, weekInfo, yearInfo } from '../utils/periodProgress';
@@ -108,8 +109,8 @@ const RoutineScreen: React.FC = () => {
   const { showWeekly, showMonthly, showYearly, showNotepad, boundaries } = prefs;
 
   // Drawer state
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [activeSection, setActiveSection] = useState<'routine' | 'gym'>('routine');
+  // Routine / Gym / Streaks, picked from the app-wide side drawer.
+  const { section: activeSection, open: openDrawer } = useDrawer();
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
@@ -1130,7 +1131,7 @@ const RoutineScreen: React.FC = () => {
       {/* Hamburger header */}
       <View style={styles.screenHeader}>
         <TouchableOpacity
-          onPress={() => setDrawerVisible(true)}
+          onPress={openDrawer}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.hamburgerButton}
         >
@@ -1313,8 +1314,10 @@ const RoutineScreen: React.FC = () => {
       </ScrollView>
 
         </>
-      ) : (
+      ) : activeSection === 'gym' ? (
         <GymScreen />
+      ) : (
+        <StreaksScreen />
       )}
 
       {/* Multi-select counter — shown the whole time the mode is on */}
@@ -1367,15 +1370,6 @@ const RoutineScreen: React.FC = () => {
         onCopyDay={handleCopyDay}
       />
 
-      <DrawerMenu
-        visible={drawerVisible}
-        activeSection={activeSection}
-        onSelect={(section) => {
-          setActiveSection(section);
-          setDrawerVisible(false);
-        }}
-        onClose={() => setDrawerVisible(false)}
-      />
     </SafeAreaView>
   );
 };

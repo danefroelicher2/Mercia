@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -25,6 +25,8 @@ import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../services/notifications';
 import { STORAGE_KEYS } from '../constants/config';
+import SideDrawer from '../components/SideDrawer';
+import { DrawerProvider } from '../context/DrawerContext';
 
 // Root stack param list (tabs + paywall modal)
 export type MainRootStackParamList = {
@@ -227,7 +229,14 @@ const MainTabs: React.FC = () => {
   // Debug render log
   console.log('[MainNavigator] render — isSubscribed:', isSubscribed, '| isLoadingSubscription:', isLoadingSubscription, '| hasConsent:', hasConsent, '| isLoadingConsent:', isLoadingConsent, '| isLocked:', isLocked);
 
+  // The side drawer's items (Routine / Gym / Streaks) live on the Routine tab.
+  const showRoutineTab = useCallback(() => {
+    rootNavigation.navigate('Tabs', { screen: 'Routine' } as never);
+  }, [rootNavigation]);
+
   return (
+    <DrawerProvider onShowRoutineTab={showRoutineTab}>
+    <SideDrawer>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -335,6 +344,8 @@ const MainTabs: React.FC = () => {
         }}
       />
     </Tab.Navigator>
+    </SideDrawer>
+    </DrawerProvider>
   );
 };
 
