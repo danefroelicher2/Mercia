@@ -19,7 +19,8 @@ interface DrawerContextValue {
 }
 
 export interface DrawerDrag {
-  begin: () => void;
+  // False when another gesture is already dragging the drawer.
+  begin: () => boolean;
   update: (translationX: number) => void;
   end: (velocityX: number) => void;
 }
@@ -34,7 +35,7 @@ export const DrawerProvider: React.FC<{
   const [isOpen, setIsOpen] = useState(false);
   const [section, setSection] = useState<DrawerSection>('routine');
   // Filled in by SideDrawer, which owns the animation.
-  const drag = useRef<DrawerDrag>({ begin: () => {}, update: () => {}, end: () => {} });
+  const drag = useRef<DrawerDrag>({ begin: () => false, update: () => {}, end: () => {} });
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);

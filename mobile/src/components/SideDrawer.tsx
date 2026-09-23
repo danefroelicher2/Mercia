@@ -42,13 +42,15 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => progress.removeListener(id);
   }, [progress]);
 
-  const settle = (toOpen: boolean, velocity = 0) => {
-    Animated.spring(progress, {
-      toValue: toOpen ? 1 : 0,
-      velocity: velocity / drawerWidth,
-      tension: 70,
-      friction: 12,
-      overshootClamping: true,
+  // Glide to fully open or shut. A timing curve (not a spring) so it can
+  // never run past the drawer's edge, however hard the flick.
+  const settle = (toOpen: boolean) => {
+    const target = toOpen ? 1 : 0;
+    const distance = Math.abs(target - current.current);
+    Animated.timing(progress, {
+      toValue: target,
+      duration: Math.max(120, Math.round(260 * distance)),
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   };
@@ -61,20 +63,34 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // Drag handling shared by the drawer's own swipe and by pagers that hand
   // a right swipe over on their first page.
+  // Only one gesture drives the drawer at a time (a swipe starting on the
+  // Today card's first page is seen by both the card and the drawer).
+  const dragging = useRef(false);
   const beginDrag = () => {
-    progress.stopAnimation();
+    if (dragging.current) return false;
+    dragging.current = true;
+    progress.stopAnimation(value => {
+      current.current = value;
+    });
     dragStart.current = current.current;
+    return true;
   };
   const updateDrag = (translationX: number) => {
-    progress.setValue(Math.min(1, Math.max(0, dragStart.current + translationX / drawerWidth)));
+    // Hard stops at shut and fully open: the drawer never goes past its edge.
+    const next = Math.min(1, Math.max(0, dragStart.current + translationX / drawerWidth));
+    current.current = next;
+    progress.setValue(next);
   };
   const endDrag = (velocityX: number) => {
+    dragging.current = false;
     const toOpen = velocityX > FLICK ? true : velocityX < -FLICK ? false : current.current > OPEN_AT;
-    settle(toOpen, velocityX);
+    settle(toOpen);
     if (toOpen) open();
     else close();
   };
   drag.current = { begin: beginDrag, update: updateDrag, end: endDrag };
+  // Which gesture owns the current drag (see beginDrag).
+  const ownsDrag = useRef(false);
 
   const pan = useMemo(
     () =>
@@ -86,20 +102,21 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         .onStart(e => {
           // A left swipe with the drawer shut does nothing.
           ignoring.current = current.current === 0 && e.translationX < 0;
-          if (!ignoring.current) drag.current.begin();
+          ownsDrag.current = !ignoring.current && drag.current.begin();
         })
         .onUpdate(e => {
-          if (!ignoring.current) drag.current.update(e.translationX);
+          if (ownsDrag.current) drag.current.update(e.translationX);
         })
         .onEnd(e => {
-          if (!ignoring.current) drag.current.end(e.velocityX);
+          if (ownsDrag.current) drag.current.end(e.velocityX);
+          ownsDrag.current = false;
         }),
     [drag],
   );
 
-  const pageShift = progress.interpolate({ inputRange: [0, 1], outputRange: [0, drawerWidth] });
-  const panelShift = progress.interpolate({ inputRange: [0, 1], outputRange: [-drawerWidth, 0] });
-  const dim = progress.interpolate({ inputRange: [0, 1], outputRange: [0, DIM] });
+  const pageShift = progress.interpolate({ inputRange: [0, 1], outputRange: [0, drawerWidth], extrapolate: 'clamp' });
+  const panelShift = progress.interpolate({ inputRange: [0, 1], outputRange: [-drawerWidth, 0], extrapolate: 'clamp' });
+  const dim = progress.interpolate({ inputRange: [0, 1], outputRange: [0, DIM], extrapolate: 'clamp' });
 
   const name = user?.username || user?.email?.split('@')[0] || 'You';
   const initial = name.charAt(0).toUpperCase();

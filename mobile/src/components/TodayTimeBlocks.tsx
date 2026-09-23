@@ -164,8 +164,7 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
       .activeOffsetX([-12, 12])
       .failOffsetY([-12, 12])
       .onStart(e => {
-        handingOff.current = atFirstPage.current && e.translationX > 0;
-        if (handingOff.current) drawerDrag.current.begin();
+        handingOff.current = atFirstPage.current && e.translationX > 0 && drawerDrag.current.begin();
       })
       .onUpdate(e => {
         if (handingOff.current) drawerDrag.current.update(e.translationX);
