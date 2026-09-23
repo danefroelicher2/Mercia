@@ -23,6 +23,7 @@ import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import GoalCard from '../components/GoalCard';
 import DayRings from '../components/DayRings';
 import EarlierCard from '../components/EarlierCard';
+import SlidePresence from '../components/SlidePresence';
 import { TimeOfDay } from '../types/routine';
 import {
   SECTION_COLORS,
@@ -1034,7 +1035,9 @@ const RoutineScreen: React.FC = () => {
         // The list can still hold the previous day's tasks for a moment
         // after switching back to today.
         t.day_of_week === selectedDay &&
-        TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) < nowIndex &&
+        // Only the part of the day just before now: the afternoon picks up
+        // the morning's leftovers, the night the afternoon's.
+        TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) === nowIndex - 1 &&
         !skippedIds.has(t.id))
     : [];
 
@@ -1181,18 +1184,20 @@ const RoutineScreen: React.FC = () => {
           onSelectSection={showSection}
         />
 
-        {/* Still open from earlier today. Hidden while the Today card itself
-            shows one of those earlier sections, so checking or unchecking
-            there doesn't make a card pop in above the list. */}
-        {isToday && skipsLoaded && TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex && (
-          <EarlierCard
-            tasks={earlierTasks}
-            resetKey={`${selectedDay}:${nowSection}`}
-            onTick={handleToggleTask}
-            onSkip={handleSkipEarlier}
-            onHold={(id, startEdit) => todayCardRef.current?.openItemMenu(id, startEdit)}
-            onEditDone={handleEarlierEditDone}
-          />
+        {/* Still open from the part of the day before this one. It slides
+            away (with the page) while the Today card shows that earlier part
+            itself, so the list never jumps. */}
+        {isToday && skipsLoaded && (
+          <SlidePresence visible={TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex}>
+            <EarlierCard
+                tasks={earlierTasks}
+                resetKey={`${selectedDay}:${nowSection}`}
+                onTick={handleToggleTask}
+                onSkip={handleSkipEarlier}
+                onHold={(id, startEdit) => todayCardRef.current?.openItemMenu(id, startEdit)}
+                onEditDone={handleEarlierEditDone}
+              />
+          </SlidePresence>
         )}
 
         {/* Today — Morning / Afternoon / Night notepad */}

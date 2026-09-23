@@ -778,6 +778,17 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
         style={[styles.page, { width }]}
         onLayout={e => handlePageLayout(index, e.nativeEvent.layout.height)}
       >
+        {/* With the tabs off, each page carries its own header so the title
+            slides with the page instead of swapping above it. */}
+        {!showTabs && (
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderTitle}>
+              <Ionicons name={SECTION_ICONS[section]} size={18} color={THEME[section].accent} />
+              <Text style={styles.sectionHeaderText}>{sectionTitle(section)}</Text>
+            </View>
+            <Text style={styles.sectionHeaderMeta}>{sectionHours(section)}</Text>
+          </View>
+        )}
         {rows}
 
         {/* Trailing line — always there to type into */}
@@ -913,19 +924,7 @@ const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
           );
         })}
       </View>
-      ) : (
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeaderTitle}>
-            <Ionicons
-              name={SECTION_ICONS[TIME_OF_DAY_ORDER[pageIndex]]}
-              size={18}
-              color={THEME[TIME_OF_DAY_ORDER[pageIndex]].accent}
-            />
-            <Text style={styles.sectionHeaderText}>{sectionTitle(TIME_OF_DAY_ORDER[pageIndex])}</Text>
-          </View>
-          <Text style={styles.sectionHeaderMeta}>{sectionHours(TIME_OF_DAY_ORDER[pageIndex])}</Text>
-        </View>
-      )}
+      ) : null}
 
       {/* Pages bleed 8pt into the card padding (and pad their content back
           in) so a selected row's tint isn't clipped at the pager edge. */}
