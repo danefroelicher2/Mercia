@@ -201,7 +201,9 @@ const RoutineScreen: React.FC = () => {
   const [notepadContent, setNotepadContent] = useState('');
   const notepadSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickingGoalIds = useRef<Set<string>>(new Set());
-  const tickingTaskIds = useRef<Set<string>>(new Set());
+  // Per-task queue of check-off taps waiting on the server.
+  const tickChains = useRef<Map<string, Promise<void>>>(new Map());
+  const queuedTicks = useRef<Map<string, number>>(new Map());
 
   // Goals: hold menu, in-place editing, and client ids for goals typed in
   // before the server has answered (same pattern as Today tasks).
@@ -507,10 +509,11 @@ const RoutineScreen: React.FC = () => {
     scheduleOrderSync();
   };
 
-  const handleToggleTask = async (taskId: string) => {
-    if (tickingTaskIds.current.has(taskId)) return;
-    tickingTaskIds.current.add(taskId);
-
+  // Every tap shows immediately. Taps on the same item are sent to the server
+  // one after another (never dropped, even while an earlier one is still
+  // saving), and the server's answer is applied only once the last queued
+  // tap is back — so a quick check-then-uncheck never flickers.
+  const handleToggleTask = (taskId: string): Promise<void> => {
     // Same tick rule as the server: count down to done; tapping a done
     // task steps it back up one.
     setTasks(prev => prev.map(t => {
@@ -521,12 +524,23 @@ const RoutineScreen: React.FC = () => {
       return { ...t, current_count: newCount, completed: newCount === 0 };
     }));
 
+    const day = selectedDay;
+    queuedTicks.current.set(taskId, (queuedTicks.current.get(taskId) ?? 0) + 1);
+    const previous = tickChains.current.get(taskId) ?? Promise.resolve();
+    const next = previous.then(() => sendTick(taskId, day));
+    tickChains.current.set(taskId, next);
+    return next;
+  };
+
+  const sendTick = async (taskId: string, day: DayOfWeek) => {
+    let saved: RoutineTask | null = null;
+    let failed = false;
     try {
       const serverId = await resolveTaskId(taskId);
       if (!serverId) return;
 
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const selectedDate = getCalendarDateForDay(selectedDay);
+      const selectedDate = getCalendarDateForDay(day);
       const now = new Date();
       const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
@@ -537,18 +551,26 @@ const RoutineScreen: React.FC = () => {
       }
 
       const response = await api.patch(`/api/routine/tasks/${serverId}`, body);
-
-      if (response.data.success) {
-        const updated: RoutineTask = response.data.data;
-        setTasks(prev => prev.map(t => (t.id === taskId
-          ? { ...t, completed: updated.completed, current_count: updated.current_count, target_count: updated.target_count }
-          : t)));
-      }
+      if (response.data.success) saved = response.data.data;
     } catch (error) {
       console.error('[RoutineScreen] Error toggling task:', error);
-      loadTasks();
+      failed = true;
     } finally {
-      tickingTaskIds.current.delete(taskId);
+      const left = (queuedTicks.current.get(taskId) ?? 1) - 1;
+      if (left > 0) {
+        queuedTicks.current.set(taskId, left);
+      } else {
+        queuedTicks.current.delete(taskId);
+        tickChains.current.delete(taskId);
+        if (failed) {
+          if (selectedDayRef.current === day) loadTasks();
+        } else if (saved) {
+          const updated = saved;
+          setTasks(prev => prev.map(t => (t.id === taskId
+            ? { ...t, completed: updated.completed, current_count: updated.current_count, target_count: updated.target_count }
+            : t)));
+        }
+      }
     }
   };
 
@@ -1006,10 +1028,10 @@ const RoutineScreen: React.FC = () => {
 
   // Check off everything at once; counters tick all the way down.
   const handleCompleteEarlier = (ids: string[]) => {
-    ids.forEach(async id => {
+    ids.forEach(id => {
       const task = tasksRef.current.find(t => t.id === id);
       if (!task) return;
-      for (let i = 0; i < task.current_count; i++) await handleToggleTask(id);
+      for (let i = 0; i < task.current_count; i++) handleToggleTask(id);
     });
   };
 
@@ -1128,8 +1150,10 @@ const RoutineScreen: React.FC = () => {
           onSelectSection={showSection}
         />
 
-        {/* Still open from earlier today */}
-        {isToday && (
+        {/* Still open from earlier today. Hidden while the Today card itself
+            shows one of those earlier sections, so checking or unchecking
+            there doesn't make a card pop in above the list. */}
+        {isToday && TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex && (
           <EarlierCard
             tasks={earlierTasks}
             resetKey={`${selectedDay}:${nowSection}`}

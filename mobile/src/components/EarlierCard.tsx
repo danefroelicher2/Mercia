@@ -22,6 +22,8 @@ interface Props {
 
 const DONE_GREEN = '#4ADE80';
 const CELEBRATE_MS = 3000;
+// Time to undo a tap on the last item before the card celebrates.
+const UNDO_GRACE_MS = 600;
 // Longer lists show this many rows until "Show all" is tapped.
 const PREVIEW_ROWS = 4;
 
@@ -43,10 +45,14 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
   const check = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSource = useRef<TimeOfDay | null>(null);
+  const snapshot = useRef<{ rows: RoutineTask[]; more: number; title: string }>({ rows: [], more: 0, title: '' });
   // Rows cleared with Skip. Only a skip or a check-off counts toward the
   // green check — a row that disappears for any other reason (reload,
   // delete, day switch) just leaves quietly.
   const skipped = useRef<Set<string>>(new Set());
+  // What cleared the card: a row tap gets a moment to be undone; Skip and
+  // All done celebrate straight away.
+  const lastAction = useRef<'tap' | 'skip' | 'all'>('tap');
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -87,6 +93,7 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
   const handleSkip = () => {
     const ids = open.map(t => t.id);
     ids.forEach(id => skipped.current.add(id));
+    lastAction.current = 'skip';
     onSkip(ids);
   };
 
@@ -102,20 +109,29 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
         delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
       });
       skipped.current = new Set();
+      check.setValue(0);
       setCelebrating(false);
       setShownIds([]);
     }, CELEBRATE_MS);
   };
 
-  // Everything on the card is checked off or skipped → celebrate once.
+  // Everything on the card is checked off or skipped → celebrate once. A
+  // check-off waits a moment first, so a quick second tap on the last item
+  // can still take it back; Skip celebrates straight away.
   useEffect(() => {
-    if (!celebrating && cleared) celebrate();
+    if (celebrating || !cleared) return;
+    if (lastAction.current !== 'tap') {
+      celebrate();
+      return;
+    }
+    const grace = setTimeout(celebrate, UNDO_GRACE_MS);
+    return () => clearTimeout(grace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleared]);
 
-  // Rendered as done the moment the last item goes, before the effect
-  // above starts the animation, so the card never blinks out early.
-  const showDone = celebrating || cleared;
+  // After a skip the rows are already gone from the list; show the done
+  // state at once (over the last snapshot) so the card never blinks out.
+  const showDone = celebrating || (cleared && rows.length === 0);
   if (!showDone && rows.length === 0) return null;
 
   // Remembered so the done state still names the section after skipped
@@ -124,85 +140,100 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
   if (rows.length > 0) lastSource.current = sources.length === 1 ? sources[0] : null;
   const source = lastSource.current;
   const tint = SECTION_COLORS[source ?? 'morning'];
-  const title = source
-    ? `${open.length} left from ${SOURCE_LABEL[source]}`
-    : `${open.length} left from earlier today`;
+  const title = open.length === 0
+    ? source ? `${source === 'afternoon' ? 'Afternoon' : source === 'night' ? 'Night' : 'Morning'} done` : 'All done'
+    : source
+      ? `${open.length} left from ${SOURCE_LABEL[source]}`
+      : `${open.length} left from earlier today`;
 
-  if (showDone) {
-    const scale = check.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
-    return (
-      <View style={[styles.card, styles.doneCard]}>
-        <Animated.View style={[styles.doneBadge, { opacity: check, transform: [{ scale }] }]}>
-          <Ionicons name="checkmark" size={26} color="#0D0D0D" />
-        </Animated.View>
-        <Animated.Text style={[styles.doneText, { opacity: check }]}>
-          {source ? `${source === 'morning' ? 'Morning' : source === 'afternoon' ? 'Afternoon' : 'Night'} cleared` : 'All caught up'}
-        </Animated.Text>
-      </View>
-    );
-  }
+  // What the card looked like just before it was cleared. The done state is
+  // drawn over this, at the same size, so nothing below moves under a
+  // finger until the card folds away.
+  const visibleRows = showAll ? rows : rows.slice(0, PREVIEW_ROWS);
+  if (!showDone) snapshot.current = { rows: visibleRows, more: rows.length - visibleRows.length, title };
+  const shown = showDone ? snapshot.current : { rows: visibleRows, more: rows.length - visibleRows.length, title };
+  const sectionName = source === 'afternoon' ? 'Afternoon' : source === 'night' ? 'Night' : 'Morning';
+  const scale = check.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
 
   return (
     <View style={[styles.card, { backgroundColor: withAlpha(tint, 0.07), borderColor: withAlpha(tint, 0.22) }]}>
-      <View style={styles.headRow}>
-        <Text style={[styles.title, { color: withAlpha(tint, 0.95) }]}>{title}</Text>
-        <View style={styles.actions}>
-          <Pressable
-            onPress={handleSkip}
-            hitSlop={6}
-            style={({ pressed }) => [styles.button, styles.skipButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.skipText}>Skip</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => onCompleteAll(open.map(t => t.id))}
-            hitSlop={6}
-            style={({ pressed }) => [styles.button, { backgroundColor: DONE_GREEN }, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
-            <Ionicons name="checkmark-done" size={14} color="#0D0D0D" />
-            <Text style={styles.doneAllText}>All done</Text>
-          </Pressable>
+      <View pointerEvents={showDone ? 'none' : 'auto'}>
+        <View style={styles.headRow}>
+          <Text style={[styles.title, { color: withAlpha(tint, 0.95) }]}>{shown.title}</Text>
+          <View style={styles.actions}>
+            <Pressable
+              onPress={handleSkip}
+              hitSlop={6}
+              style={({ pressed }) => [styles.button, styles.skipButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.skipText}>Skip</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                lastAction.current = 'all';
+                onCompleteAll(open.map(t => t.id));
+              }}
+              hitSlop={6}
+              style={({ pressed }) => [styles.button, { backgroundColor: DONE_GREEN }, pressed && styles.pressed]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="checkmark-done" size={14} color="#0D0D0D" />
+              <Text style={styles.doneAllText}>All done</Text>
+            </Pressable>
+          </View>
         </View>
+
+        {shown.rows.map(task => {
+          const color = SECTION_COLORS[taskTimeOfDay(task)];
+          const live = tasks.find(t => t.id === task.id) ?? task;
+          const showCount = live.target_count > 1 && live.current_count > 0;
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => {
+                lastAction.current = 'tap';
+                onTick(task.id);
+              }}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: live.completed }}
+            >
+              <Checkbox done={live.completed} color={color} />
+              <Text style={[styles.rowText, live.completed && styles.rowTextDone]} numberOfLines={2}>
+                {task.text}
+              </Text>
+              {showCount && (
+                <View style={[styles.countBadge, { borderColor: color }]}>
+                  <Text style={[styles.countText, { color }]}>{live.current_count}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+
+        {shown.more > 0 && (
+          <Pressable
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setShowAll(true);
+            }}
+            hitSlop={6}
+            style={({ pressed }) => [styles.more, pressed && styles.pressed]}
+          >
+            <Text style={[styles.moreText, { color: tint }]}>Show {shown.more} more</Text>
+            <Ionicons name="chevron-down" size={14} color={tint} />
+          </Pressable>
+        )}
       </View>
 
-      {(showAll ? rows : rows.slice(0, PREVIEW_ROWS)).map(task => {
-        const color = SECTION_COLORS[taskTimeOfDay(task)];
-        const showCount = task.target_count > 1 && task.current_count > 0;
-        return (
-          <Pressable
-            key={task.id}
-            onPress={() => onTick(task.id)}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: task.completed }}
-          >
-            <Checkbox done={task.completed} color={color} />
-            <Text style={[styles.rowText, task.completed && styles.rowTextDone]} numberOfLines={2}>
-              {task.text}
-            </Text>
-            {showCount && (
-              <View style={[styles.countBadge, { borderColor: color }]}>
-                <Text style={[styles.countText, { color }]}>{task.current_count}</Text>
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
-
-      {!showAll && rows.length > PREVIEW_ROWS && (
-        <Pressable
-          onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setShowAll(true);
-          }}
-          hitSlop={6}
-          style={({ pressed }) => [styles.more, pressed && styles.pressed]}
-        >
-          <Text style={[styles.moreText, { color: tint }]}>Show {rows.length - PREVIEW_ROWS} more</Text>
-          <Ionicons name="chevron-down" size={14} color={tint} />
-        </Pressable>
+      {showDone && (
+        <Animated.View style={[styles.doneOverlay, { opacity: check }]}>
+          <Animated.View style={[styles.doneBadge, { transform: [{ scale }] }]}>
+            <Ionicons name="checkmark" size={26} color="#0D0D0D" />
+          </Animated.View>
+          <Text style={styles.doneText}>{source ? `${sectionName} cleared` : 'All caught up'}</Text>
+        </Animated.View>
       )}
     </View>
   );
@@ -273,7 +304,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 9,
+    minHeight: 44,
+    paddingVertical: 8,
   },
   rowText: {
     flex: 1,
@@ -298,14 +330,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  doneCard: {
-    backgroundColor: withAlpha(DONE_GREEN, 0.08),
+  doneOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 15,
+    backgroundColor: '#0F1A13',
+    borderWidth: 1,
     borderColor: withAlpha(DONE_GREEN, 0.35),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    paddingVertical: 18,
   },
   doneBadge: {
     width: 40,
