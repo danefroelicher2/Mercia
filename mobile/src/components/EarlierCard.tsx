@@ -32,6 +32,7 @@ const SOURCE_LABEL: Record<TimeOfDay, string> = {
 };
 
 const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompleteAll }) => {
+  const taskIds = tasks.map(t => t.id);
   const pendingIds = tasks.filter(t => !t.completed).map(t => t.id);
 
   // Rows stay on the card once shown, so a checked item stays visible
@@ -42,9 +43,14 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
   const check = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSource = useRef<TimeOfDay | null>(null);
+  // Rows cleared with Skip. Only a skip or a check-off counts toward the
+  // green check — a row that disappears for any other reason (reload,
+  // delete, day switch) just leaves quietly.
+  const skipped = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
+    skipped.current = new Set();
     setCelebrating(false);
     setShowAll(false);
     setShownIds(pendingIds);
@@ -55,21 +61,34 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  // Something reopened (unchecked in the Today card) → show it again.
+  // Keep the rows in step with the list: add anything open that isn't shown
+  // (a new item, or one unchecked in the Today card) and drop rows whose
+  // task is gone without being skipped.
   useEffect(() => {
     if (celebrating) return;
-    const missing = pendingIds.filter(id => !shownIds.includes(id));
-    if (missing.length > 0) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setShownIds(prev => [...prev, ...missing]);
-    }
+    setShownIds(prev => {
+      const kept = prev.filter(id => taskIds.includes(id) || skipped.current.has(id));
+      const missing = pendingIds.filter(id => !kept.includes(id));
+      if (kept.length === prev.length && missing.length === 0) return prev;
+      if (missing.length > 0) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      return [...kept, ...missing];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingIds.join(',')]);
+  }, [taskIds.join(','), pendingIds.join(','), celebrating]);
 
   const rows = shownIds
     .map(id => tasks.find(t => t.id === id))
     .filter((t): t is RoutineTask => !!t);
   const open = rows.filter(t => !t.completed);
+  const cleared =
+    shownIds.length > 0 &&
+    shownIds.every(id => skipped.current.has(id) || !!tasks.find(t => t.id === id)?.completed);
+
+  const handleSkip = () => {
+    const ids = open.map(t => t.id);
+    ids.forEach(id => skipped.current.add(id));
+    onSkip(ids);
+  };
 
   const celebrate = () => {
     setCelebrating(true);
@@ -82,20 +101,21 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
         update: { type: LayoutAnimation.Types.easeInEaseOut },
         delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
       });
+      skipped.current = new Set();
       setCelebrating(false);
       setShownIds([]);
     }, CELEBRATE_MS);
   };
 
-  // Everything on the card is done (or skipped away) → celebrate once.
+  // Everything on the card is checked off or skipped → celebrate once.
   useEffect(() => {
-    if (!celebrating && shownIds.length > 0 && open.length === 0) celebrate();
+    if (!celebrating && cleared) celebrate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open.length, shownIds.length]);
+  }, [cleared]);
 
   // Rendered as done the moment the last item goes, before the effect
   // above starts the animation, so the card never blinks out early.
-  const showDone = celebrating || (shownIds.length > 0 && open.length === 0);
+  const showDone = celebrating || cleared;
   if (!showDone && rows.length === 0) return null;
 
   // Remembered so the done state still names the section after skipped
@@ -128,7 +148,7 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
         <Text style={[styles.title, { color: withAlpha(tint, 0.95) }]}>{title}</Text>
         <View style={styles.actions}>
           <Pressable
-            onPress={() => onSkip(open.map(t => t.id))}
+            onPress={handleSkip}
             hitSlop={6}
             style={({ pressed }) => [styles.button, styles.skipButton, pressed && styles.pressed]}
             accessibilityRole="button"

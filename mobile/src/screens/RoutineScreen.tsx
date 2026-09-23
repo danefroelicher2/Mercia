@@ -27,10 +27,8 @@ import { TimeOfDay } from '../types/routine';
 import {
   SECTION_COLORS,
   TIME_OF_DAY_ORDER,
-  formatMinutes,
   getCurrentTimeOfDay,
   parseCountSuffix,
-  sectionRange,
   taskTimeOfDay,
   textOnColor,
   withAlpha,
@@ -102,12 +100,6 @@ const DEFAULT_GOAL_EXPANDED: Record<GoalType, boolean> = { weekly: true, monthly
 
 // Items skipped from the "left from earlier" card, per calendar date.
 const skippedKey = (date: string) => `routine_skipped_${date}`;
-
-const SECTION_ICONS: Record<TimeOfDay, keyof typeof Ionicons.glyphMap> = {
-  morning: 'sunny-outline',
-  afternoon: 'partly-sunny-outline',
-  night: 'moon-outline',
-};
 
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
@@ -986,14 +978,19 @@ const RoutineScreen: React.FC = () => {
   const todayTasks = tasks.filter(t => t.type === 'today');
 
   // ============================================
-  // LEFT FROM EARLIER + LATER TODAY
+  // LEFT FROM EARLIER
   // ============================================
 
   const isToday = selectedDay === todayDayOfWeek();
   const nowSection = getCurrentTimeOfDay(now, boundaries);
   const nowIndex = TIME_OF_DAY_ORDER.indexOf(nowSection);
   const earlierTasks = isToday
-    ? todayTasks.filter(t => TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) < nowIndex && !skippedIds.has(t.id))
+    ? todayTasks.filter(t =>
+        // The list can still hold the previous day's tasks for a moment
+        // after switching back to today.
+        t.day_of_week === selectedDay &&
+        TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) < nowIndex &&
+        !skippedIds.has(t.id))
     : [];
 
   const handleSkipEarlier = (ids: string[]) => {
@@ -1015,10 +1012,6 @@ const RoutineScreen: React.FC = () => {
       for (let i = 0; i < task.current_count; i++) await handleToggleTask(id);
     });
   };
-
-  const laterSections = isToday
-    ? TIME_OF_DAY_ORDER.slice(nowIndex + 1).filter(section => section !== todaySection)
-    : [];
 
   // "Day x of y" for each goal card, on the local calendar (leap-year and
   // month-length aware — see utils/periodProgress).
@@ -1172,31 +1165,6 @@ const RoutineScreen: React.FC = () => {
           accent={accent}
           onClose={() => setCopyMenuVisible(false)}
         />
-
-        {/* Later today, folded to one line each */}
-        {laterSections.map(section => {
-          const color = SECTION_COLORS[section];
-          const count = todayTasks.filter(t => taskTimeOfDay(t) === section).length;
-          const start = formatMinutes(sectionRange(section, boundaries)[0]).replace(':00', '');
-          return (
-            <TouchableOpacity
-              key={section}
-              onPress={() => showSection(section)}
-              activeOpacity={0.7}
-              style={[styles.laterRow, { backgroundColor: withAlpha(color, 0.06), borderColor: withAlpha(color, 0.2) }]}
-              accessibilityRole="button"
-            >
-              <Ionicons name={SECTION_ICONS[section]} size={20} color={color} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.laterTitle}>{section === 'night' ? 'Tonight' : 'This afternoon'}</Text>
-                <Text style={styles.laterMeta}>
-                  {count === 0 ? 'Nothing planned yet' : `${count} ${count === 1 ? 'item' : 'items'}`} · starts at {start}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={color} />
-            </TouchableOpacity>
-          );
-        })}
 
         {/* Notepad */}
         {showNotepad && (
@@ -1395,28 +1363,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 4,
-  },
-
-  // "Later today" rows
-  laterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 12,
-  },
-  laterTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#E8E8E8',
-  },
-  laterMeta: {
-    fontSize: 12,
-    color: '#8A8A8A',
-    marginTop: 2,
   },
 
   // Hamburger header
