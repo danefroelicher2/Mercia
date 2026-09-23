@@ -22,10 +22,12 @@ import {
   SECTION_COLORS,
   TIME_OF_DAY_LABELS,
   TIME_OF_DAY_ORDER,
+  formatMinutes,
   formatTime,
   formatTimeLabel,
   getCurrentTimeOfDay,
   parseCountSuffix,
+  sectionRange,
   taskTimeOfDay,
   timeToMinutes,
   withAlpha,
@@ -78,6 +80,11 @@ interface Props {
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onRequestBulkDelete?: () => void;
+  // Off: a header names the section instead of the Morning/Afternoon/Night
+  // tabs (the day bar above does the switching).
+  showTabs?: boolean;
+  // Switch to this section; a new token repeats the request.
+  requestedSection?: { section: TimeOfDay; token: number } | null;
 }
 
 type ActiveLine =
@@ -132,6 +139,8 @@ const TodayTimeBlocks: React.FC<Props> = ({
   selectedIds,
   onToggleSelect,
   onRequestBulkDelete,
+  showTabs = true,
+  requestedSection = null,
 }) => {
   const [width, setWidth] = useState(0);
   const [tabsWidth, setTabsWidth] = useState(0);
@@ -280,6 +289,13 @@ const TodayTimeBlocks: React.FC<Props> = ({
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     jumpToPage(index, true);
   };
+
+  useEffect(() => {
+    if (!requestedSection) return;
+    const index = TIME_OF_DAY_ORDER.indexOf(requestedSection.section);
+    if (index !== pageIndex) handleTabPress(index);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedSection?.token]);
 
   const handleScroll = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     if (width === 0) return;
@@ -569,6 +585,21 @@ const TodayTimeBlocks: React.FC<Props> = ({
 
   const isSelected = (id: string) => !!selectedIds?.has(id);
 
+  const sectionTitle = (section: TimeOfDay) => {
+    if (!isToday) return TIME_OF_DAY_LABELS[section];
+    if (section === 'night') return 'Tonight';
+    return section === nowSection ? `This ${section}` : TIME_OF_DAY_LABELS[section];
+  };
+
+  const sectionHours = (section: TimeOfDay) => {
+    const short = (m: number) => formatMinutes(m % (24 * 60)).replace(':00', '');
+    const [start, end] = sectionRange(section, boundaries);
+    // Morning has no real start (it runs from midnight); show when it ends.
+    if (section === 'morning') return `until ${short(end)}`;
+    if (section === 'night') return `from ${short(start)}`;
+    return `${short(start)} – ${short(end)}`;
+  };
+
   const handleRowPress = (task: RoutineTask) => {
     if (selectionMode) onToggleSelect?.(task.id);
     else onToggle(task.id);
@@ -802,7 +833,8 @@ const TodayTimeBlocks: React.FC<Props> = ({
         ))}
       </View>
 
-      {/* Segmented header */}
+      {showTabs ? (
+      /* Segmented header */
       <View style={styles.tabs} onLayout={e => setTabsWidth(e.nativeEvent.layout.width)}>
         {indicatorWidth > 0 && (
           <Animated.View
@@ -867,6 +899,19 @@ const TodayTimeBlocks: React.FC<Props> = ({
           );
         })}
       </View>
+      ) : (
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderTitle}>
+            <Ionicons
+              name={SECTION_ICONS[TIME_OF_DAY_ORDER[pageIndex]]}
+              size={18}
+              color={THEME[TIME_OF_DAY_ORDER[pageIndex]].accent}
+            />
+            <Text style={styles.sectionHeaderText}>{sectionTitle(TIME_OF_DAY_ORDER[pageIndex])}</Text>
+          </View>
+          <Text style={styles.sectionHeaderMeta}>{sectionHours(TIME_OF_DAY_ORDER[pageIndex])}</Text>
+        </View>
+      )}
 
       {/* Pages bleed 8pt into the card padding (and pad their content back
           in) so a selected row's tint isn't clipped at the pager edge. */}
@@ -934,6 +979,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#232323',
+  },
+
+  // Section header (when the tabs are off)
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 2,
+    paddingBottom: 8,
+  },
+  sectionHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#F2F2F2',
+  },
+  sectionHeaderMeta: {
+    fontSize: 13,
+    color: '#8A8A8A',
   },
 
   // Segmented header

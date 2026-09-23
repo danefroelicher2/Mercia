@@ -8,9 +8,11 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
+  LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import api from '../services/api';
@@ -19,8 +21,20 @@ import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/Tod
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import GoalCard from '../components/GoalCard';
+import DayBar from '../components/DayBar';
+import EarlierCard from '../components/EarlierCard';
 import { TimeOfDay } from '../types/routine';
-import { SECTION_COLORS, getCurrentTimeOfDay, parseCountSuffix, textOnColor, withAlpha } from '../utils/timeOfDay';
+import {
+  SECTION_COLORS,
+  TIME_OF_DAY_ORDER,
+  formatMinutes,
+  getCurrentTimeOfDay,
+  parseCountSuffix,
+  sectionRange,
+  taskTimeOfDay,
+  textOnColor,
+  withAlpha,
+} from '../utils/timeOfDay';
 
 type GoalType = 'weekly' | 'monthly' | 'yearly';
 import QuoteCard from '../components/QuoteCard';
@@ -56,6 +70,43 @@ const getCalendarDateForDay = (day: DayOfWeek): string => {
   const mm = String(target.getMonth() + 1).padStart(2, '0');
   const dd = String(target.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+};
+
+const DAY_NAMES: Record<DayOfWeek, string> = {
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  sunday: 'Sunday',
+};
+
+const todayDayOfWeek = (): DayOfWeek => {
+  const day = new Date().getDay();
+  return DAYS[day === 0 ? 6 : day - 1];
+};
+
+// "Wednesday, Sep 23" for a day of the current week.
+const headerDateLabel = (day: DayOfWeek): string => {
+  const [y, m, d] = getCalendarDateForDay(day).split('-').map(Number);
+  const month = new Date(y, m - 1, d).toLocaleString('en-US', { month: 'short' });
+  return `${DAY_NAMES[day]}, ${month} ${d}`;
+};
+
+// Goal cards remember whether they were left open or folded, so the tab
+// opens the way this person uses it. First run: Weekly and Monthly open,
+// Yearly folded.
+const GOAL_EXPANDED_KEY = 'routine_goal_expanded';
+const DEFAULT_GOAL_EXPANDED: Record<GoalType, boolean> = { weekly: true, monthly: true, yearly: false };
+
+// Items skipped from the "left from earlier" card, per calendar date.
+const skippedKey = (date: string) => `routine_skipped_${date}`;
+
+const SECTION_ICONS: Record<TimeOfDay, keyof typeof Ionicons.glyphMap> = {
+  morning: 'sunny-outline',
+  afternoon: 'partly-sunny-outline',
+  night: 'moon-outline',
 };
 
 const RoutineScreen: React.FC = () => {
@@ -111,6 +162,39 @@ const RoutineScreen: React.FC = () => {
 
   const [refreshing, setRefreshing] = useState(false);
 
+  // Minute clock for the day bar, the "left from earlier" card and the
+  // goal countdowns.
+  const [now, setNow] = useState(() => new Date());
+
+  // Day bar / "Later today" taps ask the Today card to switch sections.
+  const [requestedSection, setRequestedSection] = useState<{ section: TimeOfDay; token: number } | null>(null);
+  const showSection = (section: TimeOfDay) => setRequestedSection({ section, token: Date.now() });
+
+  const [goalExpanded, setGoalExpanded] = useState<Record<GoalType, boolean>>(DEFAULT_GOAL_EXPANDED);
+  useEffect(() => {
+    AsyncStorage.getItem(GOAL_EXPANDED_KEY)
+      .then(raw => {
+        if (raw) setGoalExpanded(prev => ({ ...prev, ...JSON.parse(raw) }));
+      })
+      .catch(() => {});
+  }, []);
+  const toggleGoalExpanded = (type: GoalType) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setGoalExpanded(prev => {
+      const next = { ...prev, [type]: !prev[type] };
+      AsyncStorage.setItem(GOAL_EXPANDED_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const todayDate = getCalendarDateForDay(todayDayOfWeek());
+  useEffect(() => {
+    AsyncStorage.getItem(skippedKey(todayDate))
+      .then(raw => setSkippedIds(new Set(raw ? JSON.parse(raw) : [])))
+      .catch(() => setSkippedIds(new Set()));
+  }, [todayDate]);
+
   // Countdown state
   // Weekly reset countdown ("2d 5h left"); also ticks the goal cards'
   // progress bars forward every minute.
@@ -152,6 +236,7 @@ const RoutineScreen: React.FC = () => {
   useEffect(() => {
     const updateCountdowns = () => {
       const now = new Date();
+      setNow(now);
       const weeklyMs = getNextMonday().getTime() - now.getTime();
       setWeeklyCountdown({ text: formatTimeLeftLong(weeklyMs), urgent: shouldShowUrgent(weeklyMs) });
     };
@@ -900,6 +985,41 @@ const RoutineScreen: React.FC = () => {
   // Filter tasks by type
   const todayTasks = tasks.filter(t => t.type === 'today');
 
+  // ============================================
+  // LEFT FROM EARLIER + LATER TODAY
+  // ============================================
+
+  const isToday = selectedDay === todayDayOfWeek();
+  const nowSection = getCurrentTimeOfDay(now, boundaries);
+  const nowIndex = TIME_OF_DAY_ORDER.indexOf(nowSection);
+  const earlierTasks = isToday
+    ? todayTasks.filter(t => TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) < nowIndex && !skippedIds.has(t.id))
+    : [];
+
+  const handleSkipEarlier = (ids: string[]) => {
+    const serverIds = ids.map(id => resolvedTaskIds.current.get(id) ?? id);
+    setSkippedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      serverIds.forEach(id => next.add(id));
+      AsyncStorage.setItem(skippedKey(todayDate), JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  };
+
+  // Check off everything at once; counters tick all the way down.
+  const handleCompleteEarlier = (ids: string[]) => {
+    ids.forEach(async id => {
+      const task = tasksRef.current.find(t => t.id === id);
+      if (!task) return;
+      for (let i = 0; i < task.current_count; i++) await handleToggleTask(id);
+    });
+  };
+
+  const laterSections = isToday
+    ? TIME_OF_DAY_ORDER.slice(nowIndex + 1).filter(section => section !== todaySection)
+    : [];
+
   // "Day x of y" for each goal card, on the local calendar (leap-year and
   // month-length aware — see utils/periodProgress).
   const week = weekInfo();
@@ -968,6 +1088,11 @@ const RoutineScreen: React.FC = () => {
           <View style={styles.hamburgerLine} />
           <View style={styles.hamburgerLine} />
         </TouchableOpacity>
+        <View style={styles.headerTitleWrap} pointerEvents="none">
+          {activeSection === 'routine' && (
+            <Text style={styles.headerTitle}>{headerDateLabel(selectedDay)}</Text>
+          )}
+        </View>
         <View style={{ flex: 1 }} />
         {activeSection === 'routine' && (
           <TouchableOpacity
@@ -983,9 +1108,6 @@ const RoutineScreen: React.FC = () => {
 
       {activeSection === 'routine' ? (
         <>
-          {/* Quote Card */}
-          <QuoteCard quote={currentQuote} />
-
           {/* Week Navigator */}
           {renderWeekNavigator()}
 
@@ -1002,10 +1124,32 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
+        {/* Where the day stands; each part switches the Today card */}
+        <DayBar
+          tasks={todayTasks}
+          isToday={isToday}
+          dayName={DAY_NAMES[selectedDay]}
+          now={now}
+          boundaries={boundaries}
+          shownSection={todaySection}
+          onSelectSection={showSection}
+        />
+
+        {/* Still open from earlier today */}
+        {isToday && (
+          <EarlierCard
+            tasks={earlierTasks}
+            resetKey={`${selectedDay}:${nowSection}`}
+            onTick={handleToggleTask}
+            onSkip={handleSkipEarlier}
+            onCompleteAll={handleCompleteEarlier}
+          />
+        )}
+
         {/* Today — Morning / Afternoon / Night notepad */}
         <TodayTimeBlocks
           tasks={todayTasks}
-          isToday={selectedDay === DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]}
+          isToday={isToday}
           resetToken={`${selectedDay}:${focusCount}`}
           onToggle={handleToggleTask}
           onCreate={handleCreateTask}
@@ -1018,6 +1162,8 @@ const RoutineScreen: React.FC = () => {
           selectedIds={selectedIds}
           onToggleSelect={id => toggleSelected(id, 'task')}
           onRequestBulkDelete={openBulkMenu}
+          showTabs={false}
+          requestedSection={requestedSection}
         />
         <ActionMenu
           visible={copyMenuVisible}
@@ -1026,6 +1172,31 @@ const RoutineScreen: React.FC = () => {
           accent={accent}
           onClose={() => setCopyMenuVisible(false)}
         />
+
+        {/* Later today, folded to one line each */}
+        {laterSections.map(section => {
+          const color = SECTION_COLORS[section];
+          const count = todayTasks.filter(t => taskTimeOfDay(t) === section).length;
+          const start = formatMinutes(sectionRange(section, boundaries)[0]).replace(':00', '');
+          return (
+            <TouchableOpacity
+              key={section}
+              onPress={() => showSection(section)}
+              activeOpacity={0.7}
+              style={[styles.laterRow, { backgroundColor: withAlpha(color, 0.06), borderColor: withAlpha(color, 0.2) }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name={SECTION_ICONS[section]} size={20} color={color} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.laterTitle}>{section === 'night' ? 'Tonight' : 'This afternoon'}</Text>
+                <Text style={styles.laterMeta}>
+                  {count === 0 ? 'Nothing planned yet' : `${count} ${count === 1 ? 'item' : 'items'}`} · starts at {start}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={color} />
+            </TouchableOpacity>
+          );
+        })}
 
         {/* Notepad */}
         {showNotepad && (
@@ -1054,6 +1225,8 @@ const RoutineScreen: React.FC = () => {
         {showWeekly && (
           <GoalCard
             type="weekly"
+            expanded={goalExpanded.weekly}
+            onToggleExpanded={() => toggleGoalExpanded('weekly')}
             title="Weekly"
             goals={weeklyGoals}
             accent={accent}
@@ -1069,6 +1242,8 @@ const RoutineScreen: React.FC = () => {
         {showMonthly && (
           <GoalCard
             type="monthly"
+            expanded={goalExpanded.monthly}
+            onToggleExpanded={() => toggleGoalExpanded('monthly')}
             title="Monthly"
             goals={monthlyGoals}
             accent={accent}
@@ -1084,6 +1259,8 @@ const RoutineScreen: React.FC = () => {
         {showYearly && (
           <GoalCard
             type="yearly"
+            expanded={goalExpanded.yearly}
+            onToggleExpanded={() => toggleGoalExpanded('yearly')}
             title="Yearly"
             goals={yearlyGoals}
             accent={accent}
@@ -1096,6 +1273,9 @@ const RoutineScreen: React.FC = () => {
             {...goalCardHandlers}
           />
         )}
+
+        {/* Quote of the day (tap to rate) */}
+        <QuoteCard quote={currentQuote} quiet />
       </ScrollView>
 
         </>
@@ -1217,7 +1397,40 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
+  // "Later today" rows
+  laterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  laterTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#E8E8E8',
+  },
+  laterMeta: {
+    fontSize: 12,
+    color: '#8A8A8A',
+    marginTop: 2,
+  },
+
   // Hamburger header
+  headerTitleWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#E8E8E8',
+  },
   screenHeader: {
     paddingHorizontal: 16,
     paddingVertical: 10,

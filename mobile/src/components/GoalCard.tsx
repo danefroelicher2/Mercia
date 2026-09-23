@@ -30,6 +30,10 @@ interface Props {
   onHold: (goal: RoutineGoal) => void;
   onCreate: (type: GoalType, text: string) => void;
   onEditDone: (goal: RoutineGoal, text: string) => void;
+  // Folded cards keep the title, bar and a done count; tapping the header
+  // opens or folds the card.
+  expanded: boolean;
+  onToggleExpanded: () => void;
 }
 
 const PLACEHOLDERS: Record<GoalType, string> = {
@@ -51,7 +55,10 @@ const GoalCard: React.FC<Props> = ({
   onHold,
   onCreate,
   onEditDone,
+  expanded,
+  onToggleExpanded,
 }) => {
+  const doneCount = goals.filter(g => g.completed).length;
   const [draft, setDraft] = useState('');
   const [editText, setEditText] = useState('');
   const editCommitted = useRef(false);
@@ -104,19 +111,40 @@ const GoalCard: React.FC<Props> = ({
       </View>
 
       {/* Centered script title; progress bar with its % at the end, and
-          "Day x of y · … left" underneath */}
-      <Text style={styles.title}>{title}</Text>
-      <View style={styles.period}>
-        <View style={styles.barRow}>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
+          "Day x of y · … left" underneath. The whole header folds the card. */}
+      <Pressable
+        onPress={onToggleExpanded}
+        accessibilityRole="button"
+        accessibilityLabel={`${title} goals`}
+        accessibilityState={{ expanded }}
+        style={({ pressed }) => pressed && styles.headerPressed}
+      >
+        <Text style={styles.title}>{title}</Text>
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color="#6A6A6A"
+          style={styles.chevron}
+        />
+        <View style={[styles.period, !expanded && styles.periodFolded]}>
+          <View style={styles.barRow}>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
+            </View>
+            <Text style={[styles.percent, { color: accent }]}>{Math.floor(period.progress * 100)}%</Text>
           </View>
-          <Text style={[styles.percent, { color: accent }]}>{Math.floor(period.progress * 100)}%</Text>
+          <View style={styles.periodRow}>
+            <Text style={[styles.periodText, period.urgent && styles.periodTextUrgent]}>{period.detail}</Text>
+            {goals.length > 0 && (
+              <Text style={[styles.doneText, doneCount === goals.length && { color: accent }]}>
+                {doneCount} of {goals.length} done
+              </Text>
+            )}
+          </View>
         </View>
-        <Text style={[styles.periodText, period.urgent && styles.periodTextUrgent]}>{period.detail}</Text>
-      </View>
+      </Pressable>
 
-      {goals.map(goal => {
+      {expanded && goals.map(goal => {
         const editing = goal.id === editingId;
         const selected = selectedIds.has(goal.id);
         const showCount = goal.target_count > 1 && goal.current_count > 0;
@@ -164,6 +192,7 @@ const GoalCard: React.FC<Props> = ({
       })}
 
       {/* Type here to add a goal */}
+      {expanded && (
       <View style={[styles.row, styles.addRow]}>
         <View style={styles.checkboxBox}>
           <Ionicons name="add" size={16} color="#4E4E4E" />
@@ -193,6 +222,7 @@ const GoalCard: React.FC<Props> = ({
           autoCapitalize="sentences"
         />
       </View>
+      )}
     </View>
   );
 };
@@ -226,9 +256,33 @@ const styles = StyleSheet.create({
     color: '#F2F2F2',
     textAlign: 'center',
   },
+  headerPressed: {
+    opacity: 0.7,
+  },
+  chevron: {
+    position: 'absolute',
+    right: 0,
+    top: 9,
+  },
   period: {
     marginTop: 4,
     marginBottom: 8,
+  },
+  periodFolded: {
+    marginBottom: 10,
+  },
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  doneText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8A8A8A',
+    marginTop: 6,
+    fontVariant: ['tabular-nums'],
   },
   barRow: {
     flexDirection: 'row',

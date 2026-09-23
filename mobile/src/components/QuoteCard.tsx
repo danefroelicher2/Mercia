@@ -5,9 +5,11 @@ import api from '../services/api';
 
 interface QuoteCardProps {
   quote: Quote;
+  // Dark, low-key version for the bottom of the Routine tab.
+  quiet?: boolean;
 }
 
-const QuoteCard: React.FC<QuoteCardProps> = ({ quote }) => {
+const QuoteCard: React.FC<QuoteCardProps> = ({ quote, quiet = false }) => {
   const [likeCount, setLikeCount] = useState<number>(0);
   const [userInteraction, setUserInteraction] = useState<'like' | 'dislike' | 'none'>('none');
   const [modalVisible, setModalVisible] = useState(false);
@@ -61,14 +63,14 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ quote }) => {
   return (
     <>
       <TouchableOpacity
-        style={styles.quoteCard}
+        style={[styles.quoteCard, quiet && styles.quietCard]}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
-        <Text style={styles.quoteText}>"{quote.text}"</Text>
+        <Text style={[styles.quoteText, quiet && styles.quietText]}>"{quote.text}"</Text>
         <View style={styles.quoteFooter}>
-          <Text style={styles.quoteAuthor}>{'\u2014'} {quote.author}</Text>
-          <Text style={styles.likeCount}>
+          <Text style={[styles.quoteAuthor, quiet && styles.quietAuthor]}>{'\u2014'} {quote.author}</Text>
+          <Text style={[styles.likeCount, quiet && styles.quietLikes]}>
             {likeCount} {likeCount === 1 ? 'like' : 'likes'}
           </Text>
         </View>
@@ -153,6 +155,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+  },
+  quietCard: {
+    backgroundColor: 'transparent',
+    marginHorizontal: 0,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#1E1E1E',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  quietText: {
+    color: '#9A9A9A',
+    fontSize: 14,
+  },
+  quietAuthor: {
+    color: '#6F6F6F',
+  },
+  quietLikes: {
+    color: '#555555',
   },
   quoteText: {
     fontSize: 15,
