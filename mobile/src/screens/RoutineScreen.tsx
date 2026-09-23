@@ -1026,15 +1026,6 @@ const RoutineScreen: React.FC = () => {
     });
   };
 
-  // Check off everything at once; counters tick all the way down.
-  const handleCompleteEarlier = (ids: string[]) => {
-    ids.forEach(id => {
-      const task = tasksRef.current.find(t => t.id === id);
-      if (!task) return;
-      for (let i = 0; i < task.current_count; i++) handleToggleTask(id);
-    });
-  };
-
   // "Day x of y" for each goal card, on the local calendar (leap-year and
   // month-length aware — see utils/periodProgress).
   const week = weekInfo();
@@ -1159,7 +1150,6 @@ const RoutineScreen: React.FC = () => {
             resetKey={`${selectedDay}:${nowSection}`}
             onTick={handleToggleTask}
             onSkip={handleSkipEarlier}
-            onCompleteAll={handleCompleteEarlier}
           />
         )}
 

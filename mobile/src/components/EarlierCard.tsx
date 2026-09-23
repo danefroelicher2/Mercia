@@ -6,7 +6,7 @@ import { SECTION_COLORS, taskTimeOfDay, withAlpha } from '../utils/timeOfDay';
 import Checkbox from './Checkbox';
 
 // "2 left from this morning": what's still open from earlier parts of today.
-// Tap an item to check it off, or clear the lot with Skip / All done. Once
+// Tap an item to check it off, or Skip whatever is still open. Once
 // nothing is left the card flashes a green check and folds away, and the
 // Today card below slides up into its place.
 
@@ -17,7 +17,6 @@ interface Props {
   resetKey: string;
   onTick: (id: string) => void;
   onSkip: (ids: string[]) => void;
-  onCompleteAll: (ids: string[]) => void;
 }
 
 const DONE_GREEN = '#4ADE80';
@@ -33,7 +32,7 @@ const SOURCE_LABEL: Record<TimeOfDay, string> = {
   night: 'tonight',
 };
 
-const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompleteAll }) => {
+const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
   const taskIds = tasks.map(t => t.id);
   const pendingIds = tasks.filter(t => !t.completed).map(t => t.id);
 
@@ -50,9 +49,9 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
   // green check — a row that disappears for any other reason (reload,
   // delete, day switch) just leaves quietly.
   const skipped = useRef<Set<string>>(new Set());
-  // What cleared the card: a row tap gets a moment to be undone; Skip and
-  // All done celebrate straight away.
-  const lastAction = useRef<'tap' | 'skip' | 'all'>('tap');
+  // What cleared the card: a row tap gets a moment to be undone; Skip
+  // celebrates straight away.
+  const lastAction = useRef<'tap' | 'skip'>('tap');
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -169,18 +168,6 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
             >
               <Text style={styles.skipText}>Skip</Text>
             </Pressable>
-            <Pressable
-              onPress={() => {
-                lastAction.current = 'all';
-                onCompleteAll(open.map(t => t.id));
-              }}
-              hitSlop={6}
-              style={({ pressed }) => [styles.button, { backgroundColor: DONE_GREEN }, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Ionicons name="checkmark-done" size={14} color="#0D0D0D" />
-              <Text style={styles.doneAllText}>All done</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -212,17 +199,20 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onCompl
           );
         })}
 
-        {shown.more > 0 && (
+        {(shown.more > 0 || (showAll && rows.length > PREVIEW_ROWS)) && (
           <Pressable
             onPress={() => {
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setShowAll(true);
+              setShowAll(!showAll);
             }}
             hitSlop={6}
             style={({ pressed }) => [styles.more, pressed && styles.pressed]}
+            accessibilityRole="button"
           >
-            <Text style={[styles.moreText, { color: tint }]}>Show {shown.more} more</Text>
-            <Ionicons name="chevron-down" size={14} color={tint} />
+            <Text style={[styles.moreText, { color: tint }]}>
+              {showAll ? 'Show less' : `Show ${shown.more} more`}
+            </Text>
+            <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={14} color={tint} />
           </Pressable>
         )}
       </View>
@@ -280,11 +270,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#B8B8B8',
-  },
-  doneAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0D0D0D',
   },
   pressed: {
     opacity: 0.6,
