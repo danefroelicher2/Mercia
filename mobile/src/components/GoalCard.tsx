@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { RoutineGoal } from '../types/routine';
@@ -59,6 +59,27 @@ const GoalCard: React.FC<Props> = ({
   onToggleExpanded,
 }) => {
   const doneCount = goals.filter(g => g.completed).length;
+  // Share of these goals finished, with partial credit for counters (a
+  // "Run x4" at 3 ticks is 0.75) — the same math as Momentum on Home.
+  const completion = goals.length === 0
+    ? 0
+    : goals.reduce((sum, g) => {
+        if (g.completed) return sum + 1;
+        const target = g.target_count ?? 1;
+        if (target <= 1) return sum;
+        return sum + Math.min(1, Math.max(0, (target - (g.current_count ?? target)) / target));
+      }, 0) / goals.length;
+
+  // The bar fills to the new level when a goal is checked or unchecked.
+  const fillAnim = useRef(new Animated.Value(completion)).current;
+  useEffect(() => {
+    Animated.timing(fillAnim, {
+      toValue: completion,
+      duration: 450,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [completion, fillAnim]);
   const [draft, setDraft] = useState('');
   const [editText, setEditText] = useState('');
   const editCommitted = useRef(false);
@@ -128,10 +149,22 @@ const GoalCard: React.FC<Props> = ({
         />
         <View style={[styles.period, !expanded && styles.periodFolded]}>
           <View style={styles.barRow}>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${period.progress * 100}%`, backgroundColor: accent }]} />
+            {/* Fill: goals done. White tick: how far through the period we are. */}
+            <View style={styles.trackWrap}>
+              <View style={styles.track}>
+                <Animated.View
+                  style={[
+                    styles.fill,
+                    {
+                      width: fillAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                      backgroundColor: accent,
+                    },
+                  ]}
+                />
+              </View>
+              <View pointerEvents="none" style={[styles.timeTick, { left: `${period.progress * 100}%` }]} />
             </View>
-            <Text style={[styles.percent, { color: accent }]}>{Math.floor(period.progress * 100)}%</Text>
+            <Text style={[styles.percent, { color: accent }]}>{Math.round(completion * 100)}%</Text>
           </View>
           <View style={styles.periodRow}>
             <Text style={[styles.periodText, period.urgent && styles.periodTextUrgent]}>{period.detail}</Text>
@@ -306,8 +339,19 @@ const styles = StyleSheet.create({
   periodTextUrgent: {
     color: '#FF6B6B',
   },
-  track: {
+  trackWrap: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  timeTick: {
+    position: 'absolute',
+    width: 2,
+    height: 10,
+    marginLeft: -1,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+  },
+  track: {
     height: 4,
     backgroundColor: '#2A2A2A',
     borderRadius: 2,
