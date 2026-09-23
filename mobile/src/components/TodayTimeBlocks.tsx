@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -87,6 +87,13 @@ interface Props {
   requestedSection?: { section: TimeOfDay; token: number } | null;
 }
 
+// Lets another card (the "left from this morning" card) open the same hold
+// menu for one of these tasks. onEdit replaces the in-card Edit so the item
+// can be edited where it was held.
+export interface TodayTimeBlocksHandle {
+  openItemMenu: (taskId: string, onEdit?: () => void) => void;
+}
+
 type ActiveLine =
   | { kind: 'item'; id: string }
   | { kind: 'draft'; section: TimeOfDay; afterId: string }
@@ -124,7 +131,7 @@ function lineKey(line: ActiveLine | null): string {
   return `trail:${line.section}`;
 }
 
-const TodayTimeBlocks: React.FC<Props> = ({
+const TodayTimeBlocks = forwardRef<TodayTimeBlocksHandle, Props>(({
   tasks,
   isToday,
   resetToken,
@@ -141,7 +148,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
   onRequestBulkDelete,
   showTabs = true,
   requestedSection = null,
-}) => {
+}, ref) => {
   const [width, setWidth] = useState(0);
   const [tabsWidth, setTabsWidth] = useState(0);
   // pageIndex follows the swipe live (tab highlight); heightIndex only
@@ -546,7 +553,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
     }
   };
 
-  const openMenu = (task: RoutineTask) => {
+  const openMenu = (task: RoutineTask, onEdit?: () => void) => {
     commitActive();
     Keyboard.dismiss();
 
@@ -554,7 +561,7 @@ const TodayTimeBlocks: React.FC<Props> = ({
     const index = anytime.findIndex(t => t.id === task.id);
 
     const menuItems: ActionMenuItem[] = [
-      { label: 'Edit', icon: 'create-outline', onPress: () => startEditingItem(task) },
+      { label: 'Edit', icon: 'create-outline', onPress: onEdit ?? (() => startEditingItem(task)) },
       {
         label: task.scheduled_time ? 'Change time' : 'Add time',
         icon: 'time-outline',
@@ -578,6 +585,13 @@ const TodayTimeBlocks: React.FC<Props> = ({
     setMenu({ title: task.text, items: menuItems, accent: THEME[taskTimeOfDay(task)].accent });
     setMenuVisible(true);
   };
+
+  useImperativeHandle(ref, () => ({
+    openItemMenu: (taskId, onEdit) => {
+      const task = tasksRef.current.find(t => t.id === taskId);
+      if (task) openMenu(task, onEdit);
+    },
+  }));
 
   // ============================================
   // RENDER
@@ -967,7 +981,9 @@ const TodayTimeBlocks: React.FC<Props> = ({
       />
     </View>
   );
-};
+});
+
+TodayTimeBlocks.displayName = 'TodayTimeBlocks';
 
 const styles = StyleSheet.create({
   card: {

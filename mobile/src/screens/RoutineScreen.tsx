@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
-import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
+import TodayTimeBlocks, { CreateTaskInput, TaskChanges, TodayTimeBlocksHandle } from '../components/TodayTimeBlocks';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import GoalCard from '../components/GoalCard';
@@ -153,6 +153,7 @@ const RoutineScreen: React.FC = () => {
   const orderSyncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  const todayCardRef = useRef<TodayTimeBlocksHandle>(null);
 
   // Minute clock for the day bar, the "left from earlier" card and the
   // goal countdowns.
@@ -1015,6 +1016,24 @@ const RoutineScreen: React.FC = () => {
         !skippedIds.has(t.id))
     : [];
 
+  // Edit finished on a row of the "left from earlier" card — same rules as
+  // editing in the Today card: empty deletes, "Run x3" sets a counter.
+  const handleEarlierEditDone = (id: string, raw: string) => {
+    const task = tasksRef.current.find(t => t.id === id);
+    if (!task) return;
+    if (!raw.trim()) {
+      handleDeleteTask(id);
+      return;
+    }
+    const parsed = parseCountSuffix(raw);
+    const changes: TaskChanges = {};
+    if (parsed.text !== task.text) changes.text = parsed.text;
+    if (parsed.targetCount !== null && parsed.targetCount !== task.target_count) {
+      changes.targetCount = parsed.targetCount;
+    }
+    if (changes.text !== undefined || changes.targetCount !== undefined) handleUpdateTask(id, changes);
+  };
+
   const handleSkipEarlier = (ids: string[]) => {
     const serverIds = ids.map(id => resolvedTaskIds.current.get(id) ?? id);
     setSkippedIds(prev => {
@@ -1150,11 +1169,14 @@ const RoutineScreen: React.FC = () => {
             resetKey={`${selectedDay}:${nowSection}`}
             onTick={handleToggleTask}
             onSkip={handleSkipEarlier}
+            onHold={(id, startEdit) => todayCardRef.current?.openItemMenu(id, startEdit)}
+            onEditDone={handleEarlierEditDone}
           />
         )}
 
         {/* Today — Morning / Afternoon / Night notepad */}
         <TodayTimeBlocks
+          ref={todayCardRef}
           tasks={todayTasks}
           isToday={isToday}
           resetToken={`${selectedDay}:${focusCount}`}

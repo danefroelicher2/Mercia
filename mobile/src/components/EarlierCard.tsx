@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, LayoutAnimation, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Keyboard, LayoutAnimation, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RoutineTask, TimeOfDay } from '../types/routine';
-import { SECTION_COLORS, taskTimeOfDay, withAlpha } from '../utils/timeOfDay';
+import { SECTION_COLORS, TIME_OF_DAY_ORDER, formatTimeLabel, taskTimeOfDay, timeToMinutes, withAlpha } from '../utils/timeOfDay';
 import Checkbox from './Checkbox';
 
 // "2 left from this morning": what's still open from earlier parts of today.
@@ -17,6 +17,11 @@ interface Props {
   resetKey: string;
   onTick: (id: string) => void;
   onSkip: (ids: string[]) => void;
+  // Hold: open the Today card's item menu (time, move, counter, delete).
+  // startEdit turns that row into a text field here, for the menu's Edit.
+  onHold: (id: string, startEdit: () => void) => void;
+  // Finished editing a row in place (empty text deletes it).
+  onEditDone: (id: string, text: string) => void;
 }
 
 const DONE_GREEN = '#4ADE80';
@@ -35,7 +40,7 @@ const SOURCE_LABEL: Record<TimeOfDay, string> = {
   night: 'tonight',
 };
 
-const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
+const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip, onHold, onEditDone }) => {
   const taskIds = tasks.map(t => t.id);
   const pendingIds = tasks.filter(t => !t.completed).map(t => t.id);
 
@@ -115,15 +120,45 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
       const kept = prev.filter(id => taskIds.includes(id) || skipped.current.has(id));
       const missing = pendingIds.filter(id => !kept.includes(id));
       if (kept.length === prev.length && missing.length === 0) return prev;
-      if (missing.length > 0) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      if (missing.length > 0 || kept.length !== prev.length) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
       return [...kept, ...missing];
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskIds.join(','), pendingIds.join(','), celebrating]);
 
-  const rows = shownIds
-    .map(id => tasks.find(t => t.id === id))
-    .filter((t): t is RoutineTask => !!t);
+  // Same order as the Today card: by section, timed items by the clock
+  // first, then the rest in their own order.
+  const rows = tasks
+    .filter(t => shownIds.includes(t.id))
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => {
+      const sa = TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(a.t));
+      const sb = TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(b.t));
+      if (sa !== sb) return sa - sb;
+      const ta = a.t.scheduled_time ? timeToMinutes(a.t.scheduled_time) : Infinity;
+      const tb = b.t.scheduled_time ? timeToMinutes(b.t.scheduled_time) : Infinity;
+      return ta !== tb ? ta - tb : a.i - b.i;
+    })
+    .map(({ t }) => t);
+
+  // In-place editing (the hold menu's Edit).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const editCommitted = useRef(false);
+  const startEdit = (task: RoutineTask) => {
+    editCommitted.current = false;
+    setEditText(task.text);
+    setEditingId(task.id);
+  };
+  const commitEdit = (id: string) => {
+    // Return and the blur that follows both land here; save once.
+    if (editCommitted.current) return;
+    editCommitted.current = true;
+    setEditingId(null);
+    onEditDone(id, editText);
+  };
   const open = rows.filter(t => !t.completed);
   const cleared =
     shownIds.length > 0 &&
@@ -215,22 +250,49 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
           const color = SECTION_COLORS[taskTimeOfDay(task)];
           const live = tasks.find(t => t.id === task.id) ?? task;
           const showCount = live.target_count > 1 && live.current_count > 0;
+          const editing = editingId === task.id;
           return (
             <Pressable
               key={task.id}
-              onPress={() => {
+              onPress={editing ? undefined : () => {
                 lastAction.current = 'tap';
                 onTick(task.id);
               }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              onLongPress={editing ? undefined : () => {
+                Keyboard.dismiss();
+                onHold(task.id, () => startEdit(live));
+              }}
+              delayLongPress={350}
+              style={({ pressed }) => [styles.row, pressed && !editing && styles.pressed]}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: live.completed }}
+              accessibilityHint="Hold for more options"
             >
               <Checkbox done={live.completed} color={color} />
-              <Text style={[styles.rowText, live.completed && styles.rowTextDone]} numberOfLines={2}>
-                {task.text}
-              </Text>
-              {showCount && (
+              {editing ? (
+                <TextInput
+                  style={styles.rowInput}
+                  value={editText}
+                  onChangeText={setEditText}
+                  onSubmitEditing={() => commitEdit(task.id)}
+                  onBlur={() => commitEdit(task.id)}
+                  submitBehavior="blurAndSubmit"
+                  autoFocus
+                  multiline
+                  scrollEnabled={false}
+                  maxLength={500}
+                  selectionColor={color}
+                  keyboardAppearance="dark"
+                />
+              ) : (
+                <Text style={[styles.rowText, live.completed && styles.rowTextDone]} numberOfLines={2}>
+                  {live.text}
+                </Text>
+              )}
+              {!editing && live.scheduled_time && (
+                <Text style={styles.timeText}>{formatTimeLabel(live.scheduled_time)}</Text>
+              )}
+              {showCount && !editing && (
                 <View style={[styles.countBadge, { borderColor: color }]}>
                   <Text style={[styles.countText, { color }]}>{live.current_count}</Text>
                 </View>
@@ -337,6 +399,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#E8E8E8',
+  },
+  rowInput: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#E8E8E8',
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingHorizontal: 0,
+    minHeight: 20,
+  },
+  timeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8A8A8A',
+    fontVariant: ['tabular-nums'],
   },
   rowTextDone: {
     color: '#6A6A6A',
