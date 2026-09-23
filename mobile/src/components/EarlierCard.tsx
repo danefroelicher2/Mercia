@@ -23,6 +23,9 @@ const DONE_GREEN = '#4ADE80';
 const CELEBRATE_MS = 3000;
 // Time to undo a tap on the last item before the card celebrates.
 const UNDO_GRACE_MS = 600;
+// How long a checked row stays (check visible, undo possible) before it
+// slides out of the card.
+const LEAVE_DELAY_MS = 550;
 // Longer lists show this many rows until "Show all" is tapped.
 const PREVIEW_ROWS = 4;
 
@@ -36,14 +39,18 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
   const taskIds = tasks.map(t => t.id);
   const pendingIds = tasks.filter(t => !t.completed).map(t => t.id);
 
-  // Rows stay on the card once shown, so a checked item stays visible
-  // (crossed off) until the whole card is cleared.
+  // Rows on the card. A checked row lingers a moment (so the check is seen
+  // and a second tap can undo it), then slides out and the rows below move
+  // up. The last open row stays for the done state instead.
   const [shownIds, setShownIds] = useState<string[]>(pendingIds);
   const [celebrating, setCelebrating] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const check = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSource = useRef<TimeOfDay | null>(null);
+  const leaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
   const snapshot = useRef<{ rows: RoutineTask[]; more: number; title: string }>({ rows: [], more: 0, title: '' });
   // Rows cleared with Skip. Only a skip or a check-off counts toward the
   // green check — a row that disappears for any other reason (reload,
@@ -55,6 +62,8 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
+    leaveTimers.current.forEach(clearTimeout);
+    leaveTimers.current.clear();
     skipped.current = new Set();
     setCelebrating(false);
     setShowAll(false);
@@ -64,7 +73,38 @@ const EarlierCard: React.FC<Props> = ({ tasks, resetKey, onTick, onSkip }) => {
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
+    leaveTimers.current.forEach(clearTimeout);
   }, []);
+
+  // Checked rows leave after a beat; unchecking in time cancels it.
+  useEffect(() => {
+    const timers = leaveTimers.current;
+    for (const id of shownIds) {
+      const done = !!tasks.find(t => t.id === id)?.completed;
+      if (done && !timers.has(id)) {
+        timers.set(id, setTimeout(() => {
+          timers.delete(id);
+          setShownIds(prev => {
+            const stillDone = !!tasksRef.current.find(t => t.id === id)?.completed;
+            const othersOpen = prev.some(other =>
+              other !== id && tasksRef.current.some(t => t.id === other && !t.completed) && !skipped.current.has(other));
+            // The last row stays put and becomes the done state.
+            if (!stillDone || !othersOpen || !prev.includes(id)) return prev;
+            LayoutAnimation.configureNext({
+              duration: 300,
+              update: { type: LayoutAnimation.Types.easeInEaseOut },
+              delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+            });
+            return prev.filter(other => other !== id);
+          });
+        }, LEAVE_DELAY_MS));
+      } else if (!done && timers.has(id)) {
+        clearTimeout(timers.get(id));
+        timers.delete(id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, shownIds]);
 
   // Keep the rows in step with the list: add anything open that isn't shown
   // (a new item, or one unchecked in the Today card) and drop rows whose
