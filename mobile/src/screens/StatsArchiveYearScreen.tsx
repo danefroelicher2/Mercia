@@ -12,7 +12,7 @@ const ROUTINE = GROUP_COLORS.Routine;
 const StatsArchiveYearScreen: React.FC = () => {
   const { entry } = useRoute<any>().params as { entry: ArchivedYear };
   const d = entry.data;
-  const coverHeight = Math.round(useWindowDimensions().height * 0.25);
+  const coverHeight = Math.round(useWindowDimensions().height * 0.2);
 
   const crossed = (b: Bucket) =>
     b.planned > 0 ? `${num(b.done)} of ${num(b.planned)} crossed off${b.points ? ` · +${b.points} goal pts` : ''}` : 'nothing planned';
@@ -61,9 +61,6 @@ const StatsArchiveYearScreen: React.FC = () => {
           </Svg>
           <Text style={styles.coverLabel}>YEAR IN REVIEW</Text>
           <Text style={styles.coverYear}>{entry.year}</Text>
-          <View style={styles.coverDots}>
-            {SECTIONS.map(s => <View key={s} style={[styles.coverDot, { backgroundColor: SECTION_COLORS[s] }]} />)}
-          </View>
           {entry.sample ? <Text style={[styles.tag, styles.coverTag]}>SAMPLE</Text> : null}
         </View>
         <View style={styles.hero}>
@@ -226,12 +223,10 @@ const styles = StyleSheet.create({
   coverTop: { alignItems: 'center', justifyContent: 'center' },
   coverLabel: { fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
   coverYear: {
-    fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 84, lineHeight: 96,
+    fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 116, lineHeight: 124, marginTop: -4,
     color: '#FFFFFF', fontVariant: ['lining-nums'],
     textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12,
   },
-  coverDots: { flexDirection: 'row', gap: 6, marginTop: 2 },
-  coverDot: { width: 5, height: 5, borderRadius: 2.5 },
   coverTag: { position: 'absolute', top: 12, right: 12 },
   tag: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#999',
