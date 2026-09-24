@@ -130,23 +130,36 @@ export interface LiveExtras {
   currentStreaks: number;
   lifetime: {
     actions: number;            // items + goals + messages + gym days, all time
-    joined: string;             // YYYY-MM-DD, user's zone
-    daysSinceJoining: number;   // joined … today, both counted
-    activeDays: number;         // days with any recorded activity
     itemsCrossedOff: number;
     goalsCompleted: number;
+    gymDays: number;            // distinct gym days (the gym part of actions)
+    messages: number;
     gymSessions: number;        // gym_memory rows (one per muscle group per day)
-    gymDays: number;            // distinct gym days (the part of actions)
-    messages: number;           // messages sent to Mercia
-    longestStreak: { name: string; days: number; running: boolean } | null;
-    mostActiveMonth: { month: string; activeDays: number } | null;
+    favoriteGymDay: { day: string; sessions: number } | null;
+    mostUsedWeekday: { day: string; activeDays: number } | null; // weekday with the most active days
+    mostUsedMonth: { month: number; activeDays: number } | null; // 1–12, active days summed over every year
+    joined: string;             // YYYY-MM-DD, user's zone
+    daysSinceJoining: number;   // joined … today, both counted
   };
 }
+
+const WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const weekdayOf = (date: string) => WEEK[(new Date(toMs(date)).getUTCDay() + 6) % 7];
+// Highest count; ties go to the earlier key in `order`.
+function top<K>(counts: Map<K, number>, order: K[]): { key: K; n: number } | null {
+  let best: { key: K; n: number } | null = null;
+  for (const key of order) {
+    const n = counts.get(key) ?? 0;
+    if (n > 0 && (!best || n > best.n)) best = { key, n };
+  }
+  return best;
+}
+
 export async function liveExtras(userId: string, tz: string): Promise<LiveExtras> {
   const sb = getSupabase().schema('oasis');
   const today = localDate(new Date(), tz);
   const [streaksRes, profileRes, activityRes, actionDaysRes, gymRes] = await Promise.all([
-    sb.from('streaks').select('name, started_at, ended_at').eq('user_id', userId),
+    sb.from('streaks').select('ended_at').eq('user_id', userId),
     sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
     sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId),
     sb.from('user_action_days').select('action_date').eq('user_id', userId),
@@ -162,36 +175,40 @@ export async function liveExtras(userId: string, tz: string): Promise<LiveExtras
   const goalsCompleted = count('goal_completed');
   const messages = count('ai_chat_sent');
 
+  const gymByWeekday = new Map<string, number>();
+  for (const g of gymRows) gymByWeekday.set(weekdayOf(g.session_date), (gymByWeekday.get(weekdayOf(g.session_date)) ?? 0) + 1);
+  const fav = top(gymByWeekday, WEEK);
+
+  // Active days: any recorded activity or action.
   const active = new Set<string>([
     ...activity.map((a: any) => a.activity_date as string),
     ...(actionDaysRes.data ?? []).map((a: any) => a.action_date as string),
   ]);
-  const byMonth = new Map<string, number>();
-  for (const d of active) byMonth.set(d.slice(0, 7), (byMonth.get(d.slice(0, 7)) ?? 0) + 1);
-  const top = Array.from(byMonth.entries()).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0];
-
-  const now = Date.now();
-  let longestStreak: LiveExtras['lifetime']['longestStreak'] = null;
-  for (const r of streaksRes.data ?? []) {
-    const days = ((r.ended_at ? Date.parse(r.ended_at) : now) - Date.parse(r.started_at)) / DAY_MS;
-    if (!longestStreak || days > longestStreak.days) longestStreak = { name: r.name, days, running: !r.ended_at };
+  const activeByWeekday = new Map<string, number>();
+  const activeByMonth = new Map<number, number>();
+  for (const d of active) {
+    activeByWeekday.set(weekdayOf(d), (activeByWeekday.get(weekdayOf(d)) ?? 0) + 1);
+    const m = Number(d.slice(5, 7));
+    activeByMonth.set(m, (activeByMonth.get(m) ?? 0) + 1);
   }
+  const wd = top(activeByWeekday, WEEK);
+  const mo = top(activeByMonth, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
   const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
   return {
     currentStreaks: (streaksRes.data ?? []).filter((r: any) => !r.ended_at).length,
     lifetime: {
       actions: itemsCrossedOff + goalsCompleted + messages + gymDays,
-      joined,
-      daysSinceJoining: daysBetween(joined, today) + 1,
-      activeDays: active.size,
       itemsCrossedOff,
       goalsCompleted,
-      gymSessions: gymRows.length,
       gymDays,
       messages,
-      longestStreak,
-      mostActiveMonth: top ? { month: top[0], activeDays: top[1] } : null,
+      gymSessions: gymRows.length,
+      favoriteGymDay: fav ? { day: fav.key, sessions: fav.n } : null,
+      mostUsedWeekday: wd ? { day: wd.key, activeDays: wd.n } : null,
+      mostUsedMonth: mo ? { month: mo.key, activeDays: mo.n } : null,
+      joined,
+      daysSinceJoining: daysBetween(joined, today) + 1,
     },
   };
 }
