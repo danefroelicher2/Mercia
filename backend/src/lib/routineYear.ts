@@ -185,21 +185,63 @@ export async function ensureDaysClosed(userId: string, tz?: string): Promise<voi
   closedThrough.set(userId, yesterday);
 }
 
-// A past day was checked off (or un-checked) after it closed: re-count it
-// against the items that were on its list.
-export async function recountDay(userId: string, date: string): Promise<void> {
+// A past day's item was checked off (delta +1) or un-checked (-1) after the
+// day closed: adjust that day's count for the part of the day holding the
+// item. Adjusts by the one change rather than re-counting from history, since
+// deleting an item also deletes its history and would undercount the day.
+export async function adjustDay(userId: string, date: string, taskId: string, delta: 1 | -1): Promise<void> {
   const sb = getSupabase().schema('oasis');
-  const [rowsRes, histRes] = await Promise.all([
-    sb.from('routine_day_log').select('section, task_ids').eq('user_id', userId).eq('log_date', date),
-    sb.from('task_completion_history').select('task_id').eq('user_id', userId).eq('snapshot_date', date).eq('completed', true),
+  const { data, error } = await sb
+    .from('routine_day_log')
+    .select('section, planned, done, task_ids')
+    .eq('user_id', userId)
+    .eq('log_date', date);
+  if (error) throw error;
+  const row = (data ?? []).find((r: any) => (r.task_ids ?? []).includes(taskId));
+  if (!row) return; // not on that day's list (or the day isn't tracked)
+  const done = Math.max(0, Math.min(row.planned, row.done + delta));
+  const { error: upErr } = await sb.from('routine_day_log').update({ done }).eq('user_id', userId).eq('log_date', date).eq('section', row.section);
+  if (upErr) throw upErr;
+}
+
+// A past day's goal completions changed after the day closed: recompute that
+// day's goal points from its remaining completions.
+export async function recountGoalPoints(userId: string, date: string): Promise<void> {
+  const sb = getSupabase().schema('oasis');
+  const p = await loadProfile(userId);
+  const [rowsRes, goalsRes] = await Promise.all([
+    sb.from('routine_day_log').select('section').eq('user_id', userId).eq('log_date', date),
+    sb.from('goal_completion_history').select('goal_type, created_at').eq('user_id', userId).eq('completed_date', date),
   ]);
   if (rowsRes.error) throw rowsRes.error;
-  if (histRes.error) throw histRes.error;
-  const doneIds = new Set((histRes.data ?? []).map((h: any) => h.task_id));
-  for (const r of rowsRes.data ?? []) {
-    const done = (r.task_ids ?? []).filter((id: string) => doneIds.has(id)).length;
-    await sb.from('routine_day_log').update({ done }).eq('user_id', userId).eq('log_date', date).eq('section', r.section);
+  if (goalsRes.error) throw goalsRes.error;
+  if (!(rowsRes.data ?? []).length) return; // day not closed / not tracked
+  const points: Record<Section, number> = { morning: 0, afternoon: 0, night: 0 };
+  for (const g of goalsRes.data ?? []) {
+    const pts = GOAL_POINTS[g.goal_type];
+    if (pts) points[sectionAt(localMinutes(g.created_at, p.timezone), p)] += pts;
   }
+  for (const s of SECTIONS) {
+    const { error } = await sb.from('routine_day_log').update({ goal_points: points[s] }).eq('user_id', userId).eq('log_date', date).eq('section', s);
+    if (error) throw error;
+  }
+}
+
+// Take back one logged action (an item or goal un-checked), so lifetime and
+// yearly action counts can't be inflated by checking something on and off.
+export async function removeOneActivity(userId: string, type: string, date: string): Promise<void> {
+  const sb = getSupabase().schema('oasis');
+  const { data, error } = await sb
+    .from('user_activity_log')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('activity_type', type)
+    .eq('activity_date', date)
+    .limit(1);
+  if (error) throw error;
+  if (!data?.length) return;
+  const { error: delErr } = await sb.from('user_activity_log').delete().eq('id', data[0].id);
+  if (delErr) throw delErr;
 }
 
 // The user did something today.

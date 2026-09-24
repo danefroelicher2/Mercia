@@ -4,8 +4,8 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
-import { computeInsights, liveExtras } from '../lib/statsInsights';
-import { summarizeYear, localDate, validZone, YearSummary } from '../lib/routineYear';
+import { liveExtras } from '../lib/statsLifetime';
+import { summarizeYear, localDate, validZone } from '../lib/routineYear';
 
 const router = Router();
 
@@ -700,33 +700,6 @@ router.post(
 );
 
 // ============================================
-// GET /api/stats/insights?timezone=
-// Every stat the app can compute from data it already records, as
-// display-ready sections (see lib/statsInsights).
-// ============================================
-router.get('/insights', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const tz = typeof req.query.timezone === 'string' ? req.query.timezone : 'UTC';
-    let zone = 'UTC';
-    try {
-      new Intl.DateTimeFormat('en-US', { timeZone: tz });
-      zone = tz;
-    } catch {}
-    const thisYear = Number(localDate(new Date(), validZone(zone)).slice(0, 4));
-    const year = await summarizeYear(req.user!.id, thisYear, zone);
-    const sections = await computeInsights(req.user!.id, zone, year);
-    // Overall (incl. Days) first, then Routine, then Gym and Streaks.
-    const all = [...sections, ...yearSections(year)];
-    const ORDER = ['Overall', 'Routine', 'Gym', 'Streaks'];
-    const data = ORDER.flatMap(g => all.filter(s => s.group === g));
-    res.json({ success: true, data });
-  } catch (error: any) {
-    console.error('[Stats Insights] Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
 // GET /api/stats/year?timezone= — this year so far, in the same shape the
 // Stats Archive saves (so the Stats tab and the archive render alike), plus
 // the few numbers only the Stats tab shows.
@@ -742,68 +715,6 @@ router.get('/year', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// The yearly stats as Stats sections (same shape the archive screen uses).
-const WD_LABEL: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
-function yearSections(y: YearSummary) {
-  const pctOf = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
-  const detail = (x: { planned: number; done: number; points: number; days: number }) =>
-    x.planned > 0
-      ? `${x.done} of ${x.planned} crossed off${x.points ? ` · +${x.points} goal pts` : ''} · ${x.days} day${x.days === 1 ? '' : 's'}`
-      : x.days > 0 ? `nothing planned · ${x.days} day${x.days === 1 ? '' : 's'}` : 'no days yet';
-  const since = `${y.year} · tracking since ${new Date(`${y.trackingStart}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  const g = y.goals;
-  const period = (x: { average: number | null; periods: number; soFar: number | null }, unit: string) => ({
-    value: pctOf(x.average),
-    sub: `${x.periods} finished ${unit}${x.periods === 1 ? '' : 's'}${x.soFar != null ? ` · this ${unit} so far ${pctOf(x.soFar)}` : ''}`,
-  });
-  return [
-    {
-      id: 'year-sections',
-      group: 'Routine',
-      title: 'By part of day',
-      note: since,
-      rows: (['morning', 'afternoon', 'night'] as const).map(s => ({
-        label: s[0].toUpperCase() + s.slice(1),
-        value: pctOf(y.bySection[s].rate),
-        sub: detail(y.bySection[s]),
-      })),
-    },
-    {
-      id: 'year-weekdays',
-      group: 'Routine',
-      title: 'By weekday',
-      note: since,
-      rows: Object.keys(WD_LABEL).map(d => ({
-        label: WD_LABEL[d],
-        value: pctOf(y.byWeekday[d].rate),
-        sub: detail(y.byWeekday[d]),
-      })),
-    },
-    {
-      id: 'year-days',
-      group: 'Overall',
-      title: 'Days',
-      note: since,
-      rows: [
-        { label: 'Perfect days', value: String(y.perfectDays), sub: 'every Morning, Afternoon and Night item crossed off' },
-        { label: 'Missed days', value: String(y.missedDays), sub: 'days with no action at all' },
-        { label: 'Consistency', value: pctOf(y.consistency), sub: `${y.actionDays} of ${y.countedDays} days with an action` },
-      ],
-    },
-    {
-      id: 'year-goals',
-      group: 'Routine',
-      title: 'Goals',
-      note: `${y.year}`,
-      rows: [
-        { label: 'Weekly', ...period(g.weekly, 'week') },
-        { label: 'Monthly', ...period(g.monthly, 'month') },
-        { label: 'Yearly', value: pctOf(g.yearly.rate), sub: `${g.yearly.completed} of ${g.yearly.total} done` },
-      ],
-    },
-  ];
-}
 
 // ============================================
 // GET /api/stats/archive — finished years' saved stats (newest first)
