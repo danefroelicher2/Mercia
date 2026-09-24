@@ -28,8 +28,6 @@ export interface ArchivedYearData {
   // Saved from 2026 on; older saves may not have them.
   overall?: {
     actions: number;
-    lifetimeActions: number;
-    daysSinceJoining: number;
     mostActiveMonth: { month: string; activeDays: number } | null; // month = YYYY-MM
   };
   gym?: {
@@ -106,8 +104,6 @@ export const SAMPLE_YEAR: ArchivedYear = {
     },
     overall: {
       actions: 2418,
-      lifetimeActions: 2896,
-      daysSinceJoining: 472,
       mostActiveMonth: { month: '2025-09', activeDays: 30 },
     },
     gym: {

@@ -80,6 +80,21 @@ const StatsArchiveYearScreen: React.FC = () => {
         <Text style={styles.noteText}>insert ai jargon here future dane 9/24</Text>
       </View>
 
+      {d.overall ? (
+        <>
+          <Group name="Overall" centered />
+          <Block title="Across the app">
+            <Row label="Actions" value={num(d.overall.actions)} sub="items and goals crossed off, gym days, messages" />
+            <Row
+              label="Most active month"
+              value={d.overall.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
+              sub={d.overall.mostActiveMonth ? plural(d.overall.mostActiveMonth.activeDays, 'active day') : undefined}
+              last
+            />
+          </Block>
+        </>
+      ) : null}
+
       <Group name="Routine" />
 
       <Block title="By part of day">
@@ -131,23 +146,6 @@ const StatsArchiveYearScreen: React.FC = () => {
         <Row label="Monthly" value={pct(d.goals.monthly.average)} sub={`average across ${plural(d.goals.monthly.periods, 'month')}`} />
         <Row label="Yearly" value={pct(d.goals.yearly.rate)} sub={`${d.goals.yearly.completed} of ${d.goals.yearly.total} done`} last />
       </Block>
-
-      {d.overall ? (
-        <>
-          <Group name="Overall" />
-          <Block title="Across the app">
-            <Row label="Actions" value={num(d.overall.actions)} sub="items and goals crossed off, gym days, messages" />
-            <Row label="Lifetime actions" value={num(d.overall.lifetimeActions)} sub={`through the end of ${entry.year}`} />
-            <Row label="Days since joining" value={num(d.overall.daysSinceJoining)} />
-            <Row
-              label="Most active month"
-              value={d.overall.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
-              sub={d.overall.mostActiveMonth ? plural(d.overall.mostActiveMonth.activeDays, 'active day') : undefined}
-              last
-            />
-          </Block>
-        </>
-      ) : null}
 
       {d.gym ? (
         <>
@@ -208,8 +206,8 @@ const Hero = ({ value, label }: { value: string; label: string }) => (
   </View>
 );
 
-const Group = ({ name }: { name: string }) => (
-  <View style={styles.group}>
+const Group = ({ name, centered }: { name: string; centered?: boolean }) => (
+  <View style={[styles.group, centered && styles.groupCentered]}>
     <View style={[styles.groupDot, { backgroundColor: GROUP_COLORS[name] ?? '#888' }]} />
     <Text style={styles.groupTitle}>{name}</Text>
   </View>
@@ -266,9 +264,10 @@ const styles = StyleSheet.create({
   },
   noteText: { fontSize: 13, color: '#8A8A8A' },
   group: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
+  groupCentered: { justifyContent: 'center' },
   groupDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   // Built-in iOS italic — classy but easy to read.
   groupTitle: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 42, lineHeight: 50, color: '#F2F2F2' },
