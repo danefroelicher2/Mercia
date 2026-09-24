@@ -123,3 +123,28 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
 
   return sections;
 }
+
+// Numbers only the Stats tab shows (never saved with a year).
+export interface LiveExtras {
+  lifetimeActions: number;
+  daysSinceJoining: number;
+  currentStreaks: number;
+}
+export async function liveExtras(userId: string, tz: string): Promise<LiveExtras> {
+  const sb = getSupabase().schema('oasis');
+  const today = localDate(new Date(), tz);
+  const [streaksRes, profileRes, activityRes, gymDaysRes] = await Promise.all([
+    sb.from('streaks').select('ended_at').eq('user_id', userId),
+    sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
+    sb.from('user_activity_log').select('activity_type').eq('user_id', userId),
+    sb.from('gym_memory').select('session_date').eq('user_id', userId),
+  ]);
+  for (const r of [streaksRes, profileRes, activityRes, gymDaysRes]) if (r.error) throw r.error;
+  const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
+  return {
+    lifetimeActions: (activityRes.data ?? []).filter((a: any) => ACTION_TYPES.has(a.activity_type)).length
+      + new Set((gymDaysRes.data ?? []).map((g: any) => g.session_date)).size,
+    daysSinceJoining: daysBetween(joined, today) + 1,
+    currentStreaks: (streaksRes.data ?? []).filter((r: any) => !r.ended_at).length,
+  };
+}
