@@ -53,18 +53,10 @@ interface HeatmapData {
 
 interface InsightSection {
   id: string;
+  group?: string;
   title: string;
   note?: string;
   rows: { label: string; value: string; sub?: string }[];
-}
-
-interface LifetimeStats {
-  perfectDays: number;
-  joinedDate: string;
-  lifetimeActions: number;
-  todayItemsCheckedOff: number;
-  gymDaysLogged: number;
-  consistencyRatePercent: number;
 }
 
 const MONTH_NAMES = [
@@ -74,18 +66,12 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-// "Since March 2026" — reuses MONTH_NAMES (defined above) instead of
-// toLocaleDateString, so this doesn't depend on device locale/ICU data.
-const formatJoinedCaption = (isoDate: string): string => {
-  const date = new Date(isoDate);
-  return `Since ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
-};
-
-// "1847" -> "1,847". A manual thousands separator instead of
-// Number.prototype.toLocaleString(), which has inconsistent ICU/locale
-// data support across Hermes versions/platforms.
-const formatCount = (n: number): string => {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// One quiet color per feature, used only for the dot beside its group name.
+const GROUP_COLORS: Record<string, string> = {
+  Routine: '#5DCAA5',
+  Gym: '#E8A13A',
+  Streaks: '#8E9BFF',
+  'App-wide': '#9A9A9A',
 };
 
 const StatsScreen: React.FC = () => {
@@ -97,11 +83,8 @@ const StatsScreen: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [loadingHeatmap, setLoadingHeatmap] = useState(true);
 
-
-  const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null);
   // Everything else the app can compute from what it records (server-built sections).
   const [insights, setInsights] = useState<InsightSection[]>([]);
-  const [loadingLifetime, setLoadingLifetime] = useState(true);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -150,7 +133,6 @@ const StatsScreen: React.FC = () => {
     useCallback(() => {
       fetchStreakData();
       fetchHeatmapData();
-      fetchLifetimeStats();
       fetchInsights();
     }, [currentYear, currentMonth])
   );
@@ -165,7 +147,6 @@ const StatsScreen: React.FC = () => {
     await Promise.all([
       fetchStreakData(),
       fetchHeatmapData(),
-      fetchLifetimeStats(),
       fetchInsights(),
     ]);
     setIsRefreshing(false);
@@ -204,18 +185,6 @@ const StatsScreen: React.FC = () => {
       setInsights(response.data.data ?? []);
     } catch (error) {
       console.error('Failed to fetch insights:', error);
-    }
-  };
-
-  const fetchLifetimeStats = async () => {
-    try {
-      setLoadingLifetime(true);
-      const response = await api.get('/api/stats/lifetime');
-      setLifetimeStats(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch lifetime stats:', error);
-    } finally {
-      setLoadingLifetime(false);
     }
   };
 
@@ -355,57 +324,15 @@ const StatsScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Lifetime */}
-        <View style={styles.lifetimeContainer}>
-          <View style={styles.lifetimeHeader}>
-            <View style={styles.lifetimeAccent} />
-            <Text style={styles.sectionTitle}>Lifetime</Text>
-          </View>
-          {lifetimeStats && (
-            <Text style={styles.lifetimeCaption}>
-              {formatJoinedCaption(lifetimeStats.joinedDate)}
-            </Text>
-          )}
-
-          {loadingLifetime ? (
-            <ActivityIndicator color={colors.primary} style={styles.loadingIndicator} />
-          ) : (
-            <>
-              <View style={styles.lifetimeHeroCard}>
-                <Text style={styles.lifetimeHeroNumber}>
-                  {formatCount(lifetimeStats?.lifetimeActions ?? 0)}
-                </Text>
-                <Text style={styles.lifetimeHeroLabel}>Lifetime Actions</Text>
-              </View>
-
-              <View style={styles.lifetimeRow}>
-                <View style={styles.lifetimeCard}>
-                  <Text style={styles.lifetimeNumber}>
-                    {formatCount(lifetimeStats?.perfectDays ?? 0)}
-                  </Text>
-                  <Text style={styles.lifetimeLabel}>Perfect{'\n'}Days</Text>
-                </View>
-                <View style={styles.lifetimeCard}>
-                  <Text style={styles.lifetimeNumber}>
-                    {formatCount(lifetimeStats?.gymDaysLogged ?? 0)}
-                  </Text>
-                  <Text style={styles.lifetimeLabel}>Gym Days{'\n'}Logged</Text>
-                </View>
-              </View>
-
-              <View style={styles.lifetimeFullCard}>
-                <Text style={styles.lifetimeNumber}>
-                  {lifetimeStats?.consistencyRatePercent ?? 0}%
-                </Text>
-                <Text style={styles.lifetimeLabel}>Consistency Rate</Text>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Everything else, grouped by category — plain layout for now */}
-        {insights.map(section => (
+        {/* Stats sections from the server, under a header per feature */}
+        {insights.map((section, idx) => (
           <View key={section.id} style={styles.insightSection}>
+            {section.group && section.group !== insights[idx - 1]?.group ? (
+              <View style={styles.groupHeader}>
+                <View style={[styles.groupDot, { backgroundColor: GROUP_COLORS[section.group] ?? '#888' }]} />
+                <Text style={styles.groupTitle}>{section.group}</Text>
+              </View>
+            ) : null}
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.note ? <Text style={styles.insightNote}>{section.note}</Text> : null}
             <View style={styles.insightCard}>
@@ -543,7 +470,19 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
 
-  // Lifetime
+  // Insights
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2A2A2A',
+  },
+  groupDot: { width: 8, height: 8, borderRadius: 4 },
+  groupTitle: { fontSize: 20, fontWeight: '700', color: '#F2F2F2', letterSpacing: 0.2 },
   insightSection: { marginBottom: 20 },
   insightNote: { fontSize: 11, color: '#666', marginTop: 2, marginBottom: 8 },
   insightCard: { backgroundColor: '#161616', borderRadius: 12, paddingHorizontal: 14, marginTop: 8 },
@@ -552,82 +491,6 @@ const styles = StyleSheet.create({
   insightLabel: { fontSize: 14, color: '#E8E8E8' },
   insightSub: { fontSize: 11, color: '#777', marginTop: 1 },
   insightValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
-  lifetimeContainer: {
-    marginBottom: 24,
-  },
-  lifetimeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  lifetimeAccent: {
-    width: 3,
-    height: 14,
-    backgroundColor: '#1D9E75',
-    borderRadius: 2,
-  },
-  lifetimeCaption: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 12,
-    marginLeft: 11,
-  },
-  lifetimeHeroCard: {
-    backgroundColor: 'rgba(29, 158, 117, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(29, 158, 117, 0.3)',
-    borderRadius: 14,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  lifetimeHeroNumber: {
-    fontSize: 40,
-    fontWeight: '600',
-    color: '#5DCAA5',
-  },
-  lifetimeHeroLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    color: '#777',
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  lifetimeRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  lifetimeCard: {
-    flex: 1,
-    backgroundColor: '#161616',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-  },
-  lifetimeFullCard: {
-    backgroundColor: '#161616',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-  },
-  lifetimeNumber: {
-    fontSize: 26,
-    fontWeight: '500',
-    color: '#E8E8E8',
-  },
-  lifetimeLabel: {
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: '#777',
-    fontWeight: '500',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-
   sectionTitle: {
     fontSize: 12,
     textTransform: 'uppercase',
