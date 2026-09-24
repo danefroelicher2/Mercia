@@ -5,7 +5,7 @@ import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
 import { computeInsights } from '../lib/statsInsights';
-import { currentYear } from '../lib/routineYear';
+import { summarizeYear, localDate, validZone, YearSummary } from '../lib/routineYear';
 
 const router = Router();
 
@@ -712,7 +712,8 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
       new Intl.DateTimeFormat('en-US', { timeZone: tz });
       zone = tz;
     } catch {}
-    const [sections, year] = await Promise.all([computeInsights(req.user!.id, zone), currentYear(req.user!.id, zone)]);
+    const thisYear = Number(localDate(new Date(), validZone(zone)).slice(0, 4));
+    const [sections, year] = await Promise.all([computeInsights(req.user!.id, zone), summarizeYear(req.user!.id, thisYear, zone)]);
     res.json({ success: true, data: [...yearSections(year), ...sections] });
   } catch (error: any) {
     console.error('[Stats Insights] Error:', error);
@@ -720,15 +721,18 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// By part of day / by weekday for the current year, as Stats sections.
+// The yearly stats as Stats sections (same shape the archive screen uses).
 const WD_LABEL: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
-function yearSections(y: Awaited<ReturnType<typeof currentYear>>) {
+function yearSections(y: YearSummary) {
   const pctOf = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
   const detail = (x: { planned: number; done: number; points: number }) =>
     x.planned > 0 ? `${x.done} of ${x.planned} crossed off${x.points ? ` · +${x.points} goal pts` : ''}` : 'nothing planned yet';
-  const since = y.trackingSince
-    ? `${y.year} · tracking since ${new Date(`${y.trackingSince}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-    : `${y.year}`;
+  const since = `${y.year} · tracking since ${new Date(`${y.trackingStart}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const g = y.goals;
+  const period = (x: { average: number | null; periods: number; soFar: number | null }, unit: string) => ({
+    value: pctOf(x.average),
+    sub: `${x.periods} finished ${unit}${x.periods === 1 ? '' : 's'}${x.soFar != null ? ` · this ${unit} so far ${pctOf(x.soFar)}` : ''}`,
+  });
   return [
     {
       id: 'year-sections',
@@ -749,6 +753,26 @@ function yearSections(y: Awaited<ReturnType<typeof currentYear>>) {
         value: pctOf(y.byWeekday[d].rate),
         sub: detail(y.byWeekday[d]),
       })),
+    },
+    {
+      id: 'year-days',
+      title: 'Days',
+      note: since,
+      rows: [
+        { label: 'Perfect days', value: String(y.perfectDays), sub: 'every Morning, Afternoon and Night item crossed off' },
+        { label: 'Missed days', value: String(y.missedDays), sub: 'days with no action at all' },
+        { label: 'Consistency', value: pctOf(y.consistency), sub: `${y.actionDays} of ${y.countedDays} days with an action` },
+      ],
+    },
+    {
+      id: 'year-goals',
+      title: 'Goals',
+      note: `${y.year}`,
+      rows: [
+        { label: 'Weekly', ...period(g.weekly, 'week') },
+        { label: 'Monthly', ...period(g.monthly, 'month') },
+        { label: 'Yearly', value: pctOf(g.yearly.rate), sub: `${g.yearly.completed} of ${g.yearly.total} done` },
+      ],
     },
   ];
 }

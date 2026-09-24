@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getStorage } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
+import { ensureDaysClosed, recountDay } from '../lib/routineYear';
 
 const notepadSchema = z.object({
   content: z.string().max(10000),
@@ -13,6 +14,17 @@ const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// Before any change to the routine, close every finished day with the
+// routine as it was (so deleting or editing an item never rewrites a past
+// day). Never blocks the request if it fails.
+router.use(async (req: Request, _res: Response, next) => {
+  if (req.method !== 'GET' && req.user) {
+    await ensureDaysClosed(req.user.id, req.header('x-timezone') ?? undefined).catch(err =>
+      console.error('[Routine] ensureDaysClosed failed:', err));
+  }
+  next();
+});
 
 function getLocalDateString(timezone?: string): string {
   const now = new Date();
@@ -220,8 +232,9 @@ router.patch(
             console.log('[Routine] Task activity log inserted successfully');
           }
 
-          // Fire-and-forget: write completion history for daily summary generation
-          supabase
+          // Completion history (daily summaries, yearly stats). Awaited so a
+          // past day's stats can be re-counted right after.
+          await supabase
             .schema('oasis')
             .from('task_completion_history')
             .upsert(
@@ -243,9 +256,9 @@ router.patch(
           console.error('Failed to log task activity:', err);
         }
       } else if (becameUncompleted) {
-        // Fire-and-forget: remove history entry when task is unchecked
+        // Remove the history entry when a task is unchecked (awaited, as above).
         const supabase = getSupabase();
-        supabase
+        await supabase
           .schema('oasis')
           .from('task_completion_history')
           .delete()
@@ -255,6 +268,12 @@ router.patch(
           .then(({ error }) => {
             if (error) console.error('[Routine] task_completion_history delete failed:', error);
           });
+      }
+
+      // A past day checked off or un-checked: re-count that closed day.
+      if ((becameCompleted || becameUncompleted) && activityDate < today) {
+        await recountDay(userId, activityDate).catch(err =>
+          console.error('[Routine] recountDay failed:', err));
       }
 
       res.json({

@@ -14,6 +14,7 @@ import gymRoutes from './routes/gym';
 import notificationRoutes from './routes/notifications';
 import cronRoutes from './routes/cron';
 import streakRoutes from './routes/streaks';
+import { markAction } from './lib/routineYear';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,23 @@ app.get('/api', (req: Request, res: Response) => {
     },
   });
 });
+
+// Any successful change the user makes counts as an action for today
+// (yearly missed days / consistency). Opening screens (GET) doesn't, nor do
+// the chats Home opens on its own.
+const trackAction = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.method !== 'GET' && !/\/(daily-outlook|day-in-review)$/.test(req.path)) {
+    res.on('finish', () => {
+      const userId = (req as any).user?.id;
+      if (userId && res.statusCode < 400) {
+        markAction(userId, req.header('x-timezone') ?? undefined).catch(err =>
+          console.error('[Actions] markAction failed:', err));
+      }
+    });
+  }
+  next();
+};
+app.use(['/api/routine', '/api/gym', '/api/streaks', '/api/chat', '/api/stats'], trackAction);
 
 // Register routes
 app.use('/api/auth', authRoutes);
