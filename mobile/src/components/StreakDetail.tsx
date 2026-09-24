@@ -31,7 +31,8 @@ interface Props {
 }
 
 const DAY = 86400;
-const pad = (n: number) => String(n).padStart(2, '0');
+// 21.3 — days to one decimal, rounded down so it never shows a day early.
+const decimalDays = (seconds: number) => (Math.floor((seconds / DAY) * 10) / 10).toFixed(1);
 
 const secondsOf = (run: StreakRun, now: number) =>
   Math.max(0, Math.floor(((run.ended_at ? Date.parse(run.ended_at) : now) - Date.parse(run.started_at)) / 1000));
@@ -57,10 +58,8 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
   const restarts = Math.max(0, ordered.length - 1);
 
   const cur = current ? secondsOf(current, now) : 0;
-  const days = Math.floor(cur / DAY);
-  const hms = `${Math.floor((cur % DAY) / 3600)}h ${pad(Math.floor((cur % 3600) / 60))}m ${pad(cur % 60)}s`;
   const last = ordered[ordered.length - 1];
-  const lastLength = { d: last ? Math.floor(secondsOf(last, now) / DAY) : 0 };
+  const lastSeconds = last ? secondsOf(last, now) : 0;
   const currentIsBest = current !== null && ordered.length > 1 && cur >= best;
   const startedLabel = (current ?? last)
     ? new Date((current ?? last).started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -94,21 +93,14 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          {/* Readout: name, days, live h/m/s */}
+          {/* Name (script, centered, with a short accent rule), then days */}
           <View style={styles.readout}>
             <Text style={styles.name}>{name}</Text>
-            {current ? (
-              <>
-                <Text style={styles.days}>
-                  {days}<Text style={styles.daysUnit}> {days === 1 ? 'day' : 'days'}</Text>
-                </Text>
-                <Text style={[styles.hms, { color: accent }]}>{hms}</Text>
-              </>
-            ) : (
-              <Text style={styles.days}>
-                {lastLength.d}<Text style={styles.daysUnit}> {lastLength.d === 1 ? 'day' : 'days'} last run</Text>
-              </Text>
-            )}
+            <View style={[styles.rule, { backgroundColor: accent }]} />
+            <Text style={styles.days}>
+              {decimalDays(current ? cur : lastSeconds)}
+              <Text style={styles.daysUnit}> days{current ? '' : ' last run'}</Text>
+            </Text>
           </View>
 
           {/* Facts */}
@@ -171,10 +163,17 @@ const styles = StyleSheet.create({
   headerSide: { width: 44 },
   content: { paddingHorizontal: 16, gap: 14 },
   readout: { paddingTop: 12, paddingBottom: 4 },
-  name: { fontSize: 30, fontWeight: '800', color: '#F2F2F2', letterSpacing: -0.5, marginBottom: 10 },
+  name: {
+    fontFamily: 'Snell Roundhand',
+    fontWeight: '700',
+    fontSize: 44,
+    lineHeight: 56,
+    color: '#F2F2F2',
+    textAlign: 'center',
+  },
+  rule: { width: 44, height: 2, borderRadius: 1, alignSelf: 'center', marginTop: 2, marginBottom: 16 },
   days: { fontSize: 56, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   daysUnit: { fontSize: 22, fontWeight: '600', color: '#8A8A8A', letterSpacing: 0 },
-  hms: { fontSize: 20, fontWeight: '600', marginTop: 2, fontVariant: ['tabular-nums'] },
   facts: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#2A2A2A' },
   fact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13 },
   factDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#1F1F1F' },
