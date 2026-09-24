@@ -25,15 +25,15 @@ export interface ArchivedYearData {
     monthly: { average: number | null; periods: number };
     yearly: { rate: number | null; completed: number; total: number };
   };
-  // Not saved by the server yet — shown when present.
+  // Saved from 2026 on; older saves may not have them.
   gym?: {
     sessions: number;
     restDays: number;
     favoriteDay: { day: string; sessions: number } | null;
-    split: { group: string; sessions: number }[];
+    split: { group: string; sessions: number; last?: string }[];
   };
   streaks?: {
-    longest: { name: string; days: number } | null;
+    longest: { name: string; days: number; running?: boolean } | null;
     leastConsistent: { name: string; restarts: number } | null;
   };
   final?: boolean;
@@ -57,6 +57,7 @@ export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export const pct = (r: number | null | undefined) => (r == null ? '—' : `${Math.round(r * 100)}%`);
+export const plural = (n: number, word: string) => `${num(n)} ${word}${n === 1 ? '' : 's'}`;
 export const num = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 

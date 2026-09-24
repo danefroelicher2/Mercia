@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useRoute } from '@react-navigation/native';
 import { SECTION_COLORS } from '../utils/timeOfDay';
-import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct } from './statsArchiveData';
+import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct, plural } from './statsArchiveData';
 
 // One finished year, laid out in the same groups as the Stats tab.
 
@@ -18,6 +18,7 @@ const StatsArchiveYearScreen: React.FC = () => {
     b.planned > 0 ? `${num(b.done)} of ${num(b.planned)} crossed off${b.points ? ` · +${b.points} goal pts` : ''}` : 'nothing planned';
 
   // Weekday chart: scaled to the best day so differences are visible.
+  const wdHasData = WEEKDAYS.some(k => d.byWeekday[k]?.rate != null);
   const wdRates = WEEKDAYS.map(k => d.byWeekday[k]?.rate ?? 0);
   const wdMax = Math.max(...wdRates, 0.01);
   const best = wdRates.indexOf(Math.max(...wdRates));
@@ -61,7 +62,9 @@ const StatsArchiveYearScreen: React.FC = () => {
           </Svg>
           <Text style={styles.coverLabel}>YEAR IN REVIEW</Text>
           <Text style={styles.coverYear}>{entry.year}</Text>
-          {entry.sample ? <Text style={[styles.tag, styles.coverTag]}>SAMPLE</Text> : null}
+          {entry.sample || !d.final ? (
+            <Text style={[styles.tag, styles.coverTag]}>{entry.sample ? 'SAMPLE' : 'FINALIZING'}</Text>
+          ) : null}
         </View>
         <View style={styles.hero}>
           <Hero value={pct(d.consistency)} label="Consistency" />
@@ -113,7 +116,7 @@ const StatsArchiveYearScreen: React.FC = () => {
           ))}
         </View>
         <Text style={styles.chartNote}>
-          Best {cap(WEEKDAYS[best])} · toughest {cap(WEEKDAYS[worst])}
+          {wdHasData ? `Best ${cap(WEEKDAYS[best])} · toughest ${cap(WEEKDAYS[worst])}` : 'No routine items were planned'}
         </Text>
       </Block>
 
@@ -124,8 +127,8 @@ const StatsArchiveYearScreen: React.FC = () => {
       </Block>
 
       <Block title="Goals">
-        <Row label="Weekly" value={pct(d.goals.weekly.average)} sub={`average across ${d.goals.weekly.periods} weeks`} />
-        <Row label="Monthly" value={pct(d.goals.monthly.average)} sub={`average across ${d.goals.monthly.periods} months`} />
+        <Row label="Weekly" value={pct(d.goals.weekly.average)} sub={`average across ${plural(d.goals.weekly.periods, 'week')}`} />
+        <Row label="Monthly" value={pct(d.goals.monthly.average)} sub={`average across ${plural(d.goals.monthly.periods, 'month')}`} />
         <Row label="Yearly" value={pct(d.goals.yearly.rate)} sub={`${d.goals.yearly.completed} of ${d.goals.yearly.total} done`} last />
       </Block>
 
@@ -137,11 +140,14 @@ const StatsArchiveYearScreen: React.FC = () => {
             <Row
               label="Favorite training day"
               value={d.gym.favoriteDay ? cap(d.gym.favoriteDay.day) : '—'}
-              sub={d.gym.favoriteDay ? `${d.gym.favoriteDay.sessions} sessions` : undefined}
+              sub={d.gym.favoriteDay ? plural(d.gym.favoriteDay.sessions, 'session') : undefined}
             />
             <Row label="Rest days" value={num(d.gym.restDays)} last />
           </Block>
           <Block title="Split">
+            {d.gym.split.length === 0 ? (
+              <Row label="No sessions logged" value="—" last />
+            ) : null}
             {d.gym.split.map((s, i) => (
               <View key={s.group} style={[styles.row, i < d.gym!.split.length - 1 && styles.divider]}>
                 <View style={styles.rowTop}>
@@ -149,7 +155,7 @@ const StatsArchiveYearScreen: React.FC = () => {
                   <Text style={styles.value}>{pct(s.sessions / d.gym!.sessions)}</Text>
                 </View>
                 <Bar ratio={s.sessions / gymMax} color={GROUP_COLORS.Gym} />
-                <Text style={styles.sub}>{s.sessions} sessions</Text>
+                <Text style={styles.sub}>{plural(s.sessions, 'session')}</Text>
               </View>
             ))}
           </Block>
@@ -163,12 +169,12 @@ const StatsArchiveYearScreen: React.FC = () => {
             <Row
               label="Longest streak"
               value={d.streaks.longest?.name ?? '—'}
-              sub={d.streaks.longest ? `${d.streaks.longest.days.toFixed(1)} days` : undefined}
+              sub={d.streaks.longest ? `${d.streaks.longest.days.toFixed(1)} days` : 'no streaks this year'}
             />
             <Row
               label="Least consistent"
               value={d.streaks.leastConsistent?.name ?? '—'}
-              sub={d.streaks.leastConsistent ? `restarted ${d.streaks.leastConsistent.restarts} times` : 'no restarts'}
+              sub={d.streaks.leastConsistent ? `restarted ${plural(d.streaks.leastConsistent.restarts, 'time')}` : 'no restarts'}
               last
             />
           </Block>

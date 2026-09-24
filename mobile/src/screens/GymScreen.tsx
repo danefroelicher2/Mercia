@@ -61,29 +61,15 @@ const DAY_OFFSETS: Record<string, number> = {
   monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
 };
 
-// Mirrors the backend's getISOWeekDayDate so we can identify the session_date the
-// current day's entry is stored under, and exclude it from the "Prior Sessions" list.
-function getISOWeekDayDate(dayOfWeek: string, weekNumber: number, year: number): string {
-  const jan4 = new Date(year, 0, 4);
-  const jan4DayOfWeek = (jan4.getDay() + 6) % 7; // Mon=0 … Sun=6
-  const monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - jan4DayOfWeek + (weekNumber - 1) * 7);
-  const offset = DAY_OFFSETS[dayOfWeek.toLowerCase()] ?? 0;
-  const result = new Date(monday);
-  result.setDate(monday.getDate() + offset);
-  return result.toISOString().split('T')[0];
-}
-
-function getISOWeek(date: Date): number {
-  const target = new Date(date.valueOf());
-  const dayNr = (date.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  }
-  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+// The date (YYYY-MM-DD, local) of the given weekday in the current week —
+// the session_date the server stores that day's entry under, so it can be
+// left out of "Prior Sessions".
+function sessionDateThisWeek(dayOfWeek: string): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (DAY_OFFSETS[dayOfWeek.toLowerCase()] ?? 0));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 const getTodayDay = (): DayOfWeek => {
@@ -191,8 +177,7 @@ const GymScreen: React.FC = () => {
       const entries: GymMemoryEntry[] = res.data.data || [];
       // Exclude the session for the currently-selected day — the user is editing it
       // right now and doesn't need to see it duplicated under "Prior Sessions".
-      const now = new Date();
-      const currentSessionDate = getISOWeekDayDate(selectedDay, getISOWeek(now), now.getFullYear());
+      const currentSessionDate = sessionDateThisWeek(selectedDay);
       const priors = entries.filter(e => e.session_date !== currentSessionDate);
       if (priors.length > 0) {
         setPriorSessions(priors.slice(0, 5));
