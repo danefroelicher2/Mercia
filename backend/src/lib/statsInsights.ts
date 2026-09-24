@@ -124,27 +124,74 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
   return sections;
 }
 
-// Numbers only the Stats tab shows (never saved with a year).
+// Numbers only the Stats tab shows (never saved with a year): the Lifetime
+// group, and current streaks.
 export interface LiveExtras {
-  lifetimeActions: number;
-  daysSinceJoining: number;
   currentStreaks: number;
+  lifetime: {
+    actions: number;            // items + goals + messages + gym days, all time
+    joined: string;             // YYYY-MM-DD, user's zone
+    daysSinceJoining: number;   // joined … today, both counted
+    activeDays: number;         // days with any recorded activity
+    itemsCrossedOff: number;
+    goalsCompleted: number;
+    gymSessions: number;        // gym_memory rows (one per muscle group per day)
+    gymDays: number;            // distinct gym days (the part of actions)
+    messages: number;           // messages sent to Mercia
+    longestStreak: { name: string; days: number; running: boolean } | null;
+    mostActiveMonth: { month: string; activeDays: number } | null;
+  };
 }
 export async function liveExtras(userId: string, tz: string): Promise<LiveExtras> {
   const sb = getSupabase().schema('oasis');
   const today = localDate(new Date(), tz);
-  const [streaksRes, profileRes, activityRes, gymDaysRes] = await Promise.all([
-    sb.from('streaks').select('ended_at').eq('user_id', userId),
+  const [streaksRes, profileRes, activityRes, actionDaysRes, gymRes] = await Promise.all([
+    sb.from('streaks').select('name, started_at, ended_at').eq('user_id', userId),
     sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
-    sb.from('user_activity_log').select('activity_type').eq('user_id', userId),
-    sb.from('gym_memory').select('session_date').eq('user_id', userId),
+    sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId),
+    sb.from('user_action_days').select('action_date').eq('user_id', userId),
+    sb.from('gym_memory').select('session_date, workout_group').eq('user_id', userId),
   ]);
-  for (const r of [streaksRes, profileRes, activityRes, gymDaysRes]) if (r.error) throw r.error;
+  for (const r of [streaksRes, profileRes, activityRes, actionDaysRes, gymRes]) if (r.error) throw r.error;
+
+  const activity = activityRes.data ?? [];
+  const count = (type: string) => activity.filter((a: any) => a.activity_type === type).length;
+  const gymRows = (gymRes.data ?? []).filter((g: any) => g.workout_group);
+  const gymDays = new Set(gymRows.map((g: any) => g.session_date)).size;
+  const itemsCrossedOff = count('task_completed');
+  const goalsCompleted = count('goal_completed');
+  const messages = count('ai_chat_sent');
+
+  const active = new Set<string>([
+    ...activity.map((a: any) => a.activity_date as string),
+    ...(actionDaysRes.data ?? []).map((a: any) => a.action_date as string),
+  ]);
+  const byMonth = new Map<string, number>();
+  for (const d of active) byMonth.set(d.slice(0, 7), (byMonth.get(d.slice(0, 7)) ?? 0) + 1);
+  const top = Array.from(byMonth.entries()).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0];
+
+  const now = Date.now();
+  let longestStreak: LiveExtras['lifetime']['longestStreak'] = null;
+  for (const r of streaksRes.data ?? []) {
+    const days = ((r.ended_at ? Date.parse(r.ended_at) : now) - Date.parse(r.started_at)) / DAY_MS;
+    if (!longestStreak || days > longestStreak.days) longestStreak = { name: r.name, days, running: !r.ended_at };
+  }
+
   const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
   return {
-    lifetimeActions: (activityRes.data ?? []).filter((a: any) => ACTION_TYPES.has(a.activity_type)).length
-      + new Set((gymDaysRes.data ?? []).map((g: any) => g.session_date)).size,
-    daysSinceJoining: daysBetween(joined, today) + 1,
     currentStreaks: (streaksRes.data ?? []).filter((r: any) => !r.ended_at).length,
+    lifetime: {
+      actions: itemsCrossedOff + goalsCompleted + messages + gymDays,
+      joined,
+      daysSinceJoining: daysBetween(joined, today) + 1,
+      activeDays: active.size,
+      itemsCrossedOff,
+      goalsCompleted,
+      gymSessions: gymRows.length,
+      gymDays,
+      messages,
+      longestStreak,
+      mostActiveMonth: top ? { month: top[0], activeDays: top[1] } : null,
+    },
   };
 }
