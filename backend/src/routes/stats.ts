@@ -738,7 +738,8 @@ function yearSections(y: YearSummary) {
   return [
     {
       id: 'year-sections',
-      title: 'Routine · by part of day',
+      group: 'Routine',
+      title: 'By part of day',
       note: since,
       rows: (['morning', 'afternoon', 'night'] as const).map(s => ({
         label: s[0].toUpperCase() + s.slice(1),
@@ -748,7 +749,8 @@ function yearSections(y: YearSummary) {
     },
     {
       id: 'year-weekdays',
-      title: 'Routine · by weekday',
+      group: 'Routine',
+      title: 'By weekday',
       note: since,
       rows: Object.keys(WD_LABEL).map(d => ({
         label: WD_LABEL[d],
@@ -758,6 +760,7 @@ function yearSections(y: YearSummary) {
     },
     {
       id: 'year-days',
+      group: 'Routine',
       title: 'Days',
       note: since,
       rows: [
@@ -768,6 +771,7 @@ function yearSections(y: YearSummary) {
     },
     {
       id: 'year-goals',
+      group: 'Routine',
       title: 'Goals',
       note: `${y.year}`,
       rows: [
