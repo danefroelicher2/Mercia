@@ -83,7 +83,7 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Back" style={styles.headerSide}>
             <Ionicons name="chevron-back" size={26} color="#E8E8E8" />
           </Pressable>
-          <Text style={styles.title} numberOfLines={1}>{name}</Text>
+          <View style={{ flex: 1 }} />
           <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
             {current && (
               <Pressable onPress={() => onMore(current)} hitSlop={12} accessibilityLabel="Streak options">
@@ -94,14 +94,9 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          {/* Readout: state, days, live h/m/s */}
+          {/* Readout: name, days, live h/m/s */}
           <View style={styles.readout}>
-            <View style={styles.stateRow}>
-              <View style={[styles.stateDot, { backgroundColor: current ? accent : '#555' }]} />
-              <Text style={[styles.stateText, { color: current ? accent : '#7A7A7A' }]}>
-                {current ? 'RUNNING' : 'STOPPED'}
-              </Text>
-            </View>
+            <Text style={styles.name}>{name}</Text>
             {current ? (
               <>
                 <Text style={styles.days}>
@@ -174,12 +169,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0D0D0D' },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   headerSide: { width: 44 },
-  title: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: '#F2F2F2' },
   content: { paddingHorizontal: 16, gap: 14 },
   readout: { paddingTop: 12, paddingBottom: 4 },
-  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  stateDot: { width: 7, height: 7, borderRadius: 3.5 },
-  stateText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
+  name: { fontSize: 30, fontWeight: '800', color: '#F2F2F2', letterSpacing: -0.5, marginBottom: 10 },
   days: { fontSize: 56, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   daysUnit: { fontSize: 22, fontWeight: '600', color: '#8A8A8A', letterSpacing: 0 },
   hms: { fontSize: 20, fontWeight: '600', marginTop: 2, fontVariant: ['tabular-nums'] },
