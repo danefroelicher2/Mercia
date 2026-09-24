@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
-import { GROUP_COLORS } from './statsArchiveData';
+import YearStats, { LiveExtras } from '../components/YearStats';
+import type { ArchivedYearData } from './statsArchiveData';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -52,14 +53,6 @@ interface HeatmapData {
   canGoNext: boolean;
 }
 
-interface InsightSection {
-  id: string;
-  group?: string;
-  title: string;
-  note?: string;
-  rows: { label: string; value: string; sub?: string }[];
-}
-
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -77,8 +70,8 @@ const StatsScreen: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [loadingHeatmap, setLoadingHeatmap] = useState(true);
 
-  // Everything else the app can compute from what it records (server-built sections).
-  const [insights, setInsights] = useState<InsightSection[]>([]);
+  // This year so far — the same layout a Stats Archive year uses.
+  const [year, setYear] = useState<{ year: ArchivedYearData; live: LiveExtras } | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -127,7 +120,7 @@ const StatsScreen: React.FC = () => {
     useCallback(() => {
       fetchStreakData();
       fetchHeatmapData();
-      fetchInsights();
+      fetchYear();
     }, [currentYear, currentMonth])
   );
 
@@ -141,7 +134,7 @@ const StatsScreen: React.FC = () => {
     await Promise.all([
       fetchStreakData(),
       fetchHeatmapData(),
-      fetchInsights(),
+      fetchYear(),
     ]);
     setIsRefreshing(false);
   };
@@ -172,15 +165,16 @@ const StatsScreen: React.FC = () => {
     }
   };
 
-  const fetchInsights = async () => {
+  const fetchYear = async () => {
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const response = await api.get(`/api/stats/insights?timezone=${encodeURIComponent(timezone)}`);
-      setInsights(response.data.data ?? []);
+      const response = await api.get(`/api/stats/year?timezone=${encodeURIComponent(timezone)}`);
+      setYear(response.data.data ?? null);
     } catch (error) {
-      console.error('Failed to fetch insights:', error);
+      console.error('Failed to fetch year stats:', error);
     }
   };
+
 
   const getHeatmapColor = (count: number): string => {
     if (count === 0) return colors.heatmapEmpty;
@@ -318,34 +312,8 @@ const StatsScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Stats sections from the server, under a header per feature */}
-        {insights.map((section, idx) => (
-          <View key={section.id} style={styles.insightSection}>
-            {section.group && section.group !== insights[idx - 1]?.group ? (
-              <View style={styles.groupHeader}>
-                <View style={[styles.groupDot, { backgroundColor: GROUP_COLORS[section.group] ?? '#888' }]} />
-                <Text style={styles.groupTitle}>{section.group}</Text>
-              </View>
-            ) : null}
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.note ? <Text style={styles.insightNote}>{section.note}</Text> : null}
-            <View style={styles.insightCard}>
-              {section.rows.length === 0 ? (
-                <Text style={styles.insightSub}>Nothing yet</Text>
-              ) : (
-                section.rows.map((row, i) => (
-                  <View key={`${row.label}-${i}`} style={[styles.insightRow, i < section.rows.length - 1 && styles.insightDivider]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.insightLabel}>{row.label}</Text>
-                      {row.sub ? <Text style={styles.insightSub}>{row.sub}</Text> : null}
-                    </View>
-                    <Text style={styles.insightValue}>{row.value}</Text>
-                  </View>
-                ))
-              )}
-            </View>
-          </View>
-        ))}
+        {/* This year so far, laid out like a Stats Archive year */}
+        {year ? <YearStats data={year.year} live={year.live} /> : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -464,34 +432,6 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
 
-  // Insights
-  groupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    marginBottom: 14,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2A2A2A',
-  },
-  groupDot: { width: 8, height: 8, borderRadius: 4 },
-  groupTitle: { fontSize: 20, fontWeight: '700', color: '#F2F2F2', letterSpacing: 0.2 },
-  insightSection: { marginBottom: 20 },
-  insightNote: { fontSize: 11, color: '#666', marginTop: 2, marginBottom: 8 },
-  insightCard: { backgroundColor: '#161616', borderRadius: 12, paddingHorizontal: 14, marginTop: 8 },
-  insightRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, gap: 12 },
-  insightDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#262626' },
-  insightLabel: { fontSize: 14, color: '#E8E8E8' },
-  insightSub: { fontSize: 11, color: '#777', marginTop: 1 },
-  insightValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
-  sectionTitle: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    color: '#777',
-    fontWeight: '500',
-  },
 });
 
 export default StatsScreen;

@@ -20,8 +20,8 @@ export interface ArchivedYearData {
   countedDays: number;
   consistency: number | null;
   goals: {
-    weekly: { average: number | null; periods: number };
-    monthly: { average: number | null; periods: number };
+    weekly: { average: number | null; periods: number; soFar?: number | null };
+    monthly: { average: number | null; periods: number; soFar?: number | null };
     yearly: { rate: number | null; completed: number; total: number };
   };
   // Saved from 2026 on; older saves may not have them.
