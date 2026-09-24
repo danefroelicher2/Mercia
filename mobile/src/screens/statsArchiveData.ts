@@ -26,6 +26,12 @@ export interface ArchivedYearData {
     yearly: { rate: number | null; completed: number; total: number };
   };
   // Saved from 2026 on; older saves may not have them.
+  overall?: {
+    actions: number;
+    lifetimeActions: number;
+    daysSinceJoining: number;
+    mostActiveMonth: { month: string; activeDays: number } | null; // month = YYYY-MM
+  };
   gym?: {
     sessions: number;
     restDays: number;
@@ -50,7 +56,7 @@ export const GROUP_COLORS: Record<string, string> = {
   Routine: '#5DCAA5',
   Gym: '#E8A13A',
   Streaks: '#8E9BFF',
-  'App-wide': '#9A9A9A',
+  Overall: '#E4E4E4',
 };
 
 export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
@@ -58,6 +64,8 @@ export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday',
 export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export const pct = (r: number | null | undefined) => (r == null ? '—' : `${Math.round(r * 100)}%`);
 export const plural = (n: number, word: string) => `${num(n)} ${word}${n === 1 ? '' : 's'}`;
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const monthName = (ym: string) => MONTH_NAMES[Number(ym.slice(5, 7)) - 1] ?? ym;
 export const num = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 
@@ -95,6 +103,12 @@ export const SAMPLE_YEAR: ArchivedYear = {
       weekly: { average: 0.72, periods: 52 },
       monthly: { average: 0.64, periods: 12 },
       yearly: { rate: 0.5, completed: 2, total: 4 },
+    },
+    overall: {
+      actions: 2418,
+      lifetimeActions: 2896,
+      daysSinceJoining: 472,
+      mostActiveMonth: { month: '2025-09', activeDays: 30 },
     },
     gym: {
       sessions: 168,

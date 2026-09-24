@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useRoute } from '@react-navigation/native';
 import { SECTION_COLORS } from '../utils/timeOfDay';
-import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct, plural } from './statsArchiveData';
+import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, monthName, num, pct, plural } from './statsArchiveData';
 
 // One finished year, laid out in the same groups as the Stats tab.
 
@@ -131,6 +131,23 @@ const StatsArchiveYearScreen: React.FC = () => {
         <Row label="Monthly" value={pct(d.goals.monthly.average)} sub={`average across ${plural(d.goals.monthly.periods, 'month')}`} />
         <Row label="Yearly" value={pct(d.goals.yearly.rate)} sub={`${d.goals.yearly.completed} of ${d.goals.yearly.total} done`} last />
       </Block>
+
+      {d.overall ? (
+        <>
+          <Group name="Overall" />
+          <Block title="Across the app">
+            <Row label="Actions" value={num(d.overall.actions)} sub="items and goals crossed off, gym days, messages" />
+            <Row label="Lifetime actions" value={num(d.overall.lifetimeActions)} sub={`through the end of ${entry.year}`} />
+            <Row label="Days since joining" value={num(d.overall.daysSinceJoining)} />
+            <Row
+              label="Most active month"
+              value={d.overall.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
+              sub={d.overall.mostActiveMonth ? plural(d.overall.mostActiveMonth.activeDays, 'active day') : undefined}
+              last
+            />
+          </Block>
+        </>
+      ) : null}
 
       {d.gym ? (
         <>
