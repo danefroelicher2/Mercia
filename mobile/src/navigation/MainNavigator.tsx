@@ -15,6 +15,8 @@ import GymMemoryScreen from '../screens/GymMemoryScreen';
 import GymArchiveScreen from '../screens/GymArchiveScreen';
 import YearlyReviewsScreen from '../screens/YearlyReviewsScreen';
 import StatsArchiveScreen from '../screens/StatsArchiveScreen';
+import StatsArchiveYearScreen from '../screens/StatsArchiveYearScreen';
+import type { ArchivedYear } from '../screens/statsArchiveData';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import YearlyReviewDetailScreen from '../screens/YearlyReviewDetailScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
@@ -51,6 +53,7 @@ export type ProfileStackParamList = {
   GymArchive: undefined;
   YearlyReviews: undefined;
   StatsArchive: undefined;
+  StatsArchiveYear: { entry: ArchivedYear };
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
@@ -139,6 +142,18 @@ const ProfileStackNavigator: React.FC = () => {
           headerTintColor: '#FFFFFF',
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
+      />
+      <ProfileStack.Screen
+        name="StatsArchiveYear"
+        component={StatsArchiveYearScreen}
+        options={({ route }) => ({
+          headerShown: true,
+          title: String(route.params.entry.year),
+          headerBackTitle: 'Archive',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        })}
       />
       <ProfileStack.Screen
         name="YearlyReviews"

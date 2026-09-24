@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
+import { GROUP_COLORS } from './statsArchiveData';
 
 const colors = {
   screenBg: '#0D0D0D',
@@ -66,13 +67,6 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-// One quiet color per feature, used only for the dot beside its group name.
-const GROUP_COLORS: Record<string, string> = {
-  Routine: '#5DCAA5',
-  Gym: '#E8A13A',
-  Streaks: '#8E9BFF',
-  'App-wide': '#9A9A9A',
-};
 
 const StatsScreen: React.FC = () => {
   const [streakData, setStreakData] = useState<StreakData | null>(null);
