@@ -14,6 +14,8 @@ import SummaryDataScreen from '../screens/SummaryDataScreen';
 import GymMemoryScreen from '../screens/GymMemoryScreen';
 import GymArchiveScreen from '../screens/GymArchiveScreen';
 import YearlyReviewsScreen from '../screens/YearlyReviewsScreen';
+import StatsArchiveScreen from '../screens/StatsArchiveScreen';
+import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import YearlyReviewDetailScreen from '../screens/YearlyReviewDetailScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
@@ -48,6 +50,7 @@ export type ProfileStackParamList = {
   GymMemory: undefined;
   GymArchive: undefined;
   YearlyReviews: undefined;
+  StatsArchive: undefined;
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
@@ -126,6 +129,18 @@ const ProfileStackNavigator: React.FC = () => {
         }}
       />
       <ProfileStack.Screen
+        name="StatsArchive"
+        component={StatsArchiveScreen}
+        options={{
+          headerShown: true,
+          title: 'Stats Archive',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#1A1A1A' },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+        }}
+      />
+      <ProfileStack.Screen
         name="YearlyReviews"
         component={YearlyReviewsScreen}
         options={{
@@ -193,6 +208,23 @@ const ProfileStackNavigator: React.FC = () => {
 const MainTabs: React.FC = () => {
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const rootNavigation = useNavigation<NativeStackNavigationProp<MainRootStackParamList>>();
+  const { boundaries, loaded: prefsLoaded } = useRoutinePreferences();
+
+  // Update last_active_at (inactivity pushes) and tell the server this
+  // device's time zone and Morning/Afternoon/Night times, so each day and
+  // year close at the user's own midnight (routine stats). Re-sent when the
+  // times change in the Routine gear.
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN).then((token) => {
+      if (!token) return;
+      api.post('/api/notifications/ping', {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        afternoonStart: boundaries.afternoonStart,
+        nightStart: boundaries.nightStart,
+      }).catch(() => {});
+    });
+  }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
   const [hasConsent, setHasConsent] = useState(false);
   const [isLoadingConsent, setIsLoadingConsent] = useState(true);
 
@@ -205,8 +237,6 @@ const MainTabs: React.FC = () => {
     // Only ping and register if we have a valid session token
     AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN).then((token) => {
       if (!token) return;
-      // Update last_active_at on backend (for inactivity push detection)
-      api.post('/api/notifications/ping').catch(() => {});
       // Ensure push token is registered / synced to backend
       registerForPushNotifications().catch(() => {});
     });
