@@ -3,10 +3,9 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { withAlpha } from '../utils/timeOfDay';
-import { compareToBest } from '../utils/streakCompare';
 
 
-// A streak's own page: every run recorded under its name. A big live clock
+// A streak's own page: every run recorded under its name. A readout
 // when one is running, then best run, total time across all runs and the
 // number of restarts, a bar per run (the current one lit) and the full list.
 
@@ -59,10 +58,23 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
 
   const cur = current ? secondsOf(current, now) : 0;
   const days = Math.floor(cur / DAY);
-  const clock = `${pad(Math.floor((cur % DAY) / 3600))}:${pad(Math.floor((cur % 3600) / 60))}:${pad(cur % 60)}`;
-  // Best of the earlier runs, for the comparison under the clock.
-  const earlierBest = Math.max(0, ...ordered.filter(r => r.ended_at).map(r => secondsOf(r, now)));
-  const barMax = Math.max(cur, earlierBest, 1);
+  const hms = `${Math.floor((cur % DAY) / 3600)}h ${pad(Math.floor((cur % 3600) / 60))}m ${pad(cur % 60)}s`;
+  const last = ordered[ordered.length - 1];
+  const lastLength = { d: last ? Math.floor(secondsOf(last, now) / DAY) : 0 };
+  const currentIsBest = current !== null && ordered.length > 1 && cur >= best;
+  const startedLabel = (current ?? last)
+    ? new Date((current ?? last).started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+  const facts: [string, string, string?][] = [
+    [current ? 'Started' : 'Last started', startedLabel],
+    ['Best run', short(best), currentIsBest ? 'this run' : undefined],
+    ['Total', short(total)],
+    ['Restarts', String(restarts)],
+  ];
+
+  // Bar chart: the 10 most recent runs, oldest to newest.
+  const recent = ordered.slice(-10).map(run => ({ run, length: secondsOf(run, now) }));
+  const recentMax = Math.max(1, ...recent.map(r => r.length));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -82,54 +94,50 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-          {current ? (
-            <View style={styles.clockBlock}>
-              <Text style={styles.bigDays}>{days}</Text>
-              <Text style={styles.bigUnit}>{days === 1 ? 'day' : 'days'}</Text>
-              <Text style={[styles.clock, { color: accent }]}>{clock}</Text>
-              <Text style={styles.since}>
-                since {new Date(current.started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          {/* Readout: state, days, live h/m/s */}
+          <View style={styles.readout}>
+            <View style={styles.stateRow}>
+              <View style={[styles.stateDot, { backgroundColor: current ? accent : '#555' }]} />
+              <Text style={[styles.stateText, { color: current ? accent : '#7A7A7A' }]}>
+                {current ? 'RUNNING' : 'STOPPED'}
               </Text>
-              {earlierBest > 0 && (
-                <View style={styles.compare}>
-                  <View style={styles.compareTrack}>
-                    <View style={[styles.compareFill, { width: `${(cur / barMax) * 100}%`, backgroundColor: accent }]} />
-                    <View style={[styles.compareMark, { left: `${(earlierBest / barMax) * 100}%` }]} />
-                  </View>
-                </View>
-              )}
-              <Text style={styles.compareText}>{compareToBest(cur, earlierBest)}</Text>
             </View>
-          ) : (
-            <View style={styles.clockBlock}>
-              <Ionicons name="stop-circle-outline" size={34} color="#6A6A6A" />
-              <Text style={styles.stopped}>Not running</Text>
-              <Text style={styles.since}>Start it again with the + on Streaks.</Text>
-            </View>
-          )}
+            {current ? (
+              <>
+                <Text style={styles.days}>
+                  {days}<Text style={styles.daysUnit}> {days === 1 ? 'day' : 'days'}</Text>
+                </Text>
+                <Text style={[styles.hms, { color: accent }]}>{hms}</Text>
+              </>
+            ) : (
+              <Text style={styles.days}>
+                {lastLength.d}<Text style={styles.daysUnit}> {lastLength.d === 1 ? 'day' : 'days'} last run</Text>
+              </Text>
+            )}
+          </View>
 
-          <View style={styles.stats}>
-            {[
-              [short(best), 'BEST RUN'],
-              [short(total), 'TOTAL'],
-              [String(restarts), restarts === 1 ? 'RESTART' : 'RESTARTS'],
-            ].map(([value, label]) => (
-              <View key={label} style={styles.stat}>
-                <Text style={styles.statValue}>{value}</Text>
-                <Text style={styles.statLabel}>{label}</Text>
+          {/* Facts */}
+          <View style={styles.facts}>
+            {facts.map(([label, value, note], i) => (
+              <View key={label} style={[styles.fact, i < facts.length - 1 && styles.factDivider]}>
+                <Text style={styles.factLabel}>{label}</Text>
+                <Text style={styles.factValue}>
+                  {value}
+                  {note ? <Text style={[styles.factNote, { color: accent }]}>  {note}</Text> : null}
+                </Text>
               </View>
             ))}
           </View>
 
-          <Text style={styles.section}>EVERY RUN</Text>
+          <Text style={styles.section}>HISTORY</Text>
           <View style={styles.chart}>
-            {ordered.map((run, i) => (
+            {recent.map(({ run, length }) => (
               <View
                 key={run.id}
                 style={[
                   styles.bar,
                   {
-                    height: `${Math.max(6, best > 0 ? (lengths[i] / best) * 100 : 6)}%`,
+                    height: `${Math.max(6, recentMax > 0 ? (length / recentMax) * 100 : 6)}%`,
                     backgroundColor: run.ended_at ? withAlpha(accent, 0.35) : accent,
                   },
                 ]}
@@ -168,29 +176,19 @@ const styles = StyleSheet.create({
   headerSide: { width: 44 },
   title: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: '#F2F2F2' },
   content: { paddingHorizontal: 16, gap: 14 },
-  clockBlock: { alignItems: 'center', paddingVertical: 18, gap: 2 },
-  bigDays: { fontSize: 88, fontWeight: '800', color: '#FFFFFF', letterSpacing: -3, lineHeight: 92, fontVariant: ['tabular-nums'] },
-  bigUnit: { fontSize: 18, color: '#A0A0A0', fontWeight: '600' },
-  clock: { fontSize: 26, fontWeight: '700', marginTop: 6, fontVariant: ['tabular-nums'] },
-  since: { fontSize: 13, color: '#7A7A7A', marginTop: 6 },
-  compare: { alignSelf: 'stretch', paddingHorizontal: 24, marginTop: 16 },
-  compareTrack: { height: 6, borderRadius: 3, backgroundColor: '#222', overflow: 'visible', justifyContent: 'center' },
-  compareFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
-  compareMark: { position: 'absolute', width: 2, height: 14, marginLeft: -1, borderRadius: 1, backgroundColor: '#FFFFFF' },
-  compareText: { fontSize: 13, color: '#9A9A9A', marginTop: 10 },
-  stopped: { fontSize: 20, fontWeight: '700', color: '#B8B8B8', marginTop: 6 },
-  stats: { flexDirection: 'row', gap: 8 },
-  stat: {
-    flex: 1,
-    backgroundColor: '#141414',
-    borderWidth: 1,
-    borderColor: '#222',
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#F2F2F2', fontVariant: ['tabular-nums'] },
-  statLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, color: '#7A7A7A', marginTop: 2 },
+  readout: { paddingTop: 12, paddingBottom: 4 },
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  stateDot: { width: 7, height: 7, borderRadius: 3.5 },
+  stateText: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
+  days: { fontSize: 56, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
+  daysUnit: { fontSize: 22, fontWeight: '600', color: '#8A8A8A', letterSpacing: 0 },
+  hms: { fontSize: 20, fontWeight: '600', marginTop: 2, fontVariant: ['tabular-nums'] },
+  facts: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#2A2A2A' },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13 },
+  factDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#1F1F1F' },
+  factLabel: { fontSize: 15, color: '#8A8A8A' },
+  factValue: { fontSize: 15, fontWeight: '600', color: '#E8E8E8', fontVariant: ['tabular-nums'] },
+  factNote: { fontSize: 12, fontWeight: '700' },
   section: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: '#6F6F6F', marginTop: 6, marginLeft: 4 },
   chart: {
     height: 110,
