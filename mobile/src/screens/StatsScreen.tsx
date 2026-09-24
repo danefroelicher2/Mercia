@@ -51,6 +51,13 @@ interface HeatmapData {
   canGoNext: boolean;
 }
 
+interface InsightSection {
+  id: string;
+  title: string;
+  note?: string;
+  rows: { label: string; value: string; sub?: string }[];
+}
+
 interface LifetimeStats {
   perfectDays: number;
   joinedDate: string;
@@ -92,6 +99,8 @@ const StatsScreen: React.FC = () => {
 
 
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null);
+  // Everything else the app can compute from what it records (server-built sections).
+  const [insights, setInsights] = useState<InsightSection[]>([]);
   const [loadingLifetime, setLoadingLifetime] = useState(true);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -142,6 +151,7 @@ const StatsScreen: React.FC = () => {
       fetchStreakData();
       fetchHeatmapData();
       fetchLifetimeStats();
+      fetchInsights();
     }, [currentYear, currentMonth])
   );
 
@@ -156,6 +166,7 @@ const StatsScreen: React.FC = () => {
       fetchStreakData(),
       fetchHeatmapData(),
       fetchLifetimeStats(),
+      fetchInsights(),
     ]);
     setIsRefreshing(false);
   };
@@ -183,6 +194,16 @@ const StatsScreen: React.FC = () => {
       console.error('Failed to fetch heatmap data:', error);
     } finally {
       setLoadingHeatmap(false);
+    }
+  };
+
+  const fetchInsights = async () => {
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await api.get(`/api/stats/insights?timezone=${encodeURIComponent(timezone)}`);
+      setInsights(response.data.data ?? []);
+    } catch (error) {
+      console.error('Failed to fetch insights:', error);
     }
   };
 
@@ -382,6 +403,28 @@ const StatsScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Everything else, grouped by category — plain layout for now */}
+        {insights.map(section => (
+          <View key={section.id} style={styles.insightSection}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.note ? <Text style={styles.insightNote}>{section.note}</Text> : null}
+            <View style={styles.insightCard}>
+              {section.rows.length === 0 ? (
+                <Text style={styles.insightSub}>Nothing yet</Text>
+              ) : (
+                section.rows.map((row, i) => (
+                  <View key={`${row.label}-${i}`} style={[styles.insightRow, i < section.rows.length - 1 && styles.insightDivider]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.insightLabel}>{row.label}</Text>
+                      {row.sub ? <Text style={styles.insightSub}>{row.sub}</Text> : null}
+                    </View>
+                    <Text style={styles.insightValue}>{row.value}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -501,6 +544,14 @@ const styles = StyleSheet.create({
   },
 
   // Lifetime
+  insightSection: { marginBottom: 20 },
+  insightNote: { fontSize: 11, color: '#666', marginTop: 2, marginBottom: 8 },
+  insightCard: { backgroundColor: '#161616', borderRadius: 12, paddingHorizontal: 14, marginTop: 8 },
+  insightRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, gap: 12 },
+  insightDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#262626' },
+  insightLabel: { fontSize: 14, color: '#E8E8E8' },
+  insightSub: { fontSize: 11, color: '#777', marginTop: 1 },
+  insightValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   lifetimeContainer: {
     marginBottom: 24,
   },
