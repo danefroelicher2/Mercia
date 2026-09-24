@@ -13,7 +13,6 @@ export interface StreakData {
 
 const GREEN = '#5DCAA5';
 const AMBER = '#E8A13A';
-const GOLD = '#D8B45A';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // "October 2026" within one month, "Oct–Nov, 2026" across months,
@@ -26,6 +25,12 @@ function monthSpan(start: string, end: string): string {
   return `${MONTHS[sm].slice(0, 3)} ${sy}–${MONTHS[em].slice(0, 3)} ${ey}`;
 }
 
+// A run still going: "Sep–current, 2026", or "Dec 2025–current" if it began last year.
+function sinceMonth(start: string): string {
+  const [sy, sm] = [start.slice(0, 4), Number(start.slice(5, 7)) - 1];
+  return sy === String(new Date().getFullYear()) ? `${MONTHS[sm].slice(0, 3)}–current, ${sy}` : `${MONTHS[sm].slice(0, 3)} ${sy}–current`;
+}
+
 const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
   const current = data?.currentStreak ?? 0;
   const best = data?.longestStreak;
@@ -35,11 +40,11 @@ const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
     if (current === 0) currentStatus = { text: 'Do anything today to start', color: '#8A8A8A' };
     else currentStatus = data.activeToday ? { text: 'Today counted', color: GREEN } : { text: 'Keep it going today', color: AMBER };
   }
-  // The best run's months; while it's still going, "Happening now".
+  // The best run's months; while it's still going, from its start to "current" in green.
   let bestStatus: { text: string; color: string } | null = null;
-  if (best && best.length > 0) {
-    if (best.isCurrent) bestStatus = { text: 'Happening now', color: GOLD };
-    else if (best.startedAt && best.endedAt) bestStatus = { text: monthSpan(best.startedAt, best.endedAt), color: AMBER };
+  if (best && best.length > 0 && best.startedAt) {
+    if (best.isCurrent) bestStatus = { text: sinceMonth(best.startedAt), color: GREEN };
+    else if (best.endedAt) bestStatus = { text: monthSpan(best.startedAt, best.endedAt), color: AMBER };
   }
 
   return (
