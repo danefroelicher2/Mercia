@@ -111,6 +111,8 @@ const RoutineScreen: React.FC = () => {
   // Drawer state
   // Routine / Gym / Streaks, picked from the app-wide side drawer.
   const { section: activeSection, open: openDrawer } = useDrawer();
+  // The header + on Streaks opens its add sheet.
+  const [streakAddRequest, setStreakAddRequest] = useState(0);
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
@@ -1145,6 +1147,7 @@ const RoutineScreen: React.FC = () => {
           {activeSection === 'routine' && (
             <Text style={styles.headerTitle}>{headerDateLabel(selectedDay)}</Text>
           )}
+          {activeSection === 'streaks' && <Text style={styles.headerTitle}>Streaks</Text>}
         </View>
         <View style={{ flex: 1 }} />
         {activeSection === 'routine' && (
@@ -1155,6 +1158,16 @@ const RoutineScreen: React.FC = () => {
           >
             {/* Tinted while multi-select is on, as a reminder of the mode */}
             <Ionicons name="settings-outline" size={22} color={multiSelect ? accent : '#FFFFFF'} />
+          </TouchableOpacity>
+        )}
+        {activeSection === 'streaks' && (
+          <TouchableOpacity
+            onPress={() => setStreakAddRequest(n => n + 1)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Start a streak"
+            style={styles.streakAdd}
+          >
+            <Ionicons name="add" size={20} color="#FF8A3D" />
           </TouchableOpacity>
         )}
       </View>
@@ -1319,7 +1332,7 @@ const RoutineScreen: React.FC = () => {
       ) : activeSection === 'gym' ? (
         <GymScreen />
       ) : (
-        <StreaksScreen />
+        <StreaksScreen addRequest={streakAddRequest} />
       )}
 
       {/* Multi-select counter — shown the whole time the mode is on */}
@@ -1429,6 +1442,14 @@ const styles = StyleSheet.create({
   },
 
   // Hamburger header
+  streakAdd: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 138, 61, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitleWrap: {
     position: 'absolute',
     left: 0,
