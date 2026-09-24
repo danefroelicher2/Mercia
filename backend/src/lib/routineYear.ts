@@ -1,14 +1,30 @@
 import { getSupabase } from '../services/supabase';
 
-// Year-based routine stats: for each part of the day and each weekday,
-// (items crossed off + goal points) ÷ items on the list.
+// Yearly stats. Everything here is per calendar year (the user's own year,
+// in their time zone) and is saved to oasis.stats_archive once the year ends.
 //
-// Every finished day is recorded in oasis.routine_day_log by the nightly
-// job (including days the app wasn't opened: 0 of N counts). A weekly goal
-// completed that day adds 1.5 points, a monthly goal 3 — they only add, so
-// a day can go over 100%. Yearly goals don't count.
+// ROUTINE (oasis.routine_day_log — one row per day per part of the day):
+//   Each finished day is "closed": the items that were on that day's list
+//   (their ids), how many were crossed off, and goal points earned that day.
+//   Weekly goal = 1.5 points, monthly goal = 3; points only add (can pass
+//   100%); yearly goals give none. A closed day never changes when items are
+//   edited or deleted later; checking off a past day re-counts it against its
+//   saved list. Days the app isn't opened still close (0 of N).
+//   - By part of day / by weekday = (crossed off + points) ÷ items on list.
+//   - Perfect day = every item in Morning, Afternoon and Night crossed off
+//     (goals excluded; a day with nothing planned isn't perfect).
 //
-// When a year ends its numbers are saved to oasis.stats_archive.
+// ACTIONS (oasis.user_action_days — one row per day the user did anything):
+//   - Missed day = a finished day with no action at all.
+//   - Consistency = days with an action ÷ days since tracking began this
+//     year (today counts once there's been an action today).
+//
+// GOALS (oasis.goal_period_log — written by the weekly/monthly/yearly reset
+// just before it un-checks goals: goals that existed and how many were done):
+//   - Weekly % = average of each finished week's %; a week belongs to the
+//     year its Thursday falls in (ISO weeks). Monthly likewise.
+//   - Yearly % = the year's yearly goals completed ÷ total.
+//   - The period in progress is shown separately ("so far"), not averaged.
 
 export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
 export type Section = (typeof SECTIONS)[number];
@@ -16,24 +32,17 @@ export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday',
 const GOAL_POINTS: Record<string, number> = { weekly: 1.5, monthly: 3 };
 const DAY_MS = 86400_000;
 
-export interface DayCounts {
-  section: Section;
-  planned: number;
-  done: number;
-  goal_points: number;
-}
-
-export interface YearStats {
-  year: number;
-  from: string | null;
-  to: string | null;
-  days: number;
-  bySection: Record<Section, { planned: number; done: number; points: number; rate: number | null }>;
-  byWeekday: Record<string, { planned: number; done: number; points: number; rate: number | null }>;
-}
-
 // ---------- dates ----------
 
+export function validZone(tz: string | null | undefined): string {
+  if (!tz) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return 'UTC';
+  }
+}
 export function localDate(iso: string | Date, tz: string): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -45,38 +54,64 @@ function localMinutes(iso: string, tz: string): number {
 const toMs = (date: string) => Date.parse(`${date}T12:00:00Z`);
 export const addDays = (date: string, n: number) => new Date(toMs(date) + n * DAY_MS).toISOString().slice(0, 10);
 export const weekdayOf = (date: string) => WEEKDAYS[(new Date(toMs(date)).getUTCDay() + 6) % 7];
+const daysInclusive = (a: string, b: string) => Math.round((toMs(b) - toMs(a)) / DAY_MS) + 1;
 
-export function validZone(tz: string | null | undefined): string {
-  if (!tz) return 'UTC';
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return tz;
-  } catch {
-    return 'UTC';
-  }
+// ---------- profile ----------
+
+export interface Profile {
+  timezone: string;
+  afternoonStart: number;
+  nightStart: number;
+  start: string; // first tracked day
 }
 
-function sectionAt(minutes: number, afternoonStart: number, nightStart: number): Section {
-  if (minutes < afternoonStart) return 'morning';
-  if (minutes < nightStart) return 'afternoon';
+async function loadProfile(userId: string, tzOverride?: string): Promise<Profile> {
+  const sb = getSupabase().schema('oasis');
+  const { data } = await sb
+    .from('user_profiles')
+    .select('timezone, afternoon_start, night_start, routine_log_start, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+  const timezone = validZone(tzOverride ?? data?.timezone);
+  let start: string | null = data?.routine_log_start ?? null;
+  if (!start) {
+    // New account: tracking starts the day it was made (if recent), else today.
+    const today = localDate(new Date(), timezone);
+    const made = data?.created_at ? localDate(data.created_at, timezone) : today;
+    start = made >= addDays(today, -2) ? made : today;
+    await sb.from('user_profiles').update({ routine_log_start: start }).eq('id', userId);
+  }
+  return {
+    timezone,
+    afternoonStart: data?.afternoon_start ?? 12 * 60,
+    nightStart: data?.night_start ?? 18 * 60,
+    start,
+  };
+}
+
+function sectionAt(minutes: number, p: Profile): Section {
+  if (minutes < p.afternoonStart) return 'morning';
+  if (minutes < p.nightStart) return 'afternoon';
   return 'night';
 }
 
 // ---------- one day ----------
 
-interface Profile {
-  timezone: string;
-  afternoonStart: number;
-  nightStart: number;
+export interface DayRow {
+  log_date: string;
+  section: Section;
+  planned: number;
+  done: number;
+  goal_points: number;
+  task_ids: string[];
 }
 
-// Counts for one date, from the routine as it stands and the completion
-// history for that date. Used for finished days (stored) and today (live).
-export async function countDay(userId: string, date: string, p: Profile): Promise<DayCounts[]> {
+// Counts one date from the routine as it stands now (used to close a day
+// right after it ends, and for today live).
+async function countDay(userId: string, date: string, p: Profile): Promise<DayRow[]> {
   const sb = getSupabase().schema('oasis');
-  const weekday = weekdayOf(date);
   const [tasksRes, histRes, goalsRes] = await Promise.all([
-    sb.from('routine_tasks').select('id, time_of_day, created_at, type').eq('user_id', userId).eq('day_of_week', weekday),
+    sb.from('routine_tasks').select('id, time_of_day, created_at, type').eq('user_id', userId).eq('day_of_week', weekdayOf(date)),
     sb.from('task_completion_history').select('task_id').eq('user_id', userId).eq('snapshot_date', date).eq('completed', true),
     sb.from('goal_completion_history').select('goal_type, created_at').eq('user_id', userId).eq('completed_date', date),
   ]);
@@ -84,180 +119,245 @@ export async function countDay(userId: string, date: string, p: Profile): Promis
   if (histRes.error) throw histRes.error;
   if (goalsRes.error) throw goalsRes.error;
 
-  // On the list that day: this weekday's items that existed by then.
-  const planned = (tasksRes.data ?? []).filter(
-    (t: any) => t.type === 'today' && localDate(t.created_at, p.timezone) <= date,
-  );
   const doneIds = new Set((histRes.data ?? []).map((h: any) => h.task_id));
+  const rows: Record<Section, DayRow> = Object.fromEntries(
+    SECTIONS.map(s => [s, { log_date: date, section: s, planned: 0, done: 0, goal_points: 0, task_ids: [] as string[] }]),
+  ) as Record<Section, DayRow>;
 
-  const counts: Record<Section, DayCounts> = {
-    morning: { section: 'morning', planned: 0, done: 0, goal_points: 0 },
-    afternoon: { section: 'afternoon', planned: 0, done: 0, goal_points: 0 },
-    night: { section: 'night', planned: 0, done: 0, goal_points: 0 },
-  };
-  for (const t of planned) {
+  for (const t of tasksRes.data ?? []) {
+    // On that day's list: this weekday's items that existed by the end of it.
+    if (t.type !== 'today' || localDate(t.created_at, p.timezone) > date) continue;
     const s: Section = (SECTIONS as readonly string[]).includes(t.time_of_day) ? t.time_of_day : 'morning';
-    counts[s].planned++;
-    if (doneIds.has(t.id)) counts[s].done++;
+    rows[s].planned++;
+    rows[s].task_ids.push(t.id);
+    if (doneIds.has(t.id)) rows[s].done++;
   }
   for (const g of goalsRes.data ?? []) {
     const points = GOAL_POINTS[g.goal_type];
-    if (!points) continue;
-    const s = sectionAt(localMinutes(g.created_at, p.timezone), p.afternoonStart, p.nightStart);
-    counts[s].goal_points += points;
+    if (points) rows[sectionAt(localMinutes(g.created_at, p.timezone), p)].goal_points += points;
   }
-  return SECTIONS.map(s => counts[s]);
+  return SECTIONS.map(s => rows[s]);
+}
+
+// Close every finished day (start … yesterday) not closed yet. Idempotent.
+async function closeDays(userId: string, p: Profile): Promise<void> {
+  const sb = getSupabase().schema('oasis');
+  const yesterday = addDays(localDate(new Date(), p.timezone), -1);
+  const { data: last, error } = await sb
+    .from('routine_day_log')
+    .select('log_date')
+    .eq('user_id', userId)
+    .order('log_date', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  let date = last?.[0]?.log_date ? addDays(last[0].log_date, 1) : p.start;
+  if (date < p.start) date = p.start;
+  for (; date <= yesterday; date = addDays(date, 1)) {
+    const rows = await countDay(userId, date, p);
+    const { error: upErr } = await sb
+      .from('routine_day_log')
+      .upsert(rows.map(r => ({ user_id: userId, ...r })), { onConflict: 'user_id,log_date,section', ignoreDuplicates: true });
+    if (upErr) throw upErr;
+  }
+}
+
+// Remembers the last day closed per user so request-time checks are cheap.
+const closedThrough = new Map<string, string>();
+
+// Called before any change to a user's routine: makes sure every finished
+// day is closed with the routine as it was, before the change lands.
+export async function ensureDaysClosed(userId: string, tz?: string): Promise<void> {
+  const p = await loadProfile(userId, tz);
+  const yesterday = addDays(localDate(new Date(), p.timezone), -1);
+  if (closedThrough.get(userId) === yesterday) return;
+  await closeDays(userId, p);
+  closedThrough.set(userId, yesterday);
+}
+
+// A past day was checked off (or un-checked) after it closed: re-count it
+// against the items that were on its list.
+export async function recountDay(userId: string, date: string): Promise<void> {
+  const sb = getSupabase().schema('oasis');
+  const [rowsRes, histRes] = await Promise.all([
+    sb.from('routine_day_log').select('section, task_ids').eq('user_id', userId).eq('log_date', date),
+    sb.from('task_completion_history').select('task_id').eq('user_id', userId).eq('snapshot_date', date).eq('completed', true),
+  ]);
+  if (rowsRes.error) throw rowsRes.error;
+  if (histRes.error) throw histRes.error;
+  const doneIds = new Set((histRes.data ?? []).map((h: any) => h.task_id));
+  for (const r of rowsRes.data ?? []) {
+    const done = (r.task_ids ?? []).filter((id: string) => doneIds.has(id)).length;
+    await sb.from('routine_day_log').update({ done }).eq('user_id', userId).eq('log_date', date).eq('section', r.section);
+  }
+}
+
+// The user did something today.
+export async function markAction(userId: string, tz?: string): Promise<void> {
+  const p = await loadProfile(userId, tz);
+  await getSupabase()
+    .schema('oasis')
+    .from('user_action_days')
+    .upsert({ user_id: userId, action_date: localDate(new Date(), p.timezone) }, { onConflict: 'user_id,action_date', ignoreDuplicates: true });
 }
 
 // ---------- the year ----------
 
-function emptyStats(year: number): YearStats {
-  const blank = () => ({ planned: 0, done: 0, points: 0, rate: null as number | null });
+interface Bucket {
+  planned: number;
+  done: number;
+  points: number;
+  rate: number | null;
+}
+export interface YearSummary {
+  year: number;
+  trackingStart: string;
+  from: string | null;
+  to: string | null;
+  bySection: Record<Section, Bucket>;
+  byWeekday: Record<string, Bucket>;
+  perfectDays: number;
+  missedDays: number;
+  actionDays: number;
+  countedDays: number;
+  consistency: number | null;
+  goals: {
+    weekly: { average: number | null; periods: number; soFar: number | null };
+    monthly: { average: number | null; periods: number; soFar: number | null };
+    yearly: { rate: number | null; completed: number; total: number };
+  };
+  final?: boolean;
+}
+
+const blank = (): Bucket => ({ planned: 0, done: 0, points: 0, rate: null });
+const rateOf = (b: Bucket) => (b.planned > 0 ? (b.done + b.points) / b.planned : null);
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+// ISO week-year of a Monday: the year its Thursday falls in.
+const isoYearOfWeek = (monday: string) => Number(addDays(monday, 3).slice(0, 4));
+
+export async function summarizeYear(userId: string, year: number, tzOverride?: string): Promise<YearSummary> {
+  const sb = getSupabase().schema('oasis');
+  const p = await loadProfile(userId, tzOverride);
+  const today = localDate(new Date(), p.timezone);
+  const isCurrent = Number(today.slice(0, 4)) === year;
+  const yStart = `${year}-01-01`;
+  const yEnd = `${year}-12-31`;
+
+  const [logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
+    sb.from('routine_day_log').select('log_date, section, planned, done, goal_points, task_ids').eq('user_id', userId).gte('log_date', yStart).lte('log_date', yEnd),
+    sb.from('user_action_days').select('action_date').eq('user_id', userId).gte('action_date', yStart).lte('action_date', yEnd),
+    sb.from('goal_period_log').select('period_type, period_start, total, completed').eq('user_id', userId)
+      .gte('period_start', `${year - 1}-12-20`).lte('period_start', yEnd),
+    isCurrent ? sb.from('routine_goals').select('type, completed').eq('user_id', userId) : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const r of [logRes, actRes, goalLogRes, goalsNowRes]) if (r.error) throw r.error;
+
+  // Routine rows: closed days, plus today live.
+  const rows: DayRow[] = (logRes.data ?? []).map((r: any) => ({ ...r, goal_points: Number(r.goal_points) || 0 }));
+  if (isCurrent && today >= p.start) {
+    const live = await countDay(userId, today, p);
+    rows.push(...live.filter(r => !rows.some(x => x.log_date === today && x.section === r.section)));
+  }
+
+  const bySection = Object.fromEntries(SECTIONS.map(s => [s, blank()])) as Record<Section, Bucket>;
+  const byWeekday = Object.fromEntries(WEEKDAYS.map(d => [d, blank()])) as Record<string, Bucket>;
+  const perDate = new Map<string, { planned: number; done: number }>();
+  for (const r of rows) {
+    for (const b of [bySection[r.section], byWeekday[weekdayOf(r.log_date)]]) {
+      b.planned += r.planned;
+      b.done += r.done;
+      b.points += r.goal_points;
+    }
+    const d = perDate.get(r.log_date) ?? { planned: 0, done: 0 };
+    d.planned += r.planned;
+    d.done += r.done;
+    perDate.set(r.log_date, d);
+  }
+  for (const s of SECTIONS) bySection[s].rate = rateOf(bySection[s]);
+  for (const d of WEEKDAYS) byWeekday[d].rate = rateOf(byWeekday[d]);
+  const perfectDays = Array.from(perDate.values()).filter(d => d.planned > 0 && d.done >= d.planned).length;
+  const dates = Array.from(perDate.keys()).sort();
+
+  // Actions.
+  const actionDates = new Set((actRes.data ?? []).map((a: any) => a.action_date));
+  const from = p.start > yStart ? p.start : yStart;
+  const lastFinished = isCurrent ? addDays(today, -1) : yEnd;
+  let missedDays = 0;
+  for (let d = from; d <= lastFinished; d = addDays(d, 1)) if (!actionDates.has(d)) missedDays++;
+  const countedThrough = isCurrent ? (actionDates.has(today) ? today : addDays(today, -1)) : yEnd;
+  const countedDays = from <= countedThrough ? daysInclusive(from, countedThrough) : 0;
+  const actionDays = Array.from(actionDates).filter(d => d >= from && d <= countedThrough).length;
+
+  // Goals.
+  const goalLog = goalLogRes.data ?? [];
+  const pctOf = (g: any) => g.completed / g.total;
+  const weeks = goalLog.filter((g: any) => g.period_type === 'weekly' && isoYearOfWeek(g.period_start) === year);
+  const months = goalLog.filter((g: any) => g.period_type === 'monthly' && g.period_start.slice(0, 4) === String(year));
+  const yearly = goalLog.find((g: any) => g.period_type === 'yearly' && g.period_start === yStart);
+  const now = goalsNowRes.data ?? [];
+  const soFar = (type: string) => {
+    const g = now.filter((x: any) => x.type === type);
+    return g.length ? g.filter((x: any) => x.completed).length / g.length : null;
+  };
+  const yearlyNow = now.filter((x: any) => x.type === 'yearly');
+  const yearlyCompleted = yearly ? yearly.completed : yearlyNow.filter((x: any) => x.completed).length;
+  const yearlyTotal = yearly ? yearly.total : yearlyNow.length;
+
   return {
     year,
-    from: null,
-    to: null,
-    days: 0,
-    bySection: { morning: blank(), afternoon: blank(), night: blank() },
-    byWeekday: Object.fromEntries(WEEKDAYS.map(d => [d, blank()])),
+    trackingStart: p.start,
+    from: dates[0] ?? null,
+    to: dates[dates.length - 1] ?? null,
+    bySection,
+    byWeekday,
+    perfectDays,
+    missedDays,
+    actionDays,
+    countedDays,
+    consistency: countedDays > 0 ? actionDays / countedDays : null,
+    goals: {
+      weekly: { average: avg(weeks.map(pctOf)), periods: weeks.length, soFar: isCurrent ? soFar('weekly') : null },
+      monthly: { average: avg(months.map(pctOf)), periods: months.length, soFar: isCurrent ? soFar('monthly') : null },
+      yearly: { rate: yearlyTotal > 0 ? yearlyCompleted / yearlyTotal : null, completed: yearlyCompleted, total: yearlyTotal },
+    },
   };
 }
 
-export function summarize(year: number, rows: { log_date: string; section: string; planned: number; done: number; goal_points: number | string }[]): YearStats {
-  const stats = emptyStats(year);
-  const dates = new Set<string>();
-  for (const r of rows) {
-    const points = Number(r.goal_points) || 0;
-    const sec = stats.bySection[r.section as Section];
-    if (sec) {
-      sec.planned += r.planned;
-      sec.done += r.done;
-      sec.points += points;
-    }
-    const wd = stats.byWeekday[weekdayOf(r.log_date)];
-    wd.planned += r.planned;
-    wd.done += r.done;
-    wd.points += points;
-    dates.add(r.log_date);
-  }
-  const sorted = Array.from(dates).sort();
-  stats.from = sorted[0] ?? null;
-  stats.to = sorted[sorted.length - 1] ?? null;
-  stats.days = sorted.length;
-  const rate = (x: { planned: number; done: number; points: number }) =>
-    x.planned > 0 ? (x.done + x.points) / x.planned : null;
-  for (const s of SECTIONS) stats.bySection[s].rate = rate(stats.bySection[s]);
-  for (const d of WEEKDAYS) stats.byWeekday[d].rate = rate(stats.byWeekday[d]);
-  return stats;
+// A finished year is final once every period belonging to it has been
+// captured: the Jan 1 resets (05:00 UTC) and the Monday reset after the
+// year's last ISO week (11:10 UTC).
+function yearIsFinal(year: number): boolean {
+  let lastMonday = `${year}-12-28`; // always in the year's last ISO week
+  lastMonday = addDays(lastMonday, -WEEKDAYS.indexOf(weekdayOf(lastMonday)));
+  const weekReset = Date.parse(`${addDays(lastMonday, 7)}T11:30:00Z`);
+  const yearReset = Date.parse(`${year + 1}-01-01T05:30:00Z`);
+  return Date.now() > Math.max(weekReset, yearReset);
 }
 
-async function loadProfile(userId: string): Promise<Profile & { start: string | null }> {
-  const { data } = await getSupabase()
-    .schema('oasis')
-    .from('user_profiles')
-    .select('timezone, afternoon_start, night_start, routine_log_start')
-    .eq('id', userId)
-    .maybeSingle();
-  return {
-    timezone: validZone(data?.timezone),
-    afternoonStart: data?.afternoon_start ?? 12 * 60,
-    nightStart: data?.night_start ?? 18 * 60,
-    start: data?.routine_log_start ?? null,
-  };
-}
+// ---------- scheduled job ----------
 
-// This year so far: every recorded day plus today live (not stored yet).
-export async function currentYear(userId: string, tzOverride?: string): Promise<YearStats & { trackingSince: string | null }> {
-  const profile = await loadProfile(userId);
-  const tz = validZone(tzOverride ?? profile.timezone);
-  const today = localDate(new Date(), tz);
-  const year = Number(today.slice(0, 4));
-  const { data, error } = await getSupabase()
-    .schema('oasis')
-    .from('routine_day_log')
-    .select('log_date, section, planned, done, goal_points')
-    .eq('user_id', userId)
-    .gte('log_date', `${year}-01-01`)
-    .lte('log_date', `${year}-12-31`);
-  if (error) throw error;
-  const rows = [...(data ?? [])].filter(r => r.log_date !== today);
-  const live = await countDay(userId, today, { ...profile, timezone: tz });
-  for (const c of live) rows.push({ log_date: today, ...c });
-  return { ...summarize(year, rows), trackingSince: profile.start };
-}
-
-// ---------- nightly job ----------
-
-// Records every finished day (up to the user's yesterday) not yet stored,
-// and saves each finished year to the archive once. Safe to run hourly:
-// days and years are written once, keyed by date/year.
+// For every user: close finished days, then save each finished year to the
+// archive — re-saved on each run until all its periods are in, then frozen.
 export async function runRoutineDayLog(): Promise<void> {
   const sb = getSupabase().schema('oasis');
-  const { data: profiles, error } = await sb
-    .from('user_profiles')
-    .select('id, timezone, afternoon_start, night_start, routine_log_start');
+  const { data: users, error } = await sb.from('user_profiles').select('id');
   if (error) throw error;
-
-  for (const row of profiles ?? []) {
+  for (const u of users ?? []) {
     try {
-      const profile: Profile = {
-        timezone: validZone(row.timezone),
-        afternoonStart: row.afternoon_start ?? 12 * 60,
-        nightStart: row.night_start ?? 18 * 60,
-      };
-      const today = localDate(new Date(), profile.timezone);
-      const yesterday = addDays(today, -1);
+      const p = await loadProfile(u.id);
+      await closeDays(u.id, p);
+      closedThrough.set(u.id, addDays(localDate(new Date(), p.timezone), -1));
 
-      // First run for this user: tracking starts today.
-      let start: string = row.routine_log_start;
-      if (!start) {
-        start = today;
-        await sb.from('user_profiles').update({ routine_log_start: start }).eq('id', row.id);
-      }
-
-      const { data: last } = await sb
-        .from('routine_day_log')
-        .select('log_date')
-        .eq('user_id', row.id)
-        .order('log_date', { ascending: false })
-        .limit(1);
-      let date = last?.[0]?.log_date ? addDays(last[0].log_date, 1) : start;
-      // Never back-fill more than a week (a missed job shouldn't guess far back).
-      if (date < addDays(yesterday, -6)) date = addDays(yesterday, -6) > start ? addDays(yesterday, -6) : start;
-
-      for (; date <= yesterday; date = addDays(date, 1)) {
-        const counts = await countDay(row.id, date, profile);
-        const { error: upErr } = await sb
-          .from('routine_day_log')
-          .upsert(counts.map(c => ({ user_id: row.id, log_date: date, ...c })), {
-            onConflict: 'user_id,log_date,section',
-            ignoreDuplicates: true,
-          });
-        if (upErr) throw upErr;
-      }
-
-      // Archive any finished year that has records but no archive entry.
-      const thisYear = Number(today.slice(0, 4));
-      const { data: years } = await sb.from('stats_archive').select('year').eq('user_id', row.id);
-      const archived = new Set((years ?? []).map((y: any) => y.year));
-      const startYear = Number(start.slice(0, 4));
-      for (let y = startYear; y < thisYear; y++) {
-        if (archived.has(y)) continue;
-        const { data: logs, error: logErr } = await sb
-          .from('routine_day_log')
-          .select('log_date, section, planned, done, goal_points')
-          .eq('user_id', row.id)
-          .gte('log_date', `${y}-01-01`)
-          .lte('log_date', `${y}-12-31`);
-        if (logErr) throw logErr;
-        if (!logs || logs.length === 0) continue;
-        await sb.from('stats_archive').upsert(
-          { user_id: row.id, year: y, data: summarize(y, logs) },
-          { onConflict: 'user_id,year', ignoreDuplicates: true },
-        );
+      const thisYear = Number(localDate(new Date(), p.timezone).slice(0, 4));
+      const { data: archived } = await sb.from('stats_archive').select('year, data').eq('user_id', u.id);
+      const byYear = new Map((archived ?? []).map((a: any) => [a.year, a.data]));
+      for (let y = Number(p.start.slice(0, 4)); y < thisYear; y++) {
+        if (byYear.get(y)?.final) continue;
+        const summary = await summarizeYear(u.id, y);
+        summary.final = yearIsFinal(y);
+        await sb.from('stats_archive').upsert({ user_id: u.id, year: y, data: summary }, { onConflict: 'user_id,year' });
       }
     } catch (err) {
-      console.error('[RoutineDayLog] user', row.id, 'failed:', err);
+      console.error('[YearStats] user', u.id, 'failed:', err);
     }
   }
 }

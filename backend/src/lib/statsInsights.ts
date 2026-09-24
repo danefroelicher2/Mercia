@@ -184,19 +184,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   const items = Array.from(byText.values()).filter(i => i.p >= 3);
   const kept = [...items].sort((a, b) => b.d / b.p - a.d / a.p).slice(0, 5);
   const missed = [...items].sort((a, b) => a.d / a.p - b.d / b.p).slice(0, 5);
-  sections.push({
-    id: 'routine-items',
-    title: 'Routine · items',
-    note: 'Streaks count scheduled days in a row',
-    rows: [
-      ...kept.map((i, n) => ({ label: `Most kept #${n + 1}`, value: pct(i.d, i.p), sub: i.text })),
-      ...missed.map((i, n) => ({ label: `Most missed #${n + 1}`, value: pct(i.d, i.p), sub: i.text })),
-      ...[...items].sort((a, b) => b.current - a.current).slice(0, 5)
-        .map(i => ({ label: 'Current streak', value: plural(i.current, 'day'), sub: i.text })),
-      ...[...items].sort((a, b) => b.longest - a.longest).slice(0, 3)
-        .map(i => ({ label: 'Longest streak', value: plural(i.longest, 'day'), sub: i.text })),
-    ],
-  });
+
 
   // Volume.
   const lastN = (n: number, endOffset = 0) =>
@@ -205,16 +193,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   const thisMonth = today.slice(0, 7);
   const lastMonth = fromMs(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, 15)).slice(0, 7);
   const monthAvg = (m: string) => avg(perDate.filter(p => p.date.startsWith(m)));
-  sections.push({
-    id: 'routine-volume',
-    title: 'Routine · volume',
-    rows: [
-      { label: 'Items per day (window)', value: avg(perDate).toFixed(1) },
-      { label: 'Last 7 days', value: avg(lastN(7)).toFixed(1), sub: `prior 7: ${avg(lastN(7, 7)).toFixed(1)}` },
-      { label: 'This month', value: monthAvg(thisMonth).toFixed(1), sub: `last month: ${monthAvg(lastMonth).toFixed(1)}` },
-      { label: 'Completed today', value: String(history.filter((h: any) => h.snapshot_date === today).length) },
-    ],
-  });
+
 
   // Perfect days.
   const perfectFlags = perDate.map(p => p.planned > 0 && p.done === p.planned);
@@ -222,15 +201,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   perDate.forEach((p, i) => {
     if (perfectFlags[i]) perfectByMonth.set(p.date.slice(0, 7), (perfectByMonth.get(p.date.slice(0, 7)) ?? 0) + 1);
   });
-  sections.push({
-    id: 'routine-perfect',
-    title: 'Routine · perfect days',
-    rows: [
-      { label: 'Longest run of perfect days', value: plural(longestRun(perfectFlags), 'day') },
-      ...Array.from(perfectByMonth.entries()).sort().reverse()
-        .map(([m, n]) => ({ label: `${MONTHS[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`, value: plural(n, 'perfect day') })),
-    ],
-  });
+
 
   // Check-off timing.
   const timing = new Map<string, number>(HOUR_BUCKETS.map(b => [b, 0]));
@@ -254,17 +225,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
     }
   }
   const sameDay = Array.from(timing.values()).reduce((a, b) => a + b, 0);
-  sections.push({
-    id: 'routine-timing',
-    title: 'Routine · when you check things off',
-    note: 'Time of the first check-off each day',
-    rows: [
-      ...HOUR_BUCKETS.map(b => ({ label: b, value: pct(timing.get(b) ?? 0, sameDay) })),
-      { label: 'Done before noon', value: pct(beforeNoon, sameDay) },
-      { label: 'Timed items on time (±1h)', value: timed ? pct(onTime, timed) : '—', sub: timed ? `${onTime} of ${timed}` : 'No timed check-offs yet' },
-      { label: 'Filled in after the day', value: String(catchUp), sub: 'check-offs logged on a later date' },
-    ],
-  });
+
 
   // Counters.
   const counters = tasks.filter((t: any) => (t.target_count ?? 1) > 1);
@@ -278,11 +239,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   }
   const counterRows = Array.from(counterByText.values()).map(c => ({ label: c.text, value: String(c.total), sub: `${plural(c.days, 'full day')}` }));
 
-  sections.push({
-    id: 'routine-counters',
-    title: 'Routine · counter totals',
-    rows: counterRows.length ? counterRows : [{ label: 'No counter items yet', value: '—' }],
-  });
+
 
   // ===== GOALS =====
   const goals = goalsRes.data ?? [];
@@ -297,7 +254,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   for (const s of weeklyPcts.reverse()) {
     goalRows.push({ label: `Week of ${s.week_start_date.slice(5)}`, value: `${Math.round(Number(s.weekly_goals_percentage))}%`, sub: 'weekly goals' });
   }
-  sections.push({ id: 'goals-rates', title: 'Goals · completion', rows: goalRows });
+
 
   sections.push({
     id: 'goals-done',
