@@ -197,8 +197,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
-  groupDot: { width: 8, height: 8, borderRadius: 4 },
-  groupTitle: { fontSize: 20, fontWeight: '700', color: '#F2F2F2', letterSpacing: 0.2 },
+  groupDot: { width: 9, height: 9, borderRadius: 4.5, marginTop: 4 },
+  // Built-in iOS script face, as on the goal cards.
+  groupTitle: { fontFamily: 'Snell Roundhand', fontWeight: '700', fontSize: 32, lineHeight: 42, color: '#F2F2F2' },
   block: { gap: 8 },
   blockTitle: { fontSize: 12, letterSpacing: 1.1, color: '#777', fontWeight: '500' },
   card: { backgroundColor: '#161616', borderRadius: 12, paddingHorizontal: 14 },
