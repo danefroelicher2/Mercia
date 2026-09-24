@@ -184,16 +184,6 @@ const StatsScreen: React.FC = () => {
     return colors.heatmapMax;
   };
 
-  const formatDate = (dateString: string | null): string => {
-    if (!dateString) return 'Current';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
   const renderCalendarGrid = () => {
     if (!heatmapData) return null;
 

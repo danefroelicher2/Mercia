@@ -44,7 +44,7 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
   // Best/toughest compare only weekdays that have data, and only once they differ.
   const wdRates = WEEKDAYS.map(k => d.byWeekday[k]?.rate ?? 0);
   const wdMax = Math.max(...wdRates, 0.01);
-  const rated = WEEKDAYS.map((k, i) => i).filter(i => d.byWeekday[WEEKDAYS[i]]?.rate != null);
+  const rated = WEEKDAYS.map((_, i) => i).filter(i => d.byWeekday[WEEKDAYS[i]]?.rate != null);
   const best = rated.reduce((b, i) => (b < 0 || wdRates[i] > wdRates[b] ? i : b), -1);
   const worst = rated.reduce((w, i) => (w < 0 || wdRates[i] < wdRates[w] ? i : w), -1);
   const canCompare = rated.length > 1 && wdRates[best] !== wdRates[worst];
