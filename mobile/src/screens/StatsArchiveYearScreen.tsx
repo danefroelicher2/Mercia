@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   coverTop: { alignItems: 'center', justifyContent: 'center' },
   coverLabel: { fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
   coverYear: {
-    fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 116, lineHeight: 124, marginTop: -4,
+    fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 100, lineHeight: 110, marginTop: -2,
     color: '#FFFFFF', fontVariant: ['lining-nums'],
     textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12,
   },
