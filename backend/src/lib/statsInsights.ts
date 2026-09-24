@@ -87,7 +87,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
     tasksRes, historyRes, goalsRes, goalHistRes, summariesRes, gymRes, gymLogRes, prsRes, profileRes,
     streaksRes, chatsRes, messagesRes, activityRes, quotesRes, notepadRes,
   ] = await Promise.all([
-    sb.from('routine_tasks').select('id, text, day_of_week, time_of_day, scheduled_time, target_count, type').eq('user_id', userId),
+    sb.from('routine_tasks').select('id, text, day_of_week, time_of_day, scheduled_time, target_count, type, created_at').eq('user_id', userId),
     sb.from('task_completion_history').select('task_id, task_text, day_of_week, completed, snapshot_date, created_at').eq('user_id', userId).eq('completed', true),
     sb.from('routine_goals').select('id, text, type, completed, target_count, current_count, created_at, completed_at').eq('user_id', userId),
     sb.from('goal_completion_history').select('goal_id, goal_text, goal_type, completed_date').eq('user_id', userId).order('completed_date', { ascending: false }),
@@ -131,7 +131,8 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   if (windowStart) {
     for (const date of eachDate(windowStart, yesterday)) {
       const wd = dayOfWeek(date);
-      const planned = tasksByDay.get(wd) ?? [];
+      // An item only counts from the day it was added.
+      const planned = (tasksByDay.get(wd) ?? []).filter((t: any) => !t.created_at || localParts(t.created_at, tz).date <= date);
       let n = 0;
       for (const t of planned) {
         const ok = done.has(`${t.id}|${date}`);
@@ -276,10 +277,16 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
 
   // Counters.
   const counters = tasks.filter((t: any) => (t.target_count ?? 1) > 1);
-  const counterRows = counters.map((t: any) => {
+  const counterByText = new Map<string, { text: string; total: number; days: number }>();
+  for (const t of counters) {
     const n = history.filter((h: any) => h.task_id === t.id).length;
-    return { label: t.text, value: String(n * t.target_count), sub: `${plural(n, 'full day')} × ${t.target_count}` };
-  });
+    const key = t.text.trim().toLowerCase();
+    const c = counterByText.get(key) ?? { text: t.text, total: 0, days: 0 };
+    c.total += n * t.target_count; c.days += n;
+    counterByText.set(key, c);
+  }
+  const counterRows = Array.from(counterByText.values()).map(c => ({ label: c.text, value: String(c.total), sub: `${plural(c.days, 'full day')}` }));
+
   sections.push({
     id: 'routine-counters',
     title: 'Routine · counter totals',
@@ -341,7 +348,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   let improving = 0;
   for (let i = scored.length - 1; i > 0 && scored[i].score > scored[i - 1].score; i--) improving++;
   const dayWins = new Map<string, number>();
-  for (const s of scored) if (s.day) dayWins.set(s.day, (dayWins.get(s.day) ?? 0) + 1);
+  for (const s of scored) if (s.day && s.day !== '—' && s.day !== '-') dayWins.set(s.day, (dayWins.get(s.day) ?? 0) + 1);
   sections.push({
     id: 'weekly',
     title: 'Weekly scores',
@@ -450,7 +457,8 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
 
   // ===== MERCIA =====
   const messages = messagesRes.data ?? [];
-  const chats = chatsRes.data ?? [];
+  // Conversations you actually took part in (the app opens a daily chat on its own).
+  const chats = (chatsRes.data ?? []).filter((c: any) => messages.some((m: any) => m.chat_id === c.id));
   const chatDays = new Set(messages.map((m: any) => localParts(m.created_at, tz).date));
   let chatStreak = 0;
   for (let d = chatDays.has(today) ? today : yesterday; chatDays.has(d); d = addDays(d, -1)) chatStreak++;
