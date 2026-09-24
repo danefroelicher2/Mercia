@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
+import { computeInsights } from '../lib/statsInsights';
 
 const router = Router();
 
@@ -696,5 +697,26 @@ router.post(
     }
   }
 );
+
+// ============================================
+// GET /api/stats/insights?timezone=
+// Every stat the app can compute from data it already records, as
+// display-ready sections (see lib/statsInsights).
+// ============================================
+router.get('/insights', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const tz = typeof req.query.timezone === 'string' ? req.query.timezone : 'UTC';
+    let zone = 'UTC';
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz });
+      zone = tz;
+    } catch {}
+    const sections = await computeInsights(req.user!.id, zone);
+    res.json({ success: true, data: sections });
+  } catch (error: any) {
+    console.error('[Stats Insights] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 export default router;
