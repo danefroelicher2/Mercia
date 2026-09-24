@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '../constants/theme';
@@ -480,6 +481,7 @@ const MerciaHomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

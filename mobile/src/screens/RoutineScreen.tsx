@@ -40,6 +40,7 @@ import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import StreaksScreen from './StreaksScreen';
+import ScreenHeader from '../components/ScreenHeader';
 import { useDrawer } from '../context/DrawerContext';
 import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,7 +112,7 @@ const RoutineScreen: React.FC = () => {
 
   // Drawer state
   // Routine / Gym / Streaks, picked from the app-wide side drawer.
-  const { section: activeSection, open: openDrawer } = useDrawer();
+  const { section: activeSection } = useDrawer();
   // The header + on Streaks opens its add sheet.
   const [streakAddRequest, setStreakAddRequest] = useState(0);
   // Gym and Streaks take the color of the current part of the day.
@@ -1135,45 +1136,37 @@ const RoutineScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Hamburger header */}
-      <View style={styles.screenHeader}>
-        <TouchableOpacity
-          onPress={openDrawer}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={styles.hamburgerButton}
-        >
-          <View style={styles.hamburgerLine} />
-          <View style={styles.hamburgerLine} />
-          <View style={styles.hamburgerLine} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap} pointerEvents="none">
-          {activeSection === 'routine' && (
+      {/* Shared header: menu button in the same spot on every tab */}
+      <ScreenHeader
+        center={
+          activeSection === 'routine' ? (
             <Text style={styles.headerTitle}>{headerDateLabel(selectedDay)}</Text>
-          )}
-          {activeSection === 'streaks' && <Text style={styles.headerTitle}>Streaks</Text>}
-        </View>
-        <View style={{ flex: 1 }} />
-        {activeSection === 'routine' && (
-          <TouchableOpacity
-            onPress={() => setSettingsVisible(true)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Routine settings"
-          >
-            {/* Tinted while multi-select is on, as a reminder of the mode */}
-            <Ionicons name="settings-outline" size={22} color={multiSelect ? accent : '#FFFFFF'} />
-          </TouchableOpacity>
-        )}
-        {activeSection === 'streaks' && (
-          <TouchableOpacity
-            onPress={() => setStreakAddRequest(n => n + 1)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Start a streak"
-            style={[styles.streakAdd, { backgroundColor: withAlpha(nowAccent, 0.15) }]}
-          >
-            <Ionicons name="add" size={20} color={nowAccent} />
-          </TouchableOpacity>
-        )}
-      </View>
+          ) : activeSection === 'streaks' ? (
+            <Text style={styles.headerTitle}>Streaks</Text>
+          ) : undefined
+        }
+        right={
+          activeSection === 'routine' ? (
+            <TouchableOpacity
+              onPress={() => setSettingsVisible(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Routine settings"
+            >
+              {/* Tinted while multi-select is on, as a reminder of the mode */}
+              <Ionicons name="settings-outline" size={22} color={multiSelect ? accent : '#FFFFFF'} />
+            </TouchableOpacity>
+          ) : activeSection === 'streaks' ? (
+            <TouchableOpacity
+              onPress={() => setStreakAddRequest(n => n + 1)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Start a streak"
+              style={[styles.streakAdd, { backgroundColor: withAlpha(nowAccent, 0.15) }]}
+            >
+              <Ionicons name="add" size={20} color={nowAccent} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
       {activeSection === 'routine' ? (
         <>
@@ -1444,7 +1437,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
-  // Hamburger header
   streakAdd: {
     width: 32,
     height: 32,
@@ -1452,32 +1444,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
   headerTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: '#E8E8E8',
-  },
-  screenHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  hamburgerButton: {
-    gap: 5,
-    justifyContent: 'center',
-  },
-  hamburgerLine: {
-    width: 22,
-    height: 2,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 1,
   },
 
   // Week Navigator

@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
 
@@ -250,6 +251,7 @@ const StatsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader />
       <ScrollView
         contentContainerStyle={styles.contentContainer}
         refreshControl={

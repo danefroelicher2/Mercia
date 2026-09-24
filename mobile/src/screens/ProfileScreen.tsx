@@ -12,6 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
@@ -157,6 +158,7 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScreenHeader />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
