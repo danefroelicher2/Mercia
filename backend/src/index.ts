@@ -13,6 +13,7 @@ import summaryRoutes from './routes/summaries';
 import gymRoutes from './routes/gym';
 import notificationRoutes from './routes/notifications';
 import cronRoutes from './routes/cron';
+import streakRoutes from './routes/streaks';
 
 // Load environment variables
 dotenv.config();
@@ -55,6 +56,7 @@ app.use('/api/routine', routineRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/summaries', summaryRoutes);
 app.use('/api/gym', gymRoutes);
+app.use('/api/streaks', streakRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/cron', cronRoutes);
 
