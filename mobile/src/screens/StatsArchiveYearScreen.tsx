@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useRoute } from '@react-navigation/native';
 import { SECTION_COLORS } from '../utils/timeOfDay';
 import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct } from './statsArchiveData';
@@ -11,6 +12,7 @@ const ROUTINE = GROUP_COLORS.Routine;
 const StatsArchiveYearScreen: React.FC = () => {
   const { entry } = useRoute<any>().params as { entry: ArchivedYear };
   const d = entry.data;
+  const coverHeight = Math.round(useWindowDimensions().height * 0.25);
 
   const crossed = (b: Bucket) =>
     b.planned > 0 ? `${num(b.done)} of ${num(b.planned)} crossed off${b.points ? ` · +${b.points} goal pts` : ''}` : 'nothing planned';
@@ -25,19 +27,52 @@ const StatsArchiveYearScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <View>
-        <View style={styles.yearLine}>
-          <Text style={styles.year}>{entry.year}</Text>
-          {entry.sample ? <Text style={styles.tag}>SAMPLE</Text> : null}
+      {/* Cover: the year over the day's three colors, fading into its headline numbers. */}
+      <View style={styles.cover}>
+        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+          <Defs>
+            <RadialGradient id="m" cx="6%" cy="20%" r="55%">
+              <Stop offset="0" stopColor={SECTION_COLORS.morning} stopOpacity={0.55} />
+              <Stop offset="1" stopColor={SECTION_COLORS.morning} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="a" cx="50%" cy="-10%" r="45%">
+              <Stop offset="0" stopColor={SECTION_COLORS.afternoon} stopOpacity={0.4} />
+              <Stop offset="1" stopColor={SECTION_COLORS.afternoon} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="n" cx="94%" cy="22%" r="55%">
+              <Stop offset="0" stopColor={SECTION_COLORS.night} stopOpacity={0.62} />
+              <Stop offset="1" stopColor={SECTION_COLORS.night} stopOpacity={0} />
+            </RadialGradient>
+            <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0.35" stopColor="#161616" stopOpacity={0} />
+              <Stop offset="0.8" stopColor="#161616" stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="#161616" />
+          <Rect width="100%" height="100%" fill="url(#m)" />
+          <Rect width="100%" height="100%" fill="url(#a)" />
+          <Rect width="100%" height="100%" fill="url(#n)" />
+          <Rect width="100%" height="100%" fill="url(#fade)" />
+        </Svg>
+        <View style={[styles.coverTop, { height: coverHeight }]}>
+          {/* The sun's path across the day, faint behind the year. */}
+          <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
+            <Path d="M 4 92 Q 50 -8 96 92" stroke="#FFFFFF" strokeOpacity={0.09} strokeWidth={0.6} fill="none" />
+          </Svg>
+          <Text style={styles.coverLabel}>YEAR IN REVIEW</Text>
+          <Text style={styles.coverYear}>{entry.year}</Text>
+          <View style={styles.coverDots}>
+            {SECTIONS.map(s => <View key={s} style={[styles.coverDot, { backgroundColor: SECTION_COLORS[s] }]} />)}
+          </View>
+          {entry.sample ? <Text style={[styles.tag, styles.coverTag]}>SAMPLE</Text> : null}
         </View>
-      </View>
-
-      <View style={styles.hero}>
-        <Hero value={pct(d.consistency)} label="Consistency" />
-        <View style={styles.heroRule} />
-        <Hero value={num(d.perfectDays)} label="Perfect days" />
-        <View style={styles.heroRule} />
-        <Hero value={d.gym ? num(d.gym.sessions) : '—'} label="Gym sessions" />
+        <View style={styles.hero}>
+          <Hero value={pct(d.consistency)} label="Consistency" />
+          <View style={styles.heroRule} />
+          <Hero value={num(d.perfectDays)} label="Perfect days" />
+          <View style={styles.heroRule} />
+          <Hero value={d.gym ? num(d.gym.sessions) : '—'} label="Gym sessions" />
+        </View>
       </View>
 
       {/* Placeholder for an AI summary of the year. */}
@@ -187,13 +222,22 @@ const Bar = ({ ratio, color }: { ratio: number; color: string }) => (
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0D0D0D' },
   content: { padding: 16, paddingBottom: 40, gap: 16 },
-  yearLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  year: { fontSize: 44, fontWeight: '800', color: '#F2F2F2', fontVariant: ['tabular-nums'] },
+  cover: { borderRadius: 18, overflow: 'hidden' },
+  coverTop: { alignItems: 'center', justifyContent: 'center' },
+  coverLabel: { fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
+  coverYear: {
+    fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 84, lineHeight: 96,
+    color: '#FFFFFF', fontVariant: ['lining-nums'],
+    textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12,
+  },
+  coverDots: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  coverDot: { width: 5, height: 5, borderRadius: 2.5 },
+  coverTag: { position: 'absolute', top: 12, right: 12 },
   tag: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#999',
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden',
   },
-  hero: { flexDirection: 'row', backgroundColor: '#161616', borderRadius: 14, paddingVertical: 16 },
+  hero: { flexDirection: 'row', paddingTop: 4, paddingBottom: 18 },
   heroCell: { flex: 1, alignItems: 'center' },
   heroRule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A' },
   heroValue: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },

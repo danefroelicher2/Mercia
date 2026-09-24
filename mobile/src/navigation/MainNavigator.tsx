@@ -146,14 +146,14 @@ const ProfileStackNavigator: React.FC = () => {
       <ProfileStack.Screen
         name="StatsArchiveYear"
         component={StatsArchiveYearScreen}
-        options={({ route }) => ({
+        options={{
           headerShown: true,
-          title: String(route.params.entry.year),
+          title: '',
           headerBackTitle: 'Archive',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
-        })}
+        }}
       />
       <ProfileStack.Screen
         name="YearlyReviews"
