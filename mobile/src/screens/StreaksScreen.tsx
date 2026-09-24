@@ -312,7 +312,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
               </View>
             ) : (
               <>
-                <Text style={styles.section}>RUNNING · {running.length}</Text>
+                <Text style={styles.section}>CURRENT · {running.length}</Text>
                 <View style={styles.cards}>{running.map(renderCard)}</View>
               </>
             )}
@@ -322,29 +322,28 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
 
         {pastGroups.length > 0 && (
           <>
-            <Text style={styles.section}>PAST</Text>
-            <View style={styles.list}>
+            <Text style={styles.section}>HISTORY</Text>
+            <View style={styles.history}>
               {pastGroups.slice(0, 10).map((runs, i, all) => {
                 const last = runs[0];
-                const bestRun = Math.max(...runs.map(r => elapsed(r.started_at, r.ended_at, now).total));
+                const lastRun = elapsed(last.started_at, last.ended_at, now).total;
                 return (
                   <Pressable
                     key={last.id}
                     onPress={() => setDetailName(last.name)}
                     onLongPress={() => setHeldPast(runs)}
                     delayLongPress={350}
-                    style={({ pressed }) => [styles.row, i < all.length - 1 && styles.rowDivider, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.historyRow, i < all.length - 1 && styles.historyDivider, pressed && styles.pressed]}
                   >
-                    <View style={[styles.rowIcon, styles.rowIconPast]}>
-                      <Ionicons name="stop-circle-outline" size={18} color="#7A7A7A" />
-                    </View>
                     <View style={styles.rowMain}>
-                      <Text style={[styles.rowName, styles.pastName]} numberOfLines={1}>{last.name}</Text>
-                      <Text style={styles.rowMeta}>
-                        ended {shortDate(last.ended_at!)} · {runs.length} {runs.length === 1 ? 'run' : 'runs'}
+                      <Text style={styles.historyName} numberOfLines={1}>{last.name}</Text>
+                      <Text style={styles.historyDates}>
+                        {shortDate(last.started_at)} – {shortDate(last.ended_at!)}
                       </Text>
                     </View>
-                    <Text style={styles.pastDuration}>best {decimalDays(bestRun)} days</Text>
+                    <Text style={styles.historyDays}>
+                      {decimalDays(lastRun)}<Text style={styles.historyUnit}> days</Text>
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -520,7 +519,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowIconPast: { backgroundColor: '#1C1C1C' },
   stepNum: { fontSize: 15, fontWeight: '800', },
   rowMain: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: '#E8E8E8' },
@@ -528,8 +526,6 @@ const styles = StyleSheet.create({
   rowRight: { alignItems: 'flex-end' },
   rowDays: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   rowClock: { fontSize: 12, color: '#8A8A8A', fontVariant: ['tabular-nums'] },
-  pastName: { color: '#B8B8B8' },
-  pastDuration: { fontSize: 14, fontWeight: '600', color: '#9A9A9A' },
 
   hero: {
     borderRadius: 22,
@@ -543,6 +539,13 @@ const styles = StyleSheet.create({
   heroDaysUnit: { fontSize: 22, fontWeight: '700', },
   heroCompare: { fontSize: 13, color: '#9A9A9A', marginTop: 8 },
   cards: { gap: 10 },
+  history: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#262626' },
+  historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4 },
+  historyDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#1E1E1E' },
+  historyName: { fontSize: 16, fontWeight: '600', color: '#C8C8C8' },
+  historyDates: { fontSize: 12, color: '#6F6F6F', marginTop: 2 },
+  historyDays: { fontSize: 18, fontWeight: '700', color: '#B0B0B0', fontVariant: ['tabular-nums'] },
+  historyUnit: { fontSize: 12, fontWeight: '500', color: '#6F6F6F' },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
