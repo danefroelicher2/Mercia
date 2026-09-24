@@ -12,22 +12,21 @@ export interface LiveExtras {
   currentStreaks: number;
   lifetime: {
     actions: number;
-    joined: string;
-    daysSinceJoining: number;
-    activeDays: number;
     itemsCrossedOff: number;
     goalsCompleted: number;
-    gymSessions: number;
     gymDays: number;
     messages: number;
-    longestStreak: { name: string; days: number; running: boolean } | null;
-    mostActiveMonth: { month: string; activeDays: number } | null;
+    gymSessions: number;
+    favoriteGymDay: { day: string; sessions: number } | null;
+    mostUsedWeekday: { day: string; activeDays: number } | null;
+    mostUsedMonth: { month: number; activeDays: number } | null;
+    joined: string;
+    daysSinceJoining: number;
   };
 }
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const longDate = (d: string) => `${MONTHS_SHORT[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}, ${d.slice(0, 4)}`;
-const monthYear = (ym: string) => `${monthName(ym)} ${ym.slice(0, 4)}`;
 
 const ROUTINE = GROUP_COLORS.Routine;
 const DAY_MS = 86400_000;
@@ -180,27 +179,23 @@ const Lifetime = ({ l }: { l: LiveExtras['lifetime'] }) => (
         value={num(l.actions)}
         sub={`${num(l.itemsCrossedOff)} items · ${num(l.goalsCompleted)} goals · ${num(l.gymDays)} gym days · ${num(l.messages)} messages`}
       />
-      <Row label="Days since joining" value={num(l.daysSinceJoining)} sub={`joined ${longDate(l.joined)}`} />
-      <Row label="Active days" value={num(l.activeDays)} sub={`${pct(l.daysSinceJoining ? l.activeDays / l.daysSinceJoining : null)} of your days`} last />
-    </Block>
-    <Block title="Totals">
-      <Row label="Items crossed off" value={num(l.itemsCrossedOff)} />
-      <Row label="Goals completed" value={num(l.goalsCompleted)} />
-      <Row label="Gym sessions" value={num(l.gymSessions)} sub={plural(l.gymDays, 'gym day')} />
-      <Row label="Messages to Mercia" value={num(l.messages)} last />
-    </Block>
-    <Block title="Records">
+      <Row label="Gym sessions logged" value={num(l.gymSessions)} />
       <Row
-        label="Longest streak ever"
-        value={l.longestStreak?.name ?? '—'}
-        sub={l.longestStreak ? `${l.longestStreak.days.toFixed(1)} days${l.longestStreak.running ? ' · still going' : ''}` : 'no streaks yet'}
+        label="Favorite training day"
+        value={l.favoriteGymDay ? cap(l.favoriteGymDay.day) : '—'}
+        sub={l.favoriteGymDay ? plural(l.favoriteGymDay.sessions, 'session') : undefined}
       />
       <Row
-        label="Most active month ever"
-        value={l.mostActiveMonth ? monthYear(l.mostActiveMonth.month) : '—'}
-        sub={l.mostActiveMonth ? plural(l.mostActiveMonth.activeDays, 'active day') : undefined}
-        last
+        label="Most used day"
+        value={l.mostUsedWeekday ? cap(l.mostUsedWeekday.day) : '—'}
+        sub={l.mostUsedWeekday ? plural(l.mostUsedWeekday.activeDays, 'active day') : undefined}
       />
+      <Row
+        label="Most used month"
+        value={l.mostUsedMonth ? monthName(`0000-${String(l.mostUsedMonth.month).padStart(2, '0')}`) : '—'}
+        sub={l.mostUsedMonth ? plural(l.mostUsedMonth.activeDays, 'active day') : undefined}
+      />
+      <Row label="Days since joining" value={num(l.daysSinceJoining)} sub={`joined ${longDate(l.joined)}`} last />
     </Block>
   </>
 );
