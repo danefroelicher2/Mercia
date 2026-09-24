@@ -99,7 +99,6 @@ async function startServer() {
       console.log(`   GET  /api/routine/quotes/user-disliked`);
       console.log(`   GET  /api/stats/streaks`);
       console.log(`   GET  /api/stats/heatmap`);
-      console.log(`   GET  /api/stats/achievements`);
       console.log(`   POST /api/stats/log-activity`);
       console.log(`   GET  /api/gym/log/:dayOfWeek`);
       console.log(`   POST /api/gym/log`);

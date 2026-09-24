@@ -69,7 +69,7 @@ All routes require `Authorization: Bearer <access token>` except `/auth/*` (publ
 | GET | /monthly-review?timezone | Prior-month aggregate for Home card (gym approximated from weekly snapshots) |
 | GET | /yearly-reviews?timezone | Completed-year card list (gated: year over + ≥1 action) |
 | GET | /yearly-review/:year?timezone | Full Wrapped-style review; LLM narrative generated once from complete stats, cached in `yearly_reviews` |
-| GET | /achievements, /lifetime | Milestones; lifetime stats (incl. `perfectDays`, gym days from permanent `gym_memory`) |
+| GET | /lifetime | Lifetime stats (incl. `perfectDays`, gym days from permanent `gym_memory`) |
 | POST | /log-activity | Log an activity event (chat sends) |
 
 ## /notifications
