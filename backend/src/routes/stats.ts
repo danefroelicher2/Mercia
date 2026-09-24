@@ -5,6 +5,7 @@ import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
 import { computeInsights } from '../lib/statsInsights';
+import { currentYear } from '../lib/routineYear';
 
 const router = Router();
 
@@ -711,10 +712,62 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
       new Intl.DateTimeFormat('en-US', { timeZone: tz });
       zone = tz;
     } catch {}
-    const sections = await computeInsights(req.user!.id, zone);
-    res.json({ success: true, data: sections });
+    const [sections, year] = await Promise.all([computeInsights(req.user!.id, zone), currentYear(req.user!.id, zone)]);
+    res.json({ success: true, data: [...yearSections(year), ...sections] });
   } catch (error: any) {
     console.error('[Stats Insights] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// By part of day / by weekday for the current year, as Stats sections.
+const WD_LABEL: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+function yearSections(y: Awaited<ReturnType<typeof currentYear>>) {
+  const pctOf = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
+  const detail = (x: { planned: number; done: number; points: number }) =>
+    x.planned > 0 ? `${x.done} of ${x.planned} crossed off${x.points ? ` · +${x.points} goal pts` : ''}` : 'nothing planned yet';
+  const since = y.trackingSince
+    ? `${y.year} · tracking since ${new Date(`${y.trackingSince}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : `${y.year}`;
+  return [
+    {
+      id: 'year-sections',
+      title: 'Routine · by part of day',
+      note: since,
+      rows: (['morning', 'afternoon', 'night'] as const).map(s => ({
+        label: s[0].toUpperCase() + s.slice(1),
+        value: pctOf(y.bySection[s].rate),
+        sub: detail(y.bySection[s]),
+      })),
+    },
+    {
+      id: 'year-weekdays',
+      title: 'Routine · by weekday',
+      note: since,
+      rows: Object.keys(WD_LABEL).map(d => ({
+        label: WD_LABEL[d],
+        value: pctOf(y.byWeekday[d].rate),
+        sub: detail(y.byWeekday[d]),
+      })),
+    },
+  ];
+}
+
+// ============================================
+// GET /api/stats/archive — finished years' saved stats (newest first)
+// ============================================
+router.get('/archive', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data, error } = await getSupabase()
+      .schema('oasis')
+      .from('stats_archive')
+      .select('year, data, created_at')
+      .eq('user_id', req.user!.id)
+      .order('year', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data: data ?? [] });
+  } catch (error: any) {
+    console.error('[Stats Archive] Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
