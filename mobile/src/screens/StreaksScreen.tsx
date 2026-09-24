@@ -60,16 +60,6 @@ function elapsed(startIso: string, endIso: string | null, now: number) {
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-// "3 days 4h" / "5h 12m" / "12m" for past runs.
-function durationLabel(seconds: number) {
-  const d = Math.floor(seconds / DAY);
-  const h = Math.floor((seconds % DAY) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d} ${d === 1 ? 'day' : 'days'}${h ? ` ${h}h` : ''}`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 const Flame: React.FC<{ size?: number; color: string }> = ({ size = 18, color }) => (
   <Ionicons name="flame-outline" size={size} color={color} />
 );
@@ -87,6 +77,8 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
   const [held, setHeld] = useState<Streak | null>(null);
+  // A stopped streak (all its runs) held in Past → delete sheet.
+  const [heldPast, setHeldPast] = useState<Streak[] | null>(null);
   // A streak's own page (by name).
   const [detailName, setDetailName] = useState<string | null>(null);
 
@@ -153,6 +145,19 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
     } catch (error) {
       console.error(`[Streaks] ${action} failed:`, error);
       Alert.alert("Couldn't save", 'That change didn’t go through. Pull down to refresh and try again.');
+    }
+    load();
+  };
+
+  const deletePast = async (runs: Streak[]) => {
+    setHeldPast(null);
+    const ids = new Set(runs.map(r => r.id));
+    setPast(prev => prev.filter(r => !ids.has(r.id)));
+    try {
+      await Promise.all(runs.map(r => api.delete(`/api/streaks/${r.id}`)));
+    } catch (error) {
+      console.error('[Streaks] delete failed:', error);
+      Alert.alert("Couldn't delete", 'Pull down to refresh and try again.');
     }
     load();
   };
@@ -326,6 +331,8 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                   <Pressable
                     key={last.id}
                     onPress={() => setDetailName(last.name)}
+                    onLongPress={() => setHeldPast(runs)}
+                    delayLongPress={350}
                     style={({ pressed }) => [styles.row, i < all.length - 1 && styles.rowDivider, pressed && styles.pressed]}
                   >
                     <View style={[styles.rowIcon, styles.rowIconPast]}>
@@ -337,7 +344,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                         ended {shortDate(last.ended_at!)} · {runs.length} {runs.length === 1 ? 'run' : 'runs'}
                       </Text>
                     </View>
-                    <Text style={styles.pastDuration}>best {durationLabel(bestRun)}</Text>
+                    <Text style={styles.pastDuration}>best {decimalDays(bestRun)} days</Text>
                   </Pressable>
                 );
               })}
@@ -395,6 +402,27 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Delete a stopped streak */}
+      <Modal visible={heldPast !== null} transparent animationType="slide" onRequestClose={() => setHeldPast(null)}>
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.scrim} onPress={() => setHeldPast(null)} />
+          {heldPast && (
+            <View style={styles.sheet}>
+              <View style={styles.grab} />
+              <View style={styles.stopHead}>
+                <Text style={styles.stopTitle}>Delete “{heldPast[0].name}”?</Text>
+                <Text style={styles.stopText}>
+                  Removes {heldPast.length === 1 ? 'this run' : `all ${heldPast.length} runs`} from your history. This can't be undone.
+                </Text>
+              </View>
+              <Pressable onPress={() => deletePast(heldPast)} style={({ pressed }) => [styles.danger, pressed && styles.pressed]}>
+                <Text style={styles.dangerText}>Delete</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {/* Stop / restart */}
       <Modal visible={held !== null} transparent animationType="slide" onRequestClose={() => setHeld(null)}>
         <View style={styles.modalRoot}>
@@ -408,8 +436,8 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                   <Flame size={30} color={accent} />
                   <Text style={styles.stopTitle}>Stop “{held.name}”?</Text>
                   <Text style={styles.stopText}>
-                    It's been running <Text style={styles.stopStrong}>{e.days} {e.days === 1 ? 'day' : 'days'}, {e.hours}h</Text>
-                    {' '}— your best is {bestDays(held)} days.{'\n'}Stopping ends the clock and keeps it in your history.
+                    It's been running <Text style={styles.stopStrong}>{decimalDays(e.total)} days</Text>
+                    {' '}— your best is {bestDays(held)} days.{'\n'}Stopping moves it to your history.
                   </Text>
                 </View>
                 <Pressable onPress={() => act(held, 'stop')} style={({ pressed }) => [styles.danger, pressed && styles.pressed]}>
@@ -417,12 +445,6 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                 </Pressable>
                 <Pressable onPress={() => act(held, 'restart')} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
                   <Text style={styles.secondaryText}>Restart from now</Text>
-                </Pressable>
-                <Pressable onPress={() => setHeld(null)} style={styles.keep}>
-                  <Text style={styles.keepText}>Keep it going</Text>
-                </Pressable>
-                <Pressable onPress={() => confirmDelete(held)} hitSlop={8}>
-                  <Text style={styles.deleteText}>Delete this streak</Text>
                 </Pressable>
               </View>
             );
@@ -580,9 +602,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dangerText: { fontSize: 16, fontWeight: '700', color: '#FF6B6B' },
-  keep: { height: 40, alignItems: 'center', justifyContent: 'center' },
-  keepText: { fontSize: 15, color: '#8A8A8A', fontWeight: '600' },
-  deleteText: { fontSize: 13, color: '#6A6A6A', textAlign: 'center', textDecorationLine: 'underline' },
 });
 
 export default StreaksScreen;
