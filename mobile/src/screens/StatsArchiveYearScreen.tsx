@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   heroValue: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   heroLabel: { fontSize: 11, color: '#777', marginTop: 3 },
   group: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
   groupDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
