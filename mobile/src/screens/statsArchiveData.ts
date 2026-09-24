@@ -49,6 +49,7 @@ export interface ArchivedYear {
 
 // One quiet color per feature, used for the dot beside its group name.
 export const GROUP_COLORS: Record<string, string> = {
+  Lifetime: '#D8B45A',
   Routine: '#5DCAA5',
   Gym: '#E8A13A',
   Streaks: '#8E9BFF',

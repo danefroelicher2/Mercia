@@ -9,10 +9,25 @@ import {
 // the Stats tab (the year so far, with `live`) and by a Stats Archive year.
 
 export interface LiveExtras {
-  lifetimeActions: number;
-  daysSinceJoining: number;
   currentStreaks: number;
+  lifetime: {
+    actions: number;
+    joined: string;
+    daysSinceJoining: number;
+    activeDays: number;
+    itemsCrossedOff: number;
+    goalsCompleted: number;
+    gymSessions: number;
+    gymDays: number;
+    messages: number;
+    longestStreak: { name: string; days: number; running: boolean } | null;
+    mostActiveMonth: { month: string; activeDays: number } | null;
+  };
 }
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const longDate = (d: string) => `${MONTHS_SHORT[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}, ${d.slice(0, 4)}`;
+const monthYear = (ym: string) => `${monthName(ym)} ${ym.slice(0, 4)}`;
 
 const ROUTINE = GROUP_COLORS.Routine;
 const DAY_MS = 86400_000;
@@ -40,11 +55,11 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
 
   return (
     <View style={styles.root}>
-      <Group name="Overall" centered />
+      {live ? <Lifetime l={live.lifetime} /> : null}
+
+      <Group name="Overall" centered spaced={!!live} />
       <Block title="Across the app">
         <Row label="Actions" value={d.overall ? num(d.overall.actions) : '—'} sub="items and goals crossed off, gym days, messages" />
-        {live ? <Row label="Lifetime actions" value={num(live.lifetimeActions)} sub="all time" /> : null}
-        {live ? <Row label="Days since joining" value={num(live.daysSinceJoining)} /> : null}
         <Row
           label="Most active month"
           value={d.overall?.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
@@ -154,6 +169,41 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
     </View>
   );
 };
+
+// All-time numbers — the Stats tab only; a saved year never has these.
+const Lifetime = ({ l }: { l: LiveExtras['lifetime'] }) => (
+  <>
+    <Group name="Lifetime" centered />
+    <Block title="Since you joined">
+      <Row
+        label="Lifetime actions"
+        value={num(l.actions)}
+        sub={`${num(l.itemsCrossedOff)} items · ${num(l.goalsCompleted)} goals · ${num(l.gymDays)} gym days · ${num(l.messages)} messages`}
+      />
+      <Row label="Days since joining" value={num(l.daysSinceJoining)} sub={`joined ${longDate(l.joined)}`} />
+      <Row label="Active days" value={num(l.activeDays)} sub={`${pct(l.daysSinceJoining ? l.activeDays / l.daysSinceJoining : null)} of your days`} last />
+    </Block>
+    <Block title="Totals">
+      <Row label="Items crossed off" value={num(l.itemsCrossedOff)} />
+      <Row label="Goals completed" value={num(l.goalsCompleted)} />
+      <Row label="Gym sessions" value={num(l.gymSessions)} sub={plural(l.gymDays, 'gym day')} />
+      <Row label="Messages to Mercia" value={num(l.messages)} last />
+    </Block>
+    <Block title="Records">
+      <Row
+        label="Longest streak ever"
+        value={l.longestStreak?.name ?? '—'}
+        sub={l.longestStreak ? `${l.longestStreak.days.toFixed(1)} days${l.longestStreak.running ? ' · still going' : ''}` : 'no streaks yet'}
+      />
+      <Row
+        label="Most active month ever"
+        value={l.mostActiveMonth ? monthYear(l.mostActiveMonth.month) : '—'}
+        sub={l.mostActiveMonth ? plural(l.mostActiveMonth.activeDays, 'active day') : undefined}
+        last
+      />
+    </Block>
+  </>
+);
 
 const Group = ({ name, centered, spaced }: { name: string; centered?: boolean; spaced?: boolean }) => (
   <View style={[styles.group, centered && styles.groupCentered, spaced && styles.groupSpaced]}>
