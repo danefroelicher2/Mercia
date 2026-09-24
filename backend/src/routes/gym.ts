@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getStorage } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
-import { addDays, localDate, validZone, weekdayOf, WEEKDAYS } from '../lib/routineYear';
+import { addDays, isoWeekOf, localDate, validZone, weekdayOf, WEEKDAYS } from '../lib/routineYear';
 
 const router = Router();
 
@@ -42,16 +42,12 @@ const restDaySchema = z.object({
 // labels this as "(default)" so the user knows scoring isn't personalized yet.
 const DEFAULT_GYM_TARGET_DAYS = 4;
 
-function getISOWeek(date: Date): number {
-  const target = new Date(date.valueOf());
-  const dayNr = (date.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  }
-  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+// The user's current ISO week and the year that week belongs to (the year
+// its Thursday falls in), from their own local date. The week's year must be
+// the ISO year, not the calendar year: Dec 29–31 can be week 1 of next year
+// and Jan 1–3 can be week 52/53 of last year.
+function currentIsoWeek(req: Request): { weekNumber: number; year: number } {
+  return isoWeekOf(localDate(new Date(), validZone(req.header('x-timezone'))));
 }
 
 /**
@@ -107,9 +103,7 @@ router.get('/log/:dayOfWeek', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const now = new Date();
-    const weekNumber = getISOWeek(now);
-    const year = now.getFullYear();
+    const { weekNumber, year } = currentIsoWeek(req);
 
     const storage = getStorage();
     const entry = await storage.getGymWorkoutLog(userId, dayOfWeek.toLowerCase(), weekNumber, year);
@@ -132,9 +126,7 @@ router.post(
       const userId = req.user!.id;
       const { dayOfWeek, workoutGroup, notes } = req.body;
 
-      const now = new Date();
-      const weekNumber = getISOWeek(now);
-      const year = now.getFullYear();
+      const { weekNumber, year } = currentIsoWeek(req);
 
       const storage = getStorage();
       const entry = await storage.upsertGymWorkoutLog(userId, dayOfWeek, workoutGroup, notes, weekNumber, year);
@@ -160,9 +152,7 @@ router.post(
       const userId = req.user!.id;
       const { dayOfWeek, rest } = req.body;
 
-      const now = new Date();
-      const weekNumber = getISOWeek(now);
-      const year = now.getFullYear();
+      const { weekNumber, year } = currentIsoWeek(req);
 
       const storage = getStorage();
       const entry = await storage.setGymRestDay(userId, dayOfWeek, weekNumber, year, rest);
@@ -192,9 +182,7 @@ router.post(
 router.get('/week', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const now = new Date();
-    const weekNumber = getISOWeek(now);
-    const year = now.getFullYear();
+    const { weekNumber, year } = currentIsoWeek(req);
 
     const storage = getStorage();
     const entries = await storage.getGymWorkoutLogForWeek(userId, weekNumber, year);
