@@ -15,7 +15,10 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { compareToBest } from '../utils/streakCompare';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
+import StreakDetail from '../components/StreakDetail';
 import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
 import { textOnColor, withAlpha } from '../utils/timeOfDay';
 
@@ -39,6 +42,7 @@ interface Props {
 }
 
 const DAY = 86400;
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const pad = (n: number) => String(n).padStart(2, '0');
 
 function elapsed(startIso: string, endIso: string | null, now: number) {
@@ -80,6 +84,9 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
   const [held, setHeld] = useState<Streak | null>(null);
+  // A streak's own page (by name).
+  const [detailName, setDetailName] = useState<string | null>(null);
+
 
   // Clocks tick every second.
   useEffect(() => {
@@ -167,6 +174,28 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   const running = [...active].sort((a, b) => Date.parse(a.started_at) - Date.parse(b.started_at));
   const top = running[0];
 
+
+  // Past, one row per streak that isn't running now (its latest run).
+  const pastGroups = Object.values(
+    past.reduce<Record<string, Streak[]>>((groups, run) => {
+      if (running.some(r => sameName(r.name, run.name))) return groups;
+      const key = run.name.trim().toLowerCase();
+      (groups[key] = groups[key] ?? []).push(run);
+      return groups;
+    }, {}),
+  ).sort((a, b) => Date.parse(b[0].ended_at!) - Date.parse(a[0].ended_at!));
+
+  const detailRuns = detailName ? [...active, ...past].filter(r => sameName(r.name, detailName)) : [];
+  // Nothing left under this name (deleted) → close its page.
+  useEffect(() => {
+    if (detailName && loaded && detailRuns.length === 0) setDetailName(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailName, detailRuns.length, loaded]);
+
+  // Longest earlier (ended) run under the same name, in seconds.
+  const previousBest = (s: Streak) =>
+    Math.max(0, ...past.filter(p => sameName(p.name, s.name)).map(p => elapsed(p.started_at, p.ended_at, now).total));
+
   const bestDays = (s: Streak) =>
     Math.floor(Math.max(s.best_seconds ?? 0, elapsed(s.started_at, s.ended_at, now).total) / DAY);
 
@@ -175,6 +204,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
     return (
       <Pressable
         key={s.id}
+        onPress={() => setDetailName(s.name)}
         onLongPress={() => setHeld(s)}
         delayLongPress={350}
         style={({ pressed }) => [styles.row, !last && styles.rowDivider, pressed && styles.pressed]}
@@ -239,13 +269,14 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
             {(() => {
               const e = elapsed(top.started_at, null, now);
               return (
-                <Pressable onLongPress={() => setHeld(top)} delayLongPress={350} style={({ pressed }) => [styles.hero, t.hero, pressed && styles.pressed]}>
+                <Pressable onPress={() => setDetailName(top.name)} onLongPress={() => setHeld(top)} delayLongPress={350} style={({ pressed }) => [styles.hero, t.hero, pressed && styles.pressed]}>
                   <Text style={[styles.heroLabel, t.text]}>LONGEST RUNNING</Text>
                   <Text style={styles.heroName} numberOfLines={1}>{top.name}</Text>
                   <Text style={styles.heroDays}>
                     {e.days} <Text style={[styles.heroDaysUnit, t.soft]}>{e.days === 1 ? 'day' : 'days'}</Text>
                   </Text>
                   <Text style={[styles.heroClock, t.soft]}>{e.clock}</Text>
+                  <Text style={styles.heroCompare}>{compareToBest(e.total, previousBest(top))}</Text>
                 </Pressable>
               );
             })()}
@@ -263,31 +294,33 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                 <View style={styles.list}>{running.map((s, i) => renderRow(s, i === running.length - 1))}</View>
               </>
             )}
-            <Text style={styles.hint}>Hold a streak to stop or restart it</Text>
+            <Text style={styles.hint}>Tap a streak to see its history · hold to stop or restart</Text>
           </>
         )}
 
-        {past.length > 0 && (
+        {pastGroups.length > 0 && (
           <>
             <Text style={styles.section}>PAST</Text>
             <View style={styles.list}>
-              {past.slice(0, 10).map((s, i, all) => {
-                const e = elapsed(s.started_at, s.ended_at, now);
+              {pastGroups.slice(0, 10).map((runs, i, all) => {
+                const last = runs[0];
+                const bestRun = Math.max(...runs.map(r => elapsed(r.started_at, r.ended_at, now).total));
                 return (
                   <Pressable
-                    key={s.id}
-                    onLongPress={() => confirmDelete(s)}
-                    delayLongPress={350}
+                    key={last.id}
+                    onPress={() => setDetailName(last.name)}
                     style={({ pressed }) => [styles.row, i < all.length - 1 && styles.rowDivider, pressed && styles.pressed]}
                   >
                     <View style={[styles.rowIcon, styles.rowIconPast]}>
                       <Ionicons name="stop-circle-outline" size={18} color="#7A7A7A" />
                     </View>
                     <View style={styles.rowMain}>
-                      <Text style={[styles.rowName, styles.pastName]} numberOfLines={1}>{s.name}</Text>
-                      <Text style={styles.rowMeta}>{shortDate(s.started_at)} – {shortDate(s.ended_at!)}</Text>
+                      <Text style={[styles.rowName, styles.pastName]} numberOfLines={1}>{last.name}</Text>
+                      <Text style={styles.rowMeta}>
+                        ended {shortDate(last.ended_at!)} · {runs.length} {runs.length === 1 ? 'run' : 'runs'}
+                      </Text>
                     </View>
-                    <Text style={styles.pastDuration}>{durationLabel(e.total)}</Text>
+                    <Text style={styles.pastDuration}>best {durationLabel(bestRun)}</Text>
                   </Pressable>
                 );
               })}
@@ -295,6 +328,17 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
           </>
         )}
       </ScrollView>
+
+      <StreakDetail
+        visible={detailName !== null}
+        name={detailName ?? ''}
+        runs={detailRuns}
+        now={now}
+        accent={accent}
+        onClose={() => setDetailName(null)}
+        onMore={run => setHeld(run)}
+        onDeleteRun={run => confirmDelete(run)}
+      />
 
       {/* Start a streak */}
       <Modal visible={adding} transparent animationType="slide" onRequestClose={() => setAdding(false)}>
@@ -459,6 +503,7 @@ const styles = StyleSheet.create({
   heroDays: { fontSize: 44, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   heroDaysUnit: { fontSize: 22, fontWeight: '700', },
   heroClock: { fontSize: 16, fontVariant: ['tabular-nums'] },
+  heroCompare: { fontSize: 13, color: '#9A9A9A', marginTop: 8 },
   hint: { fontSize: 12, color: '#555', textAlign: 'center', marginTop: 2 },
 
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
