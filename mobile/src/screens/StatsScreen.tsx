@@ -3,16 +3,15 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  PanResponder,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
+import ActivityHeatmap from '../components/ActivityHeatmap';
 import YearStats, { LiveExtras } from '../components/YearStats';
 import type { ArchivedYearData } from './statsArchiveData';
 
@@ -24,11 +23,6 @@ const colors = {
   textTertiary: '#666',
   primary: '#1D9E75',
   border: '#232323',
-  heatmapEmpty: '#1F1F1F',
-  heatmapLight: 'rgba(29, 158, 117, 0.3)',
-  heatmapMedium: 'rgba(29, 158, 117, 0.6)',
-  heatmapDark: 'rgba(29, 158, 117, 0.8)',
-  heatmapMax: '#1D9E75',
 };
 
 interface StreakData {
@@ -53,13 +47,6 @@ interface HeatmapData {
   canGoNext: boolean;
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
 
 const StatsScreen: React.FC = () => {
   const [streakData, setStreakData] = useState<StreakData | null>(null);
@@ -68,14 +55,13 @@ const StatsScreen: React.FC = () => {
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
-  const [loadingHeatmap, setLoadingHeatmap] = useState(true);
 
   // This year so far — the same layout a Stats Archive year uses.
   const [year, setYear] = useState<{ year: ArchivedYearData; live: LiveExtras } | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Refs for swipe navigation (to access latest state in PanResponder)
+  // Refs so month navigation always reads the latest state.
   const heatmapRef = useRef(heatmapData);
   const yearRef = useRef(currentYear);
   const monthRef = useRef(currentMonth);
@@ -101,19 +87,6 @@ const StatsScreen: React.FC = () => {
     }
   }, []);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 40,
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > 50) {
-          navigateMonth('prev');
-        } else if (gestureState.dx < -50) {
-          navigateMonth('next');
-        }
-      },
-    })
-  ).current;
 
   // Refetch all data when tab comes into focus
   useFocusEffect(
@@ -153,15 +126,12 @@ const StatsScreen: React.FC = () => {
 
   const fetchHeatmapData = async () => {
     try {
-      setLoadingHeatmap(true);
       const response = await api.get(
         `/api/stats/heatmap?year=${currentYear}&month=${currentMonth}`
       );
       setHeatmapData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch heatmap data:', error);
-    } finally {
-      setLoadingHeatmap(false);
     }
   };
 
@@ -175,47 +145,6 @@ const StatsScreen: React.FC = () => {
     }
   };
 
-
-  const getHeatmapColor = (count: number): string => {
-    if (count === 0) return colors.heatmapEmpty;
-    if (count === 1) return colors.heatmapLight;
-    if (count <= 3) return colors.heatmapMedium;
-    if (count <= 5) return colors.heatmapDark;
-    return colors.heatmapMax;
-  };
-
-  const renderCalendarGrid = () => {
-    if (!heatmapData) return null;
-
-    const { year, month, days } = heatmapData;
-    const firstDay = new Date(year, month - 1, 1).getDay();
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    const activityMap = new Map<number, number>();
-    days.forEach((day) => {
-      const dayNum = parseInt(day.date.split('-')[2]);
-      activityMap.set(dayNum, day.count);
-    });
-
-    const cells: React.JSX.Element[] = [];
-
-    for (let i = 0; i < firstDay; i++) {
-      cells.push(<View key={`empty-${i}`} style={styles.calendarCell} />);
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const count = activityMap.get(day) || 0;
-      const bgColor = getHeatmapColor(count);
-
-      cells.push(
-        <View key={day} style={[styles.calendarCell, { backgroundColor: bgColor }]}>
-          <Text style={styles.calendarDayText}>{day}</Text>
-        </View>
-      );
-    }
-
-    return cells;
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -257,50 +186,15 @@ const StatsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Heatmap */}
-        <View style={styles.heatmapContainer} {...panResponder.panHandlers}>
-          <View style={styles.monthHeader}>
-            <TouchableOpacity
-              onPress={() => navigateMonth('prev')}
-              disabled={!heatmapData?.canGoPrevious}
-              style={[
-                styles.monthArrow,
-                !heatmapData?.canGoPrevious && styles.monthArrowDisabled,
-              ]}
-            >
-              <Text style={styles.monthArrowText}>{'\u2190'}</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.monthTitle}>
-              {MONTH_NAMES[currentMonth - 1]} {currentYear}
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => navigateMonth('next')}
-              disabled={!heatmapData?.canGoNext}
-              style={[
-                styles.monthArrow,
-                !heatmapData?.canGoNext && styles.monthArrowDisabled,
-              ]}
-            >
-              <Text style={styles.monthArrowText}>{'\u2192'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.dayLabelsRow}>
-            {DAY_LABELS.map((label, i) => (
-              <Text key={i} style={styles.dayLabel}>
-                {label}
-              </Text>
-            ))}
-          </View>
-
-          {loadingHeatmap ? (
-            <ActivityIndicator color={colors.primary} style={styles.loadingIndicator} />
-          ) : (
-            <View style={styles.calendarGrid}>{renderCalendarGrid()}</View>
-          )}
-        </View>
+        <ActivityHeatmap
+          year={currentYear}
+          month={currentMonth}
+          days={heatmapData && heatmapData.year === currentYear && heatmapData.month === currentMonth ? heatmapData.days : null}
+          canGoPrevious={!!heatmapData?.canGoPrevious}
+          canGoNext={!!heatmapData?.canGoNext}
+          onPrevious={() => navigateMonth('prev')}
+          onNext={() => navigateMonth('next')}
+        />
 
         {/* This year so far, laid out like a Stats Archive year */}
         {year ? <YearStats data={year.year} live={year.live} /> : null}
@@ -308,8 +202,6 @@ const StatsScreen: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-const CELL_SIZE = 100 / 7;
 
 const styles = StyleSheet.create({
   container: {
@@ -360,67 +252,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
 
-  // Heatmap
-  heatmapContainer: {
-    backgroundColor: '#161616',
-    borderRadius: 14,
-    padding: 16,
-    paddingBottom: 8,
-    marginBottom: 24,
-    borderTopWidth: 3,
-    borderTopColor: '#1D9E75',
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  monthArrow: {
-    padding: 8,
-  },
-  monthArrowDisabled: {
-    opacity: 0.3,
-  },
-  monthArrowText: {
-    fontSize: 18,
-    color: '#E8E8E8',
-  },
-  monthTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#E8E8E8',
-  },
-  dayLabelsRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  dayLabel: {
-    width: `${CELL_SIZE}%`,
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#666',
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  calendarCell: {
-    width: `${CELL_SIZE}%`,
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 4,
-    marginBottom: 2,
-  },
-  calendarDayText: {
-    fontSize: 11,
-    color: '#E8E8E8',
-  },
-  loadingIndicator: {
-    marginVertical: 12,
-  },
 
 });
 
