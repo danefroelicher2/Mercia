@@ -40,6 +40,11 @@ const StatsArchiveYearScreen: React.FC = () => {
         <Hero value={d.gym ? num(d.gym.sessions) : '—'} label="Gym sessions" />
       </View>
 
+      {/* Placeholder for an AI summary of the year. */}
+      <View style={styles.note}>
+        <Text style={styles.noteText}>insert ai jargon here future dane 9/24</Text>
+      </View>
+
       <Group name="Routine" />
 
       <Block title="By part of day">
@@ -193,6 +198,11 @@ const styles = StyleSheet.create({
   heroRule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A' },
   heroValue: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   heroLabel: { fontSize: 11, color: '#777', marginTop: 3 },
+  note: {
+    borderWidth: 1, borderStyle: 'dashed', borderColor: '#3A3A3A', borderRadius: 12,
+    paddingVertical: 18, paddingHorizontal: 14, alignItems: 'center',
+  },
+  noteText: { fontSize: 13, color: '#8A8A8A' },
   group: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
