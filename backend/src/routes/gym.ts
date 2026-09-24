@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getStorage } from '../services/merciaCore';
+import { getSupabase } from '../services/supabase';
+import { addDays, localDate, validZone, weekdayOf, WEEKDAYS } from '../lib/routineYear';
 
 const router = Router();
 
@@ -164,6 +166,17 @@ router.post(
 
       const storage = getStorage();
       const entry = await storage.setGymRestDay(userId, dayOfWeek, weekNumber, year, rest);
+
+      // gym_workout_log is wiped every week; gym_rest_days keeps the dated
+      // record so Stats can count rest days across the whole year.
+      const today = localDate(new Date(), validZone(req.header('x-timezone')));
+      const monday = addDays(today, -WEEKDAYS.indexOf(weekdayOf(today)));
+      const restDate = addDays(monday, WEEKDAYS.indexOf(dayOfWeek));
+      const rd = getSupabase().schema('oasis').from('gym_rest_days');
+      const { error: rdError } = rest
+        ? await rd.upsert({ user_id: userId, rest_date: restDate }, { onConflict: 'user_id,rest_date', ignoreDuplicates: true })
+        : await rd.delete().eq('user_id', userId).eq('rest_date', restDate);
+      if (rdError) console.error('[Gym] rest day record failed:', rdError.message);
 
       res.json({ success: true, data: entry });
     } catch (error: any) {
