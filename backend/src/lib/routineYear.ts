@@ -1,4 +1,5 @@
 import { getSupabase } from '../services/supabase';
+import { GymYear, StreaksYear, gymYear, streaksYear } from './yearGymStreaks';
 
 // Yearly stats. Everything here is per calendar year (the user's own year,
 // in their time zone) and is saved to oasis.stats_archive once the year ends.
@@ -25,6 +26,8 @@ import { getSupabase } from '../services/supabase';
 //     year its Thursday falls in (ISO weeks). Monthly likewise.
 //   - Yearly % = the year's yearly goals completed ÷ total.
 //   - The period in progress is shown separately ("so far"), not averaged.
+//
+// GYM and STREAKS for the year come from lib/yearGymStreaks.
 
 export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
 export type Section = (typeof SECTIONS)[number];
@@ -54,6 +57,14 @@ function localMinutes(iso: string, tz: string): number {
 const toMs = (date: string) => Date.parse(`${date}T12:00:00Z`);
 export const addDays = (date: string, n: number) => new Date(toMs(date) + n * DAY_MS).toISOString().slice(0, 10);
 export const weekdayOf = (date: string) => WEEKDAYS[(new Date(toMs(date)).getUTCDay() + 6) % 7];
+// ISO week of a date and the year that week belongs to (its Thursday's year).
+export function isoWeekOf(date: string): { weekNumber: number; year: number } {
+  const monday = addDays(date, -WEEKDAYS.indexOf(weekdayOf(date)));
+  const year = Number(addDays(monday, 3).slice(0, 4));
+  const jan4 = `${year}-01-04`; // always in ISO week 1
+  const week1Monday = addDays(jan4, -WEEKDAYS.indexOf(weekdayOf(jan4)));
+  return { weekNumber: Math.round((toMs(monday) - toMs(week1Monday)) / (7 * DAY_MS)) + 1, year };
+}
 const daysInclusive = (a: string, b: string) => Math.round((toMs(b) - toMs(a)) / DAY_MS) + 1;
 
 // ---------- profile ----------
@@ -226,6 +237,8 @@ export interface YearSummary {
     monthly: { average: number | null; periods: number; soFar: number | null };
     yearly: { rate: number | null; completed: number; total: number };
   };
+  gym: GymYear;
+  streaks: StreaksYear;
   final?: boolean;
 }
 
@@ -243,7 +256,9 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
   const yStart = `${year}-01-01`;
   const yEnd = `${year}-12-31`;
 
-  const [logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
+  const [gym, streaks, logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
+    gymYear(userId, year, today),
+    streaksYear(userId, year, p.timezone),
     sb.from('routine_day_log').select('log_date, section, planned, done, goal_points, task_ids').eq('user_id', userId).gte('log_date', yStart).lte('log_date', yEnd),
     sb.from('user_action_days').select('action_date').eq('user_id', userId).gte('action_date', yStart).lte('action_date', yEnd),
     sb.from('goal_period_log').select('period_type, period_start, total, completed').eq('user_id', userId)
@@ -323,6 +338,8 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
       monthly: { average: avg(months.map(pctOf)), periods: months.length, soFar: isCurrent ? soFar('monthly') : null },
       yearly: { rate: yearlyTotal > 0 ? yearlyCompleted / yearlyTotal : null, completed: yearlyCompleted, total: yearlyTotal },
     },
+    gym,
+    streaks,
   };
 }
 
@@ -339,27 +356,34 @@ function yearIsFinal(year: number): boolean {
 
 // ---------- scheduled job ----------
 
-// For every user: close finished days, then save each finished year to the
+// One user: close finished days, then save each finished year to the
 // archive — re-saved on each run until all its periods are in, then frozen.
-export async function runRoutineDayLog(): Promise<void> {
+export async function logAndArchiveUser(userId: string): Promise<void> {
   const sb = getSupabase().schema('oasis');
-  const { data: users, error } = await sb.from('user_profiles').select('id');
+  const p = await loadProfile(userId);
+  await closeDays(userId, p);
+  closedThrough.set(userId, addDays(localDate(new Date(), p.timezone), -1));
+
+  const thisYear = Number(localDate(new Date(), p.timezone).slice(0, 4));
+  const { data: archived, error } = await sb.from('stats_archive').select('year, data').eq('user_id', userId);
+  if (error) throw error;
+  const byYear = new Map((archived ?? []).map((a: any) => [a.year, a.data]));
+  for (let y = Number(p.start.slice(0, 4)); y < thisYear; y++) {
+    if (byYear.get(y)?.final) continue;
+    const summary = await summarizeYear(userId, y);
+    summary.final = yearIsFinal(y);
+    const { error: upErr } = await sb.from('stats_archive').upsert({ user_id: userId, year: y, data: summary }, { onConflict: 'user_id,year' });
+    if (upErr) throw upErr;
+  }
+}
+
+// Hourly: every user, one at a time; one user's failure never stops the rest.
+export async function runRoutineDayLog(): Promise<void> {
+  const { data: users, error } = await getSupabase().schema('oasis').from('user_profiles').select('id');
   if (error) throw error;
   for (const u of users ?? []) {
     try {
-      const p = await loadProfile(u.id);
-      await closeDays(u.id, p);
-      closedThrough.set(u.id, addDays(localDate(new Date(), p.timezone), -1));
-
-      const thisYear = Number(localDate(new Date(), p.timezone).slice(0, 4));
-      const { data: archived } = await sb.from('stats_archive').select('year, data').eq('user_id', u.id);
-      const byYear = new Map((archived ?? []).map((a: any) => [a.year, a.data]));
-      for (let y = Number(p.start.slice(0, 4)); y < thisYear; y++) {
-        if (byYear.get(y)?.final) continue;
-        const summary = await summarizeYear(u.id, y);
-        summary.final = yearIsFinal(y);
-        await sb.from('stats_archive').upsert({ user_id: u.id, year: y, data: summary }, { onConflict: 'user_id,year' });
-      }
+      await logAndArchiveUser(u.id);
     } catch (err) {
       console.error('[YearStats] user', u.id, 'failed:', err);
     }

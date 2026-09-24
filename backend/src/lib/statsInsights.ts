@@ -1,9 +1,11 @@
 import { getSupabase } from '../services/supabase';
+import type { YearSummary } from './routineYear';
 
-// The Gym, Streaks and App-wide parts of the Stats tab, computed per user and
-// returned as display-ready sections (title + rows). The Routine part is the
-// yearly summary in lib/routineYear. `group` is the feature a section belongs
-// to; the app draws a header wherever the group changes.
+// The Gym, Streaks and App-wide parts of the Stats tab as display-ready
+// sections (title + rows). Gym and Streaks come from the year summary
+// (lib/routineYear + lib/yearGymStreaks) — the same numbers the Stats Archive
+// saves when the year ends. `group` is the feature a section belongs to; the
+// app draws a header wherever the group changes.
 
 export interface InsightRow {
   label: string;
@@ -18,7 +20,6 @@ export interface InsightSection {
   rows: InsightRow[];
 }
 
-const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const DAY_LABEL: Record<string, string> = {
   monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday',
 };
@@ -33,51 +34,34 @@ function localDate(iso: string | Date, tz: string) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 const toMs = (date: string) => Date.parse(`${date}T12:00:00Z`);
-const dayOfWeek = (date: string) => DAYS[(new Date(toMs(date)).getUTCDay() + 6) % 7];
 const daysBetween = (a: string, b: string) => Math.round((toMs(b) - toMs(a)) / DAY_MS);
 
-export async function computeInsights(userId: string, tz: string): Promise<InsightSection[]> {
+export async function computeInsights(userId: string, tz: string, summary: YearSummary): Promise<InsightSection[]> {
   const sb = getSupabase().schema('oasis');
   const today = localDate(new Date(), tz);
-  const year = today.slice(0, 4);
+  const year = String(summary.year);
 
-  const [gymRes, restRes, profileRes, streaksRes, activityRes, actionDaysRes] = await Promise.all([
-    // Every session ever logged — gym_memory archives old sessions, it never deletes them.
-    sb.from('gym_memory').select('workout_group, session_date').eq('user_id', userId)
-      .gte('session_date', `${year}-01-01`).lte('session_date', `${year}-12-31`),
-    sb.from('gym_rest_days').select('rest_date').eq('user_id', userId)
-      .gte('rest_date', `${year}-01-01`).lte('rest_date', today),
+  const [profileRes, streaksRes, activityRes, actionDaysRes, gymDaysRes] = await Promise.all([
     sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
-    sb.from('streaks').select('name, started_at, ended_at').eq('user_id', userId).order('started_at', { ascending: true }),
+    sb.from('streaks').select('ended_at').eq('user_id', userId),
     sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId),
     sb.from('user_action_days').select('action_date').eq('user_id', userId),
+    sb.from('gym_memory').select('session_date').eq('user_id', userId),
   ]);
 
   const sections: InsightSection[] = [];
 
   // ===== GYM (this calendar year) =====
-  const sessions = (gymRes.data ?? []).filter((s: any) => s.workout_group);
-  const groups = new Map<string, { n: number; last: string }>();
-  const byWeekday = new Map<string, number>();
-  for (const s of sessions) {
-    const g = groups.get(s.workout_group) ?? { n: 0, last: '' };
-    g.n++;
-    if (s.session_date > g.last) g.last = s.session_date;
-    groups.set(s.workout_group, g);
-    const wd = dayOfWeek(s.session_date);
-    byWeekday.set(wd, (byWeekday.get(wd) ?? 0) + 1);
-  }
-  const favDay = Array.from(byWeekday.entries()).sort((a, b) => b[1] - a[1])[0];
-  const restDays = (restRes.data ?? []).length;
+  const gym = summary.gym;
   sections.push({
     id: 'gym-training',
     group: 'Gym',
     title: 'Training',
     note: year,
     rows: [
-      { label: 'Sessions logged', value: String(sessions.length) },
-      { label: 'Favorite training day', value: favDay ? DAY_LABEL[favDay[0]] : '—', sub: favDay ? plural(favDay[1], 'session') : undefined },
-      { label: 'Rest days', value: String(restDays) },
+      { label: 'Sessions logged', value: String(gym.sessions) },
+      { label: 'Favorite training day', value: gym.favoriteDay ? DAY_LABEL[gym.favoriteDay.day] : '—', sub: gym.favoriteDay ? plural(gym.favoriteDay.sessions, 'session') : undefined },
+      { label: 'Rest days', value: String(gym.restDays) },
     ],
   });
   sections.push({
@@ -85,44 +69,33 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
     group: 'Gym',
     title: 'Split',
     note: year,
-    rows: groups.size
-      ? Array.from(groups.entries()).sort((a, b) => b[1].n - a[1].n).map(([g, v]) => ({
-          label: g,
-          value: pct(v.n, sessions.length),
-          sub: `${plural(v.n, 'session')} · last ${daysBetween(v.last, today)}d ago`,
+    rows: gym.split.length
+      ? gym.split.map(g => ({
+          label: g.group,
+          value: pct(g.sessions, gym.sessions),
+          sub: `${plural(g.sessions, 'session')} · last ${daysBetween(g.last, today)}d ago`,
         }))
       : [{ label: 'No sessions yet this year', value: '—' }],
   });
 
   // ===== STREAKS =====
-  const runs = streaksRes.data ?? [];
-  const nowMs = Date.now();
-  const len = (r: any) => ((r.ended_at ? Date.parse(r.ended_at) : nowMs) - Date.parse(r.started_at)) / DAY_MS;
-  const names = new Map<string, any[]>();
-  for (const r of runs) {
-    const k = r.name.trim().toLowerCase();
-    names.set(k, [...(names.get(k) ?? []), r]);
-  }
-  // Most restarts; ties go to the one restarted most recently.
-  const leastConsistent = Array.from(names.values())
-    .filter(rs => rs.length > 1)
-    .sort((a, b) => b.length - a.length || Date.parse(b[b.length - 1].started_at) - Date.parse(a[a.length - 1].started_at))[0];
-  const longest = runs.reduce((b: any, r: any) => (!b || len(r) > len(b) ? r : b), null);
+  const { longest, leastConsistent } = summary.streaks;
   sections.push({
     id: 'streaks-totals',
     group: 'Streaks',
     title: 'Totals',
+    note: year,
     rows: [
-      { label: 'Current streaks', value: String(runs.filter((r: any) => !r.ended_at).length) },
+      { label: 'Current streaks', value: String((streaksRes.data ?? []).filter((r: any) => !r.ended_at).length), sub: 'running now' },
       {
         label: 'Least consistent',
-        value: leastConsistent ? leastConsistent[0].name : '—',
-        sub: leastConsistent ? `restarted ${plural(leastConsistent.length - 1, 'time')}` : 'no restarts yet',
+        value: leastConsistent ? leastConsistent.name : '—',
+        sub: leastConsistent ? `restarted ${plural(leastConsistent.restarts, 'time')}` : 'no restarts this year',
       },
       {
         label: 'Longest streak',
         value: longest ? longest.name : '—',
-        sub: longest ? `${len(longest).toFixed(1)} days${longest.ended_at ? '' : ' · still going'}` : undefined,
+        sub: longest ? `${longest.days.toFixed(1)} days this year${longest.running ? ' · still going' : ''}` : undefined,
       },
     ],
   });
@@ -130,9 +103,8 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   // ===== APP-WIDE =====
   const activity = activityRes.data ?? [];
   const count = (type: string) => activity.filter((a: any) => a.activity_type === type).length;
-  const gymDaysEver = await sb.from('gym_memory').select('session_date').eq('user_id', userId);
   const lifetimeActions = count('task_completed') + count('goal_completed') + count('ai_chat_sent')
-    + new Set((gymDaysEver.data ?? []).map((r: any) => r.session_date)).size;
+    + new Set((gymDaysRes.data ?? []).map((r: any) => r.session_date)).size;
   const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
   const activeDays = new Set<string>([
     ...activity.map((a: any) => a.activity_date),

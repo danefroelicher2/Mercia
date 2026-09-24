@@ -713,7 +713,8 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
       zone = tz;
     } catch {}
     const thisYear = Number(localDate(new Date(), validZone(zone)).slice(0, 4));
-    const [sections, year] = await Promise.all([computeInsights(req.user!.id, zone), summarizeYear(req.user!.id, thisYear, zone)]);
+    const year = await summarizeYear(req.user!.id, thisYear, zone);
+    const sections = await computeInsights(req.user!.id, zone, year);
     res.json({ success: true, data: [...yearSections(year), ...sections] });
   } catch (error: any) {
     console.error('[Stats Insights] Error:', error);

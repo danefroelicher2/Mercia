@@ -20,14 +20,13 @@ const DAY_OFFSETS: Record<string, number> = {
 
 // Returns the calendar date (YYYY-MM-DD) for a given day of the week within an ISO week+year.
 function getISOWeekDayDate(dayOfWeek: string, weekNumber: number, year: number): string {
-  // Find Jan 4 of the year, which is always in ISO week 1
-  const jan4 = new Date(year, 0, 4);
-  const jan4DayOfWeek = (jan4.getDay() + 6) % 7; // Mon=0 … Sun=6
-  const monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - jan4DayOfWeek + (weekNumber - 1) * 7);
+  // `year` is the ISO week-year. All UTC so the server's own time zone can't
+  // shift the date. Jan 4 is always in ISO week 1.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4DayOfWeek = (jan4.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
   const offset = DAY_OFFSETS[dayOfWeek.toLowerCase()] ?? 0;
-  const result = new Date(monday);
-  result.setDate(monday.getDate() + offset);
+  const result = new Date(jan4);
+  result.setUTCDate(jan4.getUTCDate() - jan4DayOfWeek + (weekNumber - 1) * 7 + offset);
   return result.toISOString().split('T')[0];
 }
 
