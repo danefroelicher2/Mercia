@@ -50,16 +50,6 @@ interface HeatmapData {
   canGoNext: boolean;
 }
 
-interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  unlocked: boolean;
-  unlockedAt: string | null;
-  progress: number;
-  requirement: number;
-}
-
 interface LifetimeStats {
   perfectDays: number;
   joinedDate: string;
@@ -75,16 +65,6 @@ const MONTH_NAMES = [
 ];
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-// Format date as M/D/YY (e.g., "1/14/25")
-const formatCompletionDate = (isoDate: string | null): string => {
-  if (!isoDate) return '';
-  const date = new Date(isoDate);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const year = date.getFullYear().toString().slice(-2);
-  return `${month}/${day}/${year}`;
-};
 
 // "Since March 2026" — reuses MONTH_NAMES (defined above) instead of
 // toLocaleDateString, so this doesn't depend on device locale/ICU data.
@@ -109,8 +89,6 @@ const StatsScreen: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [loadingHeatmap, setLoadingHeatmap] = useState(true);
 
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [loadingAchievements, setLoadingAchievements] = useState(true);
 
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null);
   const [loadingLifetime, setLoadingLifetime] = useState(true);
@@ -162,7 +140,6 @@ const StatsScreen: React.FC = () => {
     useCallback(() => {
       fetchStreakData();
       fetchHeatmapData();
-      fetchAchievements();
       fetchLifetimeStats();
     }, [currentYear, currentMonth])
   );
@@ -177,7 +154,6 @@ const StatsScreen: React.FC = () => {
     await Promise.all([
       fetchStreakData(),
       fetchHeatmapData(),
-      fetchAchievements(),
       fetchLifetimeStats(),
     ]);
     setIsRefreshing(false);
@@ -206,18 +182,6 @@ const StatsScreen: React.FC = () => {
       console.error('Failed to fetch heatmap data:', error);
     } finally {
       setLoadingHeatmap(false);
-    }
-  };
-
-  const fetchAchievements = async () => {
-    try {
-      setLoadingAchievements(true);
-      const response = await api.get('/api/stats/achievements');
-      setAchievements(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch achievements:', error);
-    } finally {
-      setLoadingAchievements(false);
     }
   };
 
@@ -416,71 +380,6 @@ const StatsScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Achievements */}
-        <View style={styles.achievementsContainer}>
-          <View style={styles.achievementsHeader}>
-            <View style={styles.achievementsAccent} />
-            <Text style={styles.sectionTitle}>Milestones</Text>
-            <Text style={styles.achievementCount}>
-              {achievements.filter((a) => a.unlocked).length}/{achievements.length}
-            </Text>
-          </View>
-
-          {loadingAchievements ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : achievements.length === 0 ? (
-            <Text style={styles.emptyText}>No milestones yet</Text>
-          ) : (
-            achievements.map((achievement) => (
-              <View
-                key={achievement.id}
-                style={[
-                  styles.achievementCard,
-                  !achievement.unlocked && styles.achievementCardLocked,
-                ]}
-              >
-                <View style={[
-                  styles.achievementIconBadge,
-                  achievement.unlocked ? styles.achievementIconUnlocked : styles.achievementIconLocked,
-                ]}>
-                  <Text style={{ fontSize: 18 }}>
-                    {achievement.unlocked ? '🔥' : '🎯'}
-                  </Text>
-                </View>
-
-                <View style={styles.achievementContent}>
-                  <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                  <Text style={styles.achievementDescription}>{achievement.description}</Text>
-
-                  {achievement.unlocked ? (
-                    <Text style={styles.achievementDate}>
-                      Unlocked {formatCompletionDate(achievement.unlockedAt)}
-                    </Text>
-                  ) : (
-                    <>
-                      <View style={styles.progressBarBg}>
-                        <View
-                          style={[
-                            styles.progressBarFill,
-                            {
-                              width: `${Math.min(
-                                (achievement.progress / achievement.requirement) * 100,
-                                100
-                              )}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.achievementProgress}>
-                        {achievement.progress}/{achievement.requirement} completed
-                      </Text>
-                    </>
-                  )}
-                </View>
-              </View>
-            ))
-          )}
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -676,100 +575,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Achievements
-  achievementsContainer: {
-    marginBottom: 24,
-  },
-  achievementsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  achievementsAccent: {
-    width: 3,
-    height: 14,
-    backgroundColor: '#1D9E75',
-    borderRadius: 2,
-  },
   sectionTitle: {
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 1.1,
     color: '#777',
     fontWeight: '500',
-  },
-  achievementCount: {
-    fontSize: 12,
-    color: '#888',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  achievementCard: {
-    flexDirection: 'row',
-    backgroundColor: '#161616',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    alignItems: 'center',
-    gap: 10,
-  },
-  achievementCardLocked: {
-    opacity: 0.5,
-  },
-  achievementIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  achievementIconUnlocked: {
-    backgroundColor: 'rgba(29, 158, 117, 0.2)',
-  },
-  achievementIconLocked: {
-    backgroundColor: '#1F1F1F',
-  },
-  achievementContent: {
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#E8E8E8',
-    marginBottom: 2,
-  },
-  achievementDate: {
-    fontSize: 10,
-    color: '#1D9E75',
-  },
-  achievementDescription: {
-    fontSize: 11,
-    color: '#888',
-    marginBottom: 3,
-  },
-  achievementProgress: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 3,
-  },
-  progressBarBg: {
-    height: 3,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginTop: 6,
-    marginBottom: 3,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#1D9E75',
-    borderRadius: 2,
   },
 });
 
