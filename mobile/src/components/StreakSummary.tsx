@@ -28,7 +28,7 @@ const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
 
   return (
     <View style={styles.card}>
-      <Half label="Current streak" value={current} status={currentStatus} />
+      <Half label="Current streak" value={current} status={currentStatus} centered />
       <View style={styles.rule} />
       <Half label="Best streak" value={best?.length ?? 0} status={bestStatus} centered />
     </View>
