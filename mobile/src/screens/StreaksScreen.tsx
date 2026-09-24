@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { compareToBest } from '../utils/streakCompare';
@@ -201,29 +202,44 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   const bestDays = (s: Streak) =>
     decimalDays(Math.max(s.best_seconds ?? 0, elapsed(s.started_at, s.ended_at, now).total));
 
-  const renderRow = (s: Streak, last: boolean) => {
+  // A running streak as its own card: a soft diagonal wash of the
+  // time-of-day color (a little softer for each card down the list).
+  const WASH = [1, 0.8, 0.64, 0.5];
+  const renderCard = (s: Streak, index: number) => {
     const e = elapsed(s.started_at, null, now);
+    const k = WASH[Math.min(index, WASH.length - 1)];
     return (
       <Pressable
         key={s.id}
         onPress={() => setDetailName(s.name)}
         onLongPress={() => setHeld(s)}
         delayLongPress={350}
-        style={({ pressed }) => [styles.row, !last && styles.rowDivider, pressed && styles.pressed]}
-        accessibilityHint="Hold to stop or restart"
+        style={({ pressed }) => [styles.card, { borderColor: withAlpha(accent, 0.35 * k) }, pressed && styles.pressed]}
+        accessibilityHint="Tap to see its history, hold to stop or restart"
       >
-        <View style={[styles.rowIcon, t.rowIcon]}><Flame color={accent} /></View>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id={`wash-${s.id}`} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={accent} stopOpacity={0.3 * k} />
+              <Stop offset="0.7" stopColor={accent} stopOpacity={0.06 * k} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#wash-${s.id})`} />
+        </Svg>
+        </View>
         <View style={styles.rowMain}>
-          <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
-          <Text style={styles.rowMeta}>since {shortDate(s.started_at)} · best {bestDays(s)}d</Text>
+          <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
+          <Text style={styles.cardMeta}>since {shortDate(s.started_at)}</Text>
         </View>
         <View style={styles.rowRight}>
-          <Text style={styles.rowDays}>{decimalDays(e.total)}</Text>
-          <Text style={styles.rowClock}>days</Text>
+          <Text style={styles.cardDays}>{decimalDays(e.total)}</Text>
+          <Text style={styles.cardUnit}>days</Text>
         </View>
       </Pressable>
     );
   };
+
 
   if (!loaded) {
     return <View style={styles.center}><ActivityIndicator color={accent} /></View>;
@@ -292,7 +308,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
             ) : (
               <>
                 <Text style={styles.section}>RUNNING · {running.length}</Text>
-                <View style={styles.list}>{running.map((s, i) => renderRow(s, i === running.length - 1))}</View>
+                <View style={styles.cards}>{running.map(renderCard)}</View>
               </>
             )}
             <Text style={styles.hint}>Tap a streak to see its history · hold to stop or restart</Text>
@@ -504,6 +520,22 @@ const styles = StyleSheet.create({
   heroDays: { fontSize: 44, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   heroDaysUnit: { fontSize: 22, fontWeight: '700', },
   heroCompare: { fontSize: 13, color: '#9A9A9A', marginTop: 8 },
+  cards: { gap: 10 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: '#121216',
+    overflow: 'hidden',
+  },
+  cardName: { fontSize: 17, fontWeight: '700', color: '#F2F2F2' },
+  cardMeta: { fontSize: 12, color: '#A5A8B4', marginTop: 2 },
+  cardDays: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  cardUnit: { fontSize: 12, color: '#A5A8B4', marginTop: -2 },
   hint: { fontSize: 12, color: '#555', textAlign: 'center', marginTop: 2 },
 
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
