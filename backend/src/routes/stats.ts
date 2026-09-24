@@ -715,7 +715,10 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
     const thisYear = Number(localDate(new Date(), validZone(zone)).slice(0, 4));
     const year = await summarizeYear(req.user!.id, thisYear, zone);
     const sections = await computeInsights(req.user!.id, zone, year);
-    res.json({ success: true, data: [...yearSections(year), ...sections] });
+    // Overall first, then Routine, then Gym and Streaks.
+    const overall = sections.filter(s => s.group === 'Overall');
+    const rest = sections.filter(s => s.group !== 'Overall');
+    res.json({ success: true, data: [...overall, ...yearSections(year), ...rest] });
   } catch (error: any) {
     console.error('[Stats Insights] Error:', error);
     res.status(500).json({ success: false, error: error.message });

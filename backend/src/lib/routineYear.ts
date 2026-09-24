@@ -258,7 +258,7 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
   const yEnd = `${year}-12-31`;
 
   const [overall, gym, streaks, logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
-    overallYear(userId, year, today, p.timezone),
+    overallYear(userId, year, today),
     gymYear(userId, year, today),
     streaksYear(userId, year, p.timezone),
     sb.from('routine_day_log').select('log_date, section, planned, done, goal_points, task_ids').eq('user_id', userId).gte('log_date', yStart).lte('log_date', yEnd),

@@ -1,5 +1,6 @@
 import { getSupabase } from '../services/supabase';
 import type { YearSummary } from './routineYear';
+import { ACTION_TYPES } from './yearGymStreaks';
 
 // The Overall, Gym and Streaks parts of the Stats tab as display-ready
 // sections (title + rows). They come from the year summary
@@ -41,12 +42,21 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
   const today = localDate(new Date(), tz);
   const year = String(summary.year);
 
-  const streaksRes = await sb.from('streaks').select('ended_at').eq('user_id', userId);
-  if (streaksRes.error) throw streaksRes.error;
+  // Stats tab only (never saved with a year): lifetime actions and days since joining.
+  const [streaksRes, profileRes, activityRes, gymDaysRes] = await Promise.all([
+    sb.from('streaks').select('ended_at').eq('user_id', userId),
+    sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
+    sb.from('user_activity_log').select('activity_type').eq('user_id', userId),
+    sb.from('gym_memory').select('session_date').eq('user_id', userId),
+  ]);
+  for (const r of [streaksRes, profileRes, activityRes, gymDaysRes]) if (r.error) throw r.error;
+  const lifetimeActions = (activityRes.data ?? []).filter((a: any) => ACTION_TYPES.has(a.activity_type)).length
+    + new Set((gymDaysRes.data ?? []).map((g: any) => g.session_date)).size;
+  const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
 
   const sections: InsightSection[] = [];
 
-  // ===== OVERALL (sits between Routine and Gym) =====
+  // ===== OVERALL (shown first, above Routine) =====
   const o = summary.overall;
   const month = o.mostActiveMonth;
   sections.push({
@@ -56,8 +66,8 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
     note: year,
     rows: [
       { label: 'Actions', value: o.actions.toLocaleString('en-US'), sub: 'items and goals crossed off, gym days, messages' },
-      { label: 'Lifetime actions', value: o.lifetimeActions.toLocaleString('en-US') },
-      { label: 'Days since joining', value: o.daysSinceJoining.toLocaleString('en-US') },
+      { label: 'Lifetime actions', value: lifetimeActions.toLocaleString('en-US'), sub: 'all time' },
+      { label: 'Days since joining', value: (daysBetween(joined, today) + 1).toLocaleString('en-US') },
       { label: 'Most active month', value: month ? MONTHS[Number(month.month.slice(5)) - 1] : '—', sub: month ? plural(month.activeDays, 'active day') : undefined },
     ],
   });
