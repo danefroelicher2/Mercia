@@ -1,7 +1,7 @@
 import { getSupabase } from '../services/supabase';
 import { WEEKDAYS, weekdayOf } from './routineYear';
 
-// The Gym and Streaks parts of a calendar year. Shared by the Stats tab (the
+// The Gym, Streaks and Overall parts of a calendar year. Shared by the Stats tab (the
 // year in progress) and the Stats Archive (a finished year), so both always
 // agree.
 //
@@ -23,6 +23,15 @@ import { WEEKDAYS, weekdayOf } from './routineYear';
 //     restart is a run that began in the year after an earlier run with the
 //     same name (ties go to the one restarted most recently).
 //   Year edges are midnight in the user's time zone.
+//
+// OVERALL
+//   - Actions = items crossed off + goals completed + messages to Mercia +
+//     gym days, in the year. Lifetime actions = the same, from the start
+//     through the end of the year (or today, for the year in progress).
+//   - Days since joining = account creation through the end of the year (or
+//     today), counting both days.
+//   - Most active month = the month of the year with the most active days
+//     (days with any recorded activity; ties go to the later month).
 
 export interface GymYear {
   sessions: number;
@@ -34,6 +43,13 @@ export interface GymYear {
 export interface StreaksYear {
   longest: { name: string; days: number; running: boolean } | null;
   leastConsistent: { name: string; restarts: number } | null;
+}
+
+export interface OverallYear {
+  actions: number;
+  lifetimeActions: number;
+  daysSinceJoining: number;
+  mostActiveMonth: { month: string; activeDays: number } | null; // month = YYYY-MM
 }
 
 const DAY_MS = 86400_000;
@@ -132,4 +148,42 @@ export async function streaksYear(userId: string, year: number, tz: string): Pro
   const worst = Array.from(restarts.values()).sort((a, b) => b.restarts - a.restarts || b.latest - a.latest)[0];
 
   return { longest, leastConsistent: worst ? { name: worst.name, restarts: worst.restarts } : null };
+}
+
+export async function overallYear(userId: string, year: number, today: string, tz: string): Promise<OverallYear> {
+  const sb = getSupabase().schema('oasis');
+  const from = `${year}-01-01`;
+  const to = today.slice(0, 4) === String(year) ? today : `${year}-12-31`;
+  const [profileRes, activityRes, actionDaysRes, gymRes] = await Promise.all([
+    sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
+    sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId).lte('activity_date', to),
+    sb.from('user_action_days').select('action_date').eq('user_id', userId).gte('action_date', from).lte('action_date', to),
+    sb.from('gym_memory').select('session_date').eq('user_id', userId).lte('session_date', to),
+  ]);
+  for (const r of [profileRes, activityRes, actionDaysRes, gymRes]) if (r.error) throw r.error;
+
+  const COUNTED = new Set(['task_completed', 'goal_completed', 'ai_chat_sent']);
+  const activity = activityRes.data ?? [];
+  const gymDays = new Set((gymRes.data ?? []).map((g: any) => g.session_date as string));
+  const actionsSince = (start: string) =>
+    activity.filter((a: any) => COUNTED.has(a.activity_type) && a.activity_date >= start).length +
+    Array.from(gymDays).filter(d => d >= start).length;
+
+  const active = new Set<string>([
+    ...activity.filter((a: any) => a.activity_date >= from).map((a: any) => a.activity_date as string),
+    ...(actionDaysRes.data ?? []).map((a: any) => a.action_date as string),
+  ]);
+  const byMonth = new Map<string, number>();
+  for (const d of active) byMonth.set(d.slice(0, 7), (byMonth.get(d.slice(0, 7)) ?? 0) + 1);
+  const top = Array.from(byMonth.entries()).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0];
+
+  const joined = profileRes.data?.created_at
+    ? new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(profileRes.data.created_at))
+    : to;
+  return {
+    actions: actionsSince(from),
+    lifetimeActions: actionsSince('0000-01-01'),
+    daysSinceJoining: Math.max(0, Math.round((Date.parse(to) - Date.parse(joined)) / DAY_MS) + 1),
+    mostActiveMonth: top ? { month: top[0], activeDays: top[1] } : null,
+  };
 }
