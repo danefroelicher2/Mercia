@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
-import { computeInsights } from '../lib/statsInsights';
+import { computeInsights, liveExtras } from '../lib/statsInsights';
 import { summarizeYear, localDate, validZone, YearSummary } from '../lib/routineYear';
 
 const router = Router();
@@ -722,6 +722,23 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
     res.json({ success: true, data });
   } catch (error: any) {
     console.error('[Stats Insights] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// GET /api/stats/year?timezone= — this year so far, in the same shape the
+// Stats Archive saves (so the Stats tab and the archive render alike), plus
+// the few numbers only the Stats tab shows.
+// ============================================
+router.get('/year', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const zone = validZone(typeof req.query.timezone === 'string' ? req.query.timezone : req.header('x-timezone'));
+    const thisYear = Number(localDate(new Date(), zone).slice(0, 4));
+    const [year, live] = await Promise.all([summarizeYear(req.user!.id, thisYear, zone), liveExtras(req.user!.id, zone)]);
+    res.json({ success: true, data: { year, live } });
+  } catch (error: any) {
+    console.error('[Stats Year] Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
