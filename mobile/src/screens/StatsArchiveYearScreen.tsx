@@ -45,8 +45,8 @@ const StatsArchiveYearScreen: React.FC = () => {
               <Stop offset="1" stopColor={SECTION_COLORS.night} stopOpacity={0} />
             </RadialGradient>
             <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0.35" stopColor="#161616" stopOpacity={0} />
-              <Stop offset="0.8" stopColor="#161616" stopOpacity={1} />
+              <Stop offset="0.55" stopColor="#161616" stopOpacity={0} />
+              <Stop offset="1" stopColor="#161616" stopOpacity={0.9} />
             </LinearGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="#161616" />
@@ -64,29 +64,25 @@ const StatsArchiveYearScreen: React.FC = () => {
           <Text style={styles.coverYear}>{entry.year}</Text>
           {!d.final ? <Text style={[styles.tag, styles.coverTag]}>FINALIZING</Text> : null}
         </View>
-        <View style={styles.hero}>
-          <Hero value={pct(d.consistency)} label="Consistency" />
-          <View style={styles.heroRule} />
-          <Hero value={num(d.perfectDays)} label="Perfect days" />
-          <View style={styles.heroRule} />
-          <Hero value={d.gym ? num(d.gym.sessions) : '—'} label="Gym sessions" />
-        </View>
       </View>
 
+      <Group name="Overall" centered />
       {d.overall ? (
-        <>
-          <Group name="Overall" centered />
-          <Block title="Across the app">
-            <Row label="Actions" value={num(d.overall.actions)} sub="items and goals crossed off, gym days, messages" />
-            <Row
-              label="Most active month"
-              value={d.overall.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
-              sub={d.overall.mostActiveMonth ? plural(d.overall.mostActiveMonth.activeDays, 'active day') : undefined}
-              last
-            />
-          </Block>
-        </>
+        <Block title="Across the app">
+          <Row label="Actions" value={num(d.overall.actions)} sub="items and goals crossed off, gym days, messages" />
+          <Row
+            label="Most active month"
+            value={d.overall.mostActiveMonth ? monthName(d.overall.mostActiveMonth.month) : '—'}
+            sub={d.overall.mostActiveMonth ? plural(d.overall.mostActiveMonth.activeDays, 'active day') : undefined}
+            last
+          />
+        </Block>
       ) : null}
+      <Block title="Days">
+        <Row label="Perfect days" value={num(d.perfectDays)} sub="every Morning, Afternoon and Night item crossed off" />
+        <Row label="Missed days" value={num(d.missedDays)} sub="no action at all" />
+        <Row label="Consistency" value={pct(d.consistency)} sub={`${num(d.actionDays)} of ${num(d.countedDays)} days with an action`} last />
+      </Block>
 
       <Group name="Routine" spaced />
 
@@ -126,12 +122,6 @@ const StatsArchiveYearScreen: React.FC = () => {
         <Text style={styles.chartNote}>
           {wdHasData ? `Best ${cap(WEEKDAYS[best])} · toughest ${cap(WEEKDAYS[worst])}` : 'No routine items were planned'}
         </Text>
-      </Block>
-
-      <Block title="Days">
-        <Row label="Perfect days" value={num(d.perfectDays)} sub="every Morning, Afternoon and Night item crossed off" />
-        <Row label="Missed days" value={num(d.missedDays)} sub="no action at all" />
-        <Row label="Consistency" value={pct(d.consistency)} sub={`${num(d.actionDays)} of ${num(d.countedDays)} days with an action`} last />
       </Block>
 
       <Block title="Goals">
@@ -192,13 +182,6 @@ const StatsArchiveYearScreen: React.FC = () => {
   );
 };
 
-const Hero = ({ value, label }: { value: string; label: string }) => (
-  <View style={styles.heroCell}>
-    <Text style={styles.heroValue}>{value}</Text>
-    <Text style={styles.heroLabel}>{label}</Text>
-  </View>
-);
-
 const Group = ({ name, centered, spaced }: { name: string; centered?: boolean; spaced?: boolean }) => (
   <View style={[styles.group, centered && styles.groupCentered, spaced && styles.groupSpaced]}>
     <View style={[styles.groupDot, { backgroundColor: GROUP_COLORS[name] ?? '#888' }]} />
@@ -246,11 +229,6 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#999',
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden',
   },
-  hero: { flexDirection: 'row', paddingTop: 4, paddingBottom: 18 },
-  heroCell: { flex: 1, alignItems: 'center' },
-  heroRule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A' },
-  heroValue: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
-  heroLabel: { fontSize: 11, color: '#777', marginTop: 3 },
   group: {
     flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
