@@ -62,9 +62,7 @@ const StatsArchiveYearScreen: React.FC = () => {
           </Svg>
           <Text style={styles.coverLabel}>YEAR IN REVIEW</Text>
           <Text style={styles.coverYear}>{entry.year}</Text>
-          {entry.sample || !d.final ? (
-            <Text style={[styles.tag, styles.coverTag]}>{entry.sample ? 'SAMPLE' : 'FINALIZING'}</Text>
-          ) : null}
+          {!d.final ? <Text style={[styles.tag, styles.coverTag]}>FINALIZING</Text> : null}
         </View>
         <View style={styles.hero}>
           <Hero value={pct(d.consistency)} label="Consistency" />
@@ -73,11 +71,6 @@ const StatsArchiveYearScreen: React.FC = () => {
           <View style={styles.heroRule} />
           <Hero value={d.gym ? num(d.gym.sessions) : '—'} label="Gym sessions" />
         </View>
-      </View>
-
-      {/* Placeholder for an AI summary of the year. */}
-      <View style={styles.note}>
-        <Text style={styles.noteText}>insert ai jargon here future dane 9/24</Text>
       </View>
 
       {d.overall ? (
@@ -95,7 +88,7 @@ const StatsArchiveYearScreen: React.FC = () => {
         </>
       ) : null}
 
-      <Group name="Routine" />
+      <Group name="Routine" spaced />
 
       <Block title="By part of day">
         {SECTIONS.map((s, i) => {
@@ -206,8 +199,8 @@ const Hero = ({ value, label }: { value: string; label: string }) => (
   </View>
 );
 
-const Group = ({ name, centered }: { name: string; centered?: boolean }) => (
-  <View style={[styles.group, centered && styles.groupCentered]}>
+const Group = ({ name, centered, spaced }: { name: string; centered?: boolean; spaced?: boolean }) => (
+  <View style={[styles.group, centered && styles.groupCentered, spaced && styles.groupSpaced]}>
     <View style={[styles.groupDot, { backgroundColor: GROUP_COLORS[name] ?? '#888' }]} />
     <Text style={styles.groupTitle}>{name}</Text>
   </View>
@@ -258,16 +251,12 @@ const styles = StyleSheet.create({
   heroRule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A' },
   heroValue: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   heroLabel: { fontSize: 11, color: '#777', marginTop: 3 },
-  note: {
-    borderWidth: 1, borderStyle: 'dashed', borderColor: '#3A3A3A', borderRadius: 12,
-    paddingVertical: 18, paddingHorizontal: 14, alignItems: 'center',
-  },
-  noteText: { fontSize: 13, color: '#8A8A8A' },
   group: {
     flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
   groupCentered: { justifyContent: 'center' },
+  groupSpaced: { marginTop: 36 },
   groupDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   // Built-in iOS italic — classy but easy to read.
   groupTitle: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 42, lineHeight: 50, color: '#F2F2F2' },

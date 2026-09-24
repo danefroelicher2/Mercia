@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
-import { ArchivedYear, SAMPLE_YEAR, num, pct } from './statsArchiveData';
+import { ArchivedYear, num, pct } from './statsArchiveData';
 
 // One card per finished year; tapping opens that year's full stats.
 
@@ -13,12 +13,10 @@ const StatsArchiveScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      const withSample = (list: ArchivedYear[]) =>
-        __DEV__ && !list.some(y => y.year === SAMPLE_YEAR.year) ? [...list, SAMPLE_YEAR] : list;
       api
         .get('/api/stats/archive')
-        .then(res => setYears(withSample(res.data.data ?? [])))
-        .catch(() => setYears(withSample([])));
+        .then(res => setYears(res.data.data ?? []))
+        .catch(() => setYears([]));
     }, []),
   );
 
@@ -50,8 +48,7 @@ const StatsArchiveScreen: React.FC = () => {
               <View style={{ flex: 1 }}>
                 <View style={styles.yearLine}>
                   <Text style={styles.year}>{y.year}</Text>
-                  {y.sample ? <Text style={styles.tag}>SAMPLE</Text> : null}
-                  {!y.sample && !d.final ? <Text style={styles.tag}>FINALIZING</Text> : null}
+                  {!d.final ? <Text style={styles.tag}>FINALIZING</Text> : null}
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#555" />

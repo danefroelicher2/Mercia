@@ -1,5 +1,4 @@
-// Shapes of a saved Stats Archive year, plus a sample year used in
-// development builds so the archive can be seen before a real year ends.
+// Shapes of a saved Stats Archive year and small display helpers.
 
 export interface Bucket {
   planned: number;
@@ -46,7 +45,6 @@ export interface ArchivedYearData {
 export interface ArchivedYear {
   year: number;
   data: ArchivedYearData;
-  sample?: boolean;
 }
 
 // One quiet color per feature, used for the dot beside its group name.
@@ -65,63 +63,3 @@ export const plural = (n: number, word: string) => `${num(n)} ${word}${n === 1 ?
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const monthName = (ym: string) => MONTH_NAMES[Number(ym.slice(5, 7)) - 1] ?? ym;
 export const num = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-
-const bucket = (planned: number, done: number, points: number, days: number): Bucket => ({
-  planned, done, points, days, rate: planned > 0 ? (done + points) / planned : null,
-});
-
-export const SAMPLE_YEAR: ArchivedYear = {
-  year: 2025,
-  sample: true,
-  data: {
-    from: '2025-01-01',
-    to: '2025-12-31',
-    days: 365,
-    bySection: {
-      morning: bucket(2920, 2310, 78, 365),
-      afternoon: bucket(1095, 942, 45, 365),
-      night: bucket(1460, 980, 30, 365),
-    },
-    byWeekday: {
-      monday: bucket(782, 690, 24, 52),
-      tuesday: bucket(782, 702, 30, 52),
-      wednesday: bucket(797, 668, 21, 53),
-      thursday: bucket(782, 641, 22, 52),
-      friday: bucket(782, 598, 25, 52),
-      saturday: bucket(775, 472, 16, 52),
-      sunday: bucket(775, 461, 15, 52),
-    },
-    perfectDays: 96,
-    missedDays: 11,
-    actionDays: 354,
-    countedDays: 365,
-    consistency: 354 / 365,
-    goals: {
-      weekly: { average: 0.72, periods: 52 },
-      monthly: { average: 0.64, periods: 12 },
-      yearly: { rate: 0.5, completed: 2, total: 4 },
-    },
-    overall: {
-      actions: 2418,
-      mostActiveMonth: { month: '2025-09', activeDays: 30 },
-    },
-    gym: {
-      sessions: 168,
-      restDays: 61,
-      favoriteDay: { day: 'monday', sessions: 34 },
-      split: [
-        { group: 'Chest', sessions: 42 },
-        { group: 'Back', sessions: 40 },
-        { group: 'Legs', sessions: 36 },
-        { group: 'Shoulders', sessions: 26 },
-        { group: 'Arms', sessions: 24 },
-      ],
-    },
-    streaks: {
-      longest: { name: 'No sugar', days: 64.3 },
-      leastConsistent: { name: 'No phone in bed', restarts: 7 },
-    },
-    final: true,
-  },
-};
