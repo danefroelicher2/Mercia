@@ -19,6 +19,17 @@ interface ArchivedYear {
     days: number;
     bySection: Record<string, Bucket>;
     byWeekday: Record<string, Bucket>;
+    perfectDays: number;
+    missedDays: number;
+    actionDays: number;
+    countedDays: number;
+    consistency: number | null;
+    goals: {
+      weekly: { average: number | null; periods: number };
+      monthly: { average: number | null; periods: number };
+      yearly: { rate: number | null; completed: number; total: number };
+    };
+    final?: boolean;
   };
 }
 
@@ -77,18 +88,45 @@ const StatsArchiveScreen: React.FC = () => {
     </View>
   );
 
+  const list = (title: string, rows: [string, string, string][]) => (
+    <View style={styles.block}>
+      <Text style={styles.blockTitle}>{title}</Text>
+      <View style={styles.card}>
+        {rows.map(([label, value, sub], i) => (
+          <View key={label} style={[styles.row, i < rows.length - 1 && styles.divider]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>{label}</Text>
+              <Text style={styles.sub}>{sub}</Text>
+            </View>
+            <Text style={styles.value}>{value}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       {years.map(y => (
         <View key={y.year} style={styles.year}>
           <Pressable onPress={() => setOpen(open === y.year ? null : y.year)} style={styles.yearHeader}>
             <Text style={styles.yearTitle}>{y.year}</Text>
-            <Text style={styles.yearMeta}>{y.data.days} days tracked</Text>
+            <Text style={styles.yearMeta}>{y.data.countedDays} days tracked{y.data.final ? '' : ' · finalizing'}</Text>
           </Pressable>
           {open === y.year && (
             <>
               {table('BY PART OF DAY', SECTIONS, y.data.bySection, cap)}
               {table('BY WEEKDAY', WEEKDAYS, y.data.byWeekday, k => cap(k).slice(0, 3))}
+              {list('DAYS', [
+                ['Perfect days', String(y.data.perfectDays), 'every item crossed off'],
+                ['Missed days', String(y.data.missedDays), 'no action at all'],
+                ['Consistency', pct(y.data.consistency), `${y.data.actionDays} of ${y.data.countedDays} days with an action`],
+              ])}
+              {list('GOALS', [
+                ['Weekly', pct(y.data.goals.weekly.average), `average of ${y.data.goals.weekly.periods} weeks`],
+                ['Monthly', pct(y.data.goals.monthly.average), `average of ${y.data.goals.monthly.periods} months`],
+                ['Yearly', pct(y.data.goals.yearly.rate), `${y.data.goals.yearly.completed} of ${y.data.goals.yearly.total} done`],
+              ])}
             </>
           )}
         </View>

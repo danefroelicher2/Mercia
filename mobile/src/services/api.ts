@@ -46,6 +46,10 @@ api.interceptors.request.use(
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+    // Lets the server date actions and closed days in the user's own time zone.
+    if (config.headers) {
+      config.headers['X-Timezone'] = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
     return config;
   },
   (error) => {
