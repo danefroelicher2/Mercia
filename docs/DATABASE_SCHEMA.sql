@@ -223,7 +223,7 @@ CREATE TABLE oasis.gym_prs (
 );
 
 -- ============================================
--- REVIEWS / ACHIEVEMENTS / QUOTES / PUSH
+-- REVIEWS / QUOTES / PUSH
 -- ============================================
 -- Cached Wrapped narrative per completed calendar year (stats are
 -- recomputed live; only the LLM paragraph is stored).
@@ -233,23 +233,6 @@ CREATE TABLE oasis.yearly_reviews (
   narrative text,
   created_at timestamptz DEFAULT now(),
   PRIMARY KEY (user_id, year)
-);
-
-CREATE TABLE oasis.achievements (
-  id text PRIMARY KEY,
-  title text NOT NULL,
-  description text NOT NULL,
-  requirement_type text NOT NULL,
-  requirement_value int NOT NULL,
-  icon text,
-  display_order int NOT NULL
-);
-
-CREATE TABLE oasis.user_achievements (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  achievement_id text NOT NULL,
-  unlocked_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE oasis.quote_interactions (

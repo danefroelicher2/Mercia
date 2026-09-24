@@ -199,7 +199,7 @@ router.patch(
       // below fire only on the completion transition, mirroring the goal endpoint.
       const { task, becameCompleted, becameUncompleted } = await storage.tickRoutineTask(id, userId);
 
-      // Log activity for stats AND check achievements (only on the completion transition)
+      // Log activity for stats (only on the completion transition)
       if (becameCompleted) {
         try {
           const supabase = getSupabase();
@@ -219,16 +219,6 @@ router.patch(
           } else {
             console.log('[Routine] Task activity log inserted successfully');
           }
-
-          // Fire-and-forget: check achievements without blocking the response
-          const { checkAndUnlockAchievements } = require('./stats');
-          checkAndUnlockAchievements(userId, supabase)
-            .then((unlocked: any[]) => {
-              if (unlocked.length > 0) {
-                console.log('🏆 New achievements unlocked:', unlocked.map((a: any) => a.title).join(', '));
-              }
-            })
-            .catch((err: any) => console.error('[Routine] Achievement check failed:', err));
 
           // Fire-and-forget: write completion history for daily summary generation
           supabase
@@ -250,7 +240,7 @@ router.patch(
               if (error) console.error('[Routine] task_completion_history upsert failed:', error);
             });
         } catch (err) {
-          console.error('Failed to log task activity or check achievements:', err);
+          console.error('Failed to log task activity:', err);
         }
       } else if (becameUncompleted) {
         // Fire-and-forget: remove history entry when task is unchecked
@@ -588,7 +578,7 @@ router.patch(
       const storage = getStorage();
       const { goal, becameCompleted, becameUncompleted } = await storage.tickRoutineGoal(id, userId);
 
-      // Log activity for stats AND check achievements (only on the false -> true transition)
+      // Log activity for stats (only on the false -> true transition)
       if (becameCompleted) {
         try {
           const supabase = getSupabase();
@@ -630,17 +620,8 @@ router.patch(
             console.log('[Routine] Goal activity log inserted successfully');
           }
 
-          // Fire-and-forget: check achievements without blocking the response
-          const { checkAndUnlockAchievements } = require('./stats');
-          checkAndUnlockAchievements(userId, supabase)
-            .then((unlocked: any[]) => {
-              if (unlocked.length > 0) {
-                console.log('🏆 New achievements unlocked:', unlocked.map((a: any) => a.title).join(', '));
-              }
-            })
-            .catch((err: any) => console.error('[Routine] Achievement check failed:', err));
         } catch (err) {
-          console.error('Failed to log goal activity or check achievements:', err);
+          console.error('Failed to log goal activity:', err);
         }
       } else if (becameUncompleted) {
         // Fire-and-forget: remove today's history row when a goal is un-completed

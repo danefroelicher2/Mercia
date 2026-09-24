@@ -143,7 +143,7 @@ export interface StorageAdapter {
   /**
    * Tick a routine task's countdown: decrements current_count, completing at 0.
    * Mirrors tickRoutineGoal. Returns the transition so callers can fire
-   * completion side-effects (activity log, achievements, history).
+   * completion side-effects (activity log, history).
    */
   tickRoutineTask(taskId: string, userId: string): Promise<{ task: RoutineTask; becameCompleted: boolean; becameUncompleted: boolean }>;
 

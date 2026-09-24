@@ -6,23 +6,6 @@ export interface ActivityLog {
   created_at: string;
 }
 
-export interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  requirement_type: 'streak' | 'chat_total' | 'routine_weekly_completion' | 'task_total';
-  requirement_value: number;
-  icon?: string;
-  display_order: number;
-}
-
-export interface UserAchievement {
-  id: string;
-  user_id: string;
-  achievement_id: string;
-  unlocked_at: string;
-}
-
 export interface StreakData {
   currentStreak: number;
   longestStreak: {
@@ -41,11 +24,4 @@ export interface HeatmapData {
   }>;
   canGoPrevious: boolean;
   canGoNext: boolean;
-}
-
-export interface AchievementWithProgress extends Achievement {
-  unlocked: boolean;
-  unlockedAt: string | null;
-  progress: number;
-  requirement: number;
 }
