@@ -16,7 +16,7 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { compareToBest } from '../utils/streakCompare';
+import { dayLabel } from '../utils/streakDates';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 import StreakDetail from '../components/StreakDetail';
@@ -58,7 +58,7 @@ function elapsed(startIso: string, endIso: string | null, now: number) {
   return { total, days, clock: `${pad(h)}:${pad(m)}:${pad(s)}`, hours: h };
 }
 
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const shortDate = (iso: string) => dayLabel(iso);
 
 const Flame: React.FC<{ size?: number; color: string }> = ({ size = 18, color }) => (
   <Ionicons name="flame-outline" size={size} color={color} />
@@ -200,10 +200,6 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailName, detailRuns.length, loaded]);
 
-  // Longest earlier (ended) run under the same name, in seconds.
-  const previousBest = (s: Streak) =>
-    Math.max(0, ...past.filter(p => sameName(p.name, s.name)).map(p => elapsed(p.started_at, p.ended_at, now).total));
-
   const bestDays = (s: Streak) =>
     decimalDays(Math.max(s.best_seconds ?? 0, elapsed(s.started_at, s.ended_at, now).total));
 
@@ -298,7 +294,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                   <Text style={styles.heroDays}>
                     {decimalDays(e.total)} <Text style={[styles.heroDaysUnit, t.soft]}>days</Text>
                   </Text>
-                  <Text style={styles.heroCompare}>{compareToBest(e.total, previousBest(top))}</Text>
+                  <Text style={styles.heroCompare}>since {shortDate(top.started_at)}</Text>
                 </Pressable>
               );
             })()}

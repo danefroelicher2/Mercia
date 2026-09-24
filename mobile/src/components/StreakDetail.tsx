@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { withAlpha } from '../utils/timeOfDay';
+import { dayLabel, dayTimeLabel } from '../utils/streakDates';
 
 
 // A streak's own page: every run recorded under its name. A readout
@@ -37,7 +38,7 @@ const decimalDays = (seconds: number) => (Math.floor((seconds / DAY) * 10) / 10)
 const secondsOf = (run: StreakRun, now: number) =>
   Math.max(0, Math.floor(((run.ended_at ? Date.parse(run.ended_at) : now) - Date.parse(run.started_at)) / 1000));
 
-const dateLabel = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const dateLabel = (iso: string) => dayLabel(iso);
 
 const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClose, onMore, onDeleteRun }) => {
   const insets = useSafeAreaInsets();
@@ -52,7 +53,7 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
   const lastSeconds = last ? secondsOf(last, now) : 0;
   const currentIsBest = current !== null && ordered.length > 1 && cur >= best;
   const startedLabel = (current ?? last)
-    ? new Date((current ?? last).started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    ? dayTimeLabel((current ?? last).started_at)
     : '';
   const facts: [string, string, string?][] = [
     [current ? 'Started' : 'Last started', startedLabel],
