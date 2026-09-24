@@ -11,8 +11,6 @@ export interface StreakData {
   longestStreak: { length: number; startedAt?: string | null; endedAt: string | null; isCurrent: boolean };
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const short = (d: string) => `${MONTHS[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}`;
 const GREEN = '#5DCAA5';
 const AMBER = '#E8A13A';
 const GOLD = '#D8B45A';
@@ -21,43 +19,29 @@ const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
   const current = data?.currentStreak ?? 0;
   const best = data?.longestStreak;
 
-  let currentNote: { text: string; color?: string } = { text: ' ' };
   let currentStatus: { text: string; color: string } | null = null;
   if (data) {
-    if (current > 0) {
-      currentNote = { text: data.currentStartedAt ? `since ${short(data.currentStartedAt)}` : ' ' };
-      currentStatus = data.activeToday ? { text: 'Today counted', color: GREEN } : { text: 'Keep it going today', color: AMBER };
-    } else {
-      currentNote = { text: 'Do anything today to start' };
-    }
+    if (current === 0) currentStatus = { text: 'Do anything today to start', color: '#8A8A8A' };
+    else currentStatus = data.activeToday ? { text: 'Today counted', color: GREEN } : { text: 'Keep it going today', color: AMBER };
   }
-
-  let bestNote = ' ';
-  let bestStatus: { text: string; color: string } | null = null;
-  if (best && best.length > 0) {
-    bestNote = best.startedAt && best.endedAt ? `${short(best.startedAt)} – ${short(best.endedAt)}` : ' ';
-    if (best.isCurrent) bestStatus = { text: 'Happening now', color: GOLD };
-  } else if (data) {
-    bestNote = 'No streak yet';
-  }
+  const bestStatus = best?.isCurrent && best.length > 0 ? { text: 'Happening now', color: GOLD } : null;
 
   return (
     <View style={styles.card}>
-      <Half label="Current streak" value={current} note={currentNote.text} status={currentStatus} />
+      <Half label="Current streak" value={current} status={currentStatus} />
       <View style={styles.rule} />
-      <Half label="Best streak" value={best?.length ?? 0} note={bestNote} status={bestStatus} />
+      <Half label="Best streak" value={best?.length ?? 0} status={bestStatus} />
     </View>
   );
 };
 
-const Half = ({ label, value, note, status }: { label: string; value: number; note: string; status: { text: string; color: string } | null }) => (
+const Half = ({ label, value, status }: { label: string; value: number; status: { text: string; color: string } | null }) => (
   <View style={styles.half}>
     <Text style={styles.label}>{label.toUpperCase()}</Text>
     <View style={styles.valueRow}>
       <Text style={styles.value}>{value}</Text>
       <Text style={styles.unit}>{value === 1 ? 'day' : 'days'}</Text>
     </View>
-    <Text style={styles.note} numberOfLines={1}>{note}</Text>
     <View style={styles.statusRow}>
       {status ? (
         <>
@@ -79,8 +63,7 @@ const styles = StyleSheet.create({
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 6 },
   value: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 46, lineHeight: 54, color: '#F2F2F2', fontVariant: ['lining-nums'] },
   unit: { fontSize: 14, color: '#8A8A8A' },
-  note: { fontSize: 12, color: '#8A8A8A', marginTop: 2 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 16 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, minHeight: 16 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   status: { fontSize: 12, fontWeight: '600' },
 });
