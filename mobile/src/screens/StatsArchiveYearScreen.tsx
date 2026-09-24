@@ -197,9 +197,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
     paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
-  groupDot: { width: 9, height: 9, borderRadius: 4.5, marginTop: 4 },
-  // Built-in iOS handwriting face — script feel, still easy to read.
-  groupTitle: { fontFamily: 'Bradley Hand', fontWeight: '700', fontSize: 30, lineHeight: 38, color: '#F2F2F2' },
+  groupDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
+  // Built-in iOS italic — classy but easy to read.
+  groupTitle: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 42, lineHeight: 50, color: '#F2F2F2' },
   block: { gap: 8 },
   blockTitle: { fontSize: 12, letterSpacing: 1.1, color: '#777', fontWeight: '500' },
   card: { backgroundColor: '#161616', borderRadius: 12, paddingHorizontal: 14 },
