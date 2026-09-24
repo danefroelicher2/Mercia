@@ -41,13 +41,12 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   const today = localDate(new Date(), tz);
   const year = today.slice(0, 4);
 
-  const [gymRes, restRes, prsRes, profileRes, streaksRes, activityRes, actionDaysRes] = await Promise.all([
+  const [gymRes, restRes, profileRes, streaksRes, activityRes, actionDaysRes] = await Promise.all([
     // Every session ever logged — gym_memory archives old sessions, it never deletes them.
     sb.from('gym_memory').select('workout_group, session_date').eq('user_id', userId)
       .gte('session_date', `${year}-01-01`).lte('session_date', `${year}-12-31`),
     sb.from('gym_rest_days').select('rest_date').eq('user_id', userId)
       .gte('rest_date', `${year}-01-01`).lte('rest_date', today),
-    sb.from('gym_prs').select('exercise_name, muscle_group, weight, reps, created_at').eq('user_id', userId).order('created_at', { ascending: true }),
     sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
     sb.from('streaks').select('name, started_at, ended_at').eq('user_id', userId).order('started_at', { ascending: true }),
     sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId),
@@ -93,21 +92,6 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
           sub: `${plural(v.n, 'session')} · last ${daysBetween(v.last, today)}d ago`,
         }))
       : [{ label: 'No sessions yet this year', value: '—' }],
-  });
-  // Best set per exercise: heaviest weight, then most reps at that weight.
-  const prBest = new Map<string, any>();
-  for (const p of prsRes.data ?? []) {
-    const cur = prBest.get(p.exercise_name);
-    const w = Number(p.weight);
-    if (!cur || w > Number(cur.weight) || (w === Number(cur.weight) && p.reps > cur.reps)) prBest.set(p.exercise_name, p);
-  }
-  sections.push({
-    id: 'gym-prs',
-    group: 'Gym',
-    title: 'PRs',
-    rows: prBest.size
-      ? Array.from(prBest.values()).map(p => ({ label: p.exercise_name, value: `${Number(p.weight)} × ${p.reps}`, sub: p.muscle_group }))
-      : [{ label: 'No PRs logged yet', value: '—' }],
   });
 
   // ===== STREAKS =====
