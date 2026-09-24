@@ -15,6 +15,8 @@ import QuoteCard from '../components/QuoteCard';
 import { QUOTES } from '../data/quotes';
 import { DayOfWeek } from '../types/routine';
 import api from '../services/api';
+import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
+import { textOnColor, withAlpha } from '../utils/timeOfDay';
 
 interface GymWorkoutLog {
   id: string;
@@ -90,6 +92,9 @@ const getTodayDay = (): DayOfWeek => {
 };
 
 const GymScreen: React.FC = () => {
+  // Accent follows the part of the day, like the Routine tab.
+  const { accent } = useTimeOfDayAccent();
+  const themed = useMemo(() => makeThemedStyles(accent), [accent]);
   const navigation = useNavigation<any>();
 
   const handleViewGymMemory = () => {
@@ -322,18 +327,19 @@ const GymScreen: React.FC = () => {
             <TouchableOpacity
               key={day}
               onPress={() => setSelectedDay(day)}
-              style={[styles.weekDay, isSelected && styles.weekDaySelected]}
+              style={[styles.weekDay, isSelected && [styles.weekDaySelected, themed.weekDaySelected]]}
             >
-              <Text style={[styles.weekDayLabel, isSelected && styles.weekDayLabelSelected]}>
+              <Text style={[styles.weekDayLabel, isSelected && themed.weekDayLabelSelected]}>
                 {DAY_LABELS[index].toUpperCase()}
               </Text>
-              <Text style={[styles.weekDayDate, isSelected && styles.weekDayDateSelected]}>
+              <Text style={[styles.weekDayDate, isSelected && [styles.weekDayDateSelected, themed.weekDayDateSelected]]}>
                 {weekDates[index]}
               </Text>
-              {hasWorkout && !isSelected && <View style={styles.dot} />}
-              {isPastDay && !isSelected && (
+              {hasWorkout && !isSelected && <View style={[styles.dot, themed.fill]} />}
+              {/* Past days stay crossed out, selected or not */}
+              {isPastDay && (
                 <View pointerEvents="none" style={styles.pastDaySlashContainer}>
-                  <View style={styles.pastDaySlash} />
+                  <View style={[styles.pastDaySlash, isSelected && themed.pastDaySlashSelected]} />
                 </View>
               )}
             </TouchableOpacity>
@@ -361,16 +367,16 @@ const GymScreen: React.FC = () => {
               value={workoutGroup}
               onChangeText={handleGroupChange}
               placeholder={isRestDay ? 'Rest day' : 'Workout name...'}
-              placeholderTextColor={isRestDay ? colors.primary : colors.textTertiary}
+              placeholderTextColor={isRestDay ? accent : colors.textTertiary}
               returnKeyType="done"
               textAlign="center"
             />
             <TouchableOpacity
-              style={[styles.restButton, isRestDay && styles.restButtonActive]}
+              style={[styles.restButton, isRestDay && themed.restButtonActive]}
               onPress={() => handleToggleRest()}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={[styles.restButtonText, isRestDay && styles.restButtonTextActive]}>
+              <Text style={[styles.restButtonText, isRestDay && themed.text]}>
                 Rest
               </Text>
             </TouchableOpacity>
@@ -380,10 +386,10 @@ const GymScreen: React.FC = () => {
               {filteredSuggestions.map(s => (
                 <TouchableOpacity
                   key={s}
-                  style={styles.suggestionPill}
+                  style={[styles.suggestionPill, themed.suggestionPill]}
                   onPress={() => handleSuggestionTap(s)}
                 >
-                  <Text style={styles.suggestionText}>{s}</Text>
+                  <Text style={[styles.suggestionText, themed.text]}>{s}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -406,7 +412,7 @@ const GymScreen: React.FC = () => {
               />
               {notes.trim().length === 0 && lastSession && (
                 <TouchableOpacity onPress={handleCopyLastSession} style={styles.copyLastButton}>
-                  <Text style={styles.copyLastText}>
+                  <Text style={[styles.copyLastText, themed.text]}>
                     Copy last session ({formatDate(lastSession.session_date)}) ↓
                   </Text>
                 </TouchableOpacity>
@@ -426,7 +432,7 @@ const GymScreen: React.FC = () => {
                 <View key={session.id}>
                   {index > 0 && <View style={styles.sessionDivider} />}
                   <View style={styles.priorHeader}>
-                    <Text style={styles.priorDate}>{formatDate(session.session_date)}</Text>
+                    <Text style={[styles.priorDate, themed.text]}>{formatDate(session.session_date)}</Text>
                     <TouchableOpacity
                       onPress={() => handleTogglePin(session)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -451,6 +457,21 @@ const GymScreen: React.FC = () => {
       </ScrollView>
     </View>
   );
+};
+
+// Accent-colored pieces, rebuilt when the part of the day changes.
+const makeThemedStyles = (accent: string) => {
+  const onAccent = textOnColor(accent);
+  return StyleSheet.create({
+    weekDaySelected: { backgroundColor: accent, shadowColor: accent },
+    weekDayLabelSelected: { color: onAccent, opacity: 0.7 },
+    weekDayDateSelected: { color: onAccent },
+    pastDaySlashSelected: { backgroundColor: withAlpha(onAccent === '#FFFFFF' ? '#FFFFFF' : '#0D0D0D', 0.35) },
+    fill: { backgroundColor: accent },
+    text: { color: accent },
+    restButtonActive: { borderColor: withAlpha(accent, 0.5), backgroundColor: withAlpha(accent, 0.15) },
+    suggestionPill: { backgroundColor: withAlpha(accent, 0.1), borderColor: withAlpha(accent, 0.25) },
+  });
 };
 
 const styles = StyleSheet.create({

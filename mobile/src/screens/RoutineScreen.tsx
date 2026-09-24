@@ -41,6 +41,7 @@ import { QUOTES } from '../data/quotes';
 import GymScreen from './GymScreen';
 import StreaksScreen from './StreaksScreen';
 import { useDrawer } from '../context/DrawerContext';
+import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
 import { Ionicons } from '@expo/vector-icons';
 import { getNextMonday, formatTimeLeftLong, shouldShowUrgent } from '../utils/weeklyReset';
 import { daysLeftLabel, monthInfo, weekInfo, yearInfo } from '../utils/periodProgress';
@@ -113,6 +114,8 @@ const RoutineScreen: React.FC = () => {
   const { section: activeSection, open: openDrawer } = useDrawer();
   // The header + on Streaks opens its add sheet.
   const [streakAddRequest, setStreakAddRequest] = useState(0);
+  // Gym and Streaks take the color of the current part of the day.
+  const { accent: nowAccent } = useTimeOfDayAccent();
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
@@ -1165,9 +1168,9 @@ const RoutineScreen: React.FC = () => {
             onPress={() => setStreakAddRequest(n => n + 1)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Start a streak"
-            style={styles.streakAdd}
+            style={[styles.streakAdd, { backgroundColor: withAlpha(nowAccent, 0.15) }]}
           >
-            <Ionicons name="add" size={20} color="#FF8A3D" />
+            <Ionicons name="add" size={20} color={nowAccent} />
           </TouchableOpacity>
         )}
       </View>
@@ -1446,7 +1449,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 138, 61, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },

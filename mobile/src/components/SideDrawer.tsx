@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { DrawerSection, useDrawer } from '../context/DrawerContext';
+import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
 
 // X-style side drawer around the bottom tabs. A right swipe anywhere on any
 // tab pulls it in from the left; the page slides over by the drawer's width
@@ -15,7 +16,6 @@ const WIDTH_SHARE = 0.55;
 const OPEN_AT = 0.35;
 const FLICK = 500;
 const DIM = 0.55;
-const ACCENT = '#86CCF4';
 
 const ITEMS: { key: DrawerSection; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'routine', label: 'Routine', icon: 'calendar-outline' },
@@ -28,13 +28,16 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const drawerWidth = Math.round(screenWidth * WIDTH_SHARE);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  // Highlight in the color of the current part of the day.
+  const { accent: ACCENT } = useTimeOfDayAccent();
   const { isOpen, open, close, section, selectSection, drag } = useDrawer();
   const ignoring = useRef(false);
 
   // 0 = closed, 1 = open. Follows the finger during a drag, then animates.
-  const progress = useRef(new Animated.Value(0)).current;
+  // Starts where the shared open state says (matters after a live reload).
+  const progress = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
   const dragStart = useRef(0);
-  const current = useRef(0);
+  const current = useRef(isOpen ? 1 : 0);
   useEffect(() => {
     const id = progress.addListener(({ value }) => {
       current.current = value;

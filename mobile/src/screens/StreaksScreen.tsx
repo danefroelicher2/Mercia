@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,13 +16,14 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
+import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
+import { textOnColor, withAlpha } from '../utils/timeOfDay';
 
 // Streaks: clocks you name and start, which count until you stop them.
 // Layout (the "ledger"): the longest-running streak up top, then every
 // running streak as a row with its live days + clock, then past runs.
 // Names are the user's own words — nothing is ever suggested.
 
-const FLAME = '#FF8A3D';
 
 interface Streak {
   id: string;
@@ -62,11 +63,14 @@ function durationLabel(seconds: number) {
   return `${m}m`;
 }
 
-const Flame: React.FC<{ size?: number }> = ({ size = 18 }) => (
-  <Ionicons name="flame-outline" size={size} color={FLAME} />
+const Flame: React.FC<{ size?: number; color: string }> = ({ size = 18, color }) => (
+  <Ionicons name="flame-outline" size={size} color={color} />
 );
 
 const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
+  // Accent follows the part of the day, like the Routine tab.
+  const { accent } = useTimeOfDayAccent();
+  const t = useMemo(() => makeThemedStyles(accent), [accent]);
   const [active, setActive] = useState<Streak[]>([]);
   const [past, setPast] = useState<Streak[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -176,7 +180,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
         style={({ pressed }) => [styles.row, !last && styles.rowDivider, pressed && styles.pressed]}
         accessibilityHint="Hold to stop or restart"
       >
-        <View style={styles.rowIcon}><Flame /></View>
+        <View style={[styles.rowIcon, t.rowIcon]}><Flame color={accent} /></View>
         <View style={styles.rowMain}>
           <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
           <Text style={styles.rowMeta}>since {shortDate(s.started_at)} · best {bestDays(s)}d</Text>
@@ -190,26 +194,26 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   };
 
   if (!loaded) {
-    return <View style={styles.center}><ActivityIndicator color={FLAME} /></View>;
+    return <View style={styles.center}><ActivityIndicator color={accent} /></View>;
   }
 
   return (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={FLAME} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />}
       >
         {running.length === 0 ? (
           <>
             {/* No streaks yet: say what a streak is and how to start one */}
             <View style={styles.dashed}>
-              <Flame size={34} />
+              <Flame size={34} color={accent} />
               <Text style={styles.dashedTitle}>Start a streak</Text>
               <Text style={styles.dashedText}>
                 Name something you're keeping going. A clock starts right away and runs until you stop it.
               </Text>
-              <Pressable onPress={openAdd} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-                <Text style={styles.primaryText}>+ New streak</Text>
+              <Pressable onPress={openAdd} style={({ pressed }) => [styles.primary, t.primary, pressed && styles.pressed]}>
+                <Text style={[styles.primaryText, t.primaryText]}>+ New streak</Text>
               </Pressable>
             </View>
             <Text style={styles.section}>HOW IT WORKS</Text>
@@ -220,7 +224,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                 ['Hold to stop', 'Your best run is kept'],
               ].map(([title, sub], i, all) => (
                 <View key={title} style={[styles.row, i < all.length - 1 && styles.rowDivider]}>
-                  <View style={styles.rowIcon}><Text style={styles.stepNum}>{i + 1}</Text></View>
+                  <View style={[styles.rowIcon, t.rowIcon]}><Text style={[styles.stepNum, t.text]}>{i + 1}</Text></View>
                   <View style={styles.rowMain}>
                     <Text style={styles.rowName}>{title}</Text>
                     <Text style={styles.rowMeta}>{sub}</Text>
@@ -235,13 +239,13 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
             {(() => {
               const e = elapsed(top.started_at, null, now);
               return (
-                <Pressable onLongPress={() => setHeld(top)} delayLongPress={350} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
-                  <Text style={styles.heroLabel}>LONGEST RUNNING</Text>
+                <Pressable onLongPress={() => setHeld(top)} delayLongPress={350} style={({ pressed }) => [styles.hero, t.hero, pressed && styles.pressed]}>
+                  <Text style={[styles.heroLabel, t.text]}>LONGEST RUNNING</Text>
                   <Text style={styles.heroName} numberOfLines={1}>{top.name}</Text>
                   <Text style={styles.heroDays}>
-                    {e.days} <Text style={styles.heroDaysUnit}>{e.days === 1 ? 'day' : 'days'}</Text>
+                    {e.days} <Text style={[styles.heroDaysUnit, t.soft]}>{e.days === 1 ? 'day' : 'days'}</Text>
                   </Text>
-                  <Text style={styles.heroClock}>{e.clock}</Text>
+                  <Text style={[styles.heroClock, t.soft]}>{e.clock}</Text>
                 </Pressable>
               );
             })()}
@@ -305,7 +309,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
               </Pressable>
             </View>
             <TextInput
-              style={styles.input}
+              style={[styles.input, t.input]}
               value={draft}
               onChangeText={setDraft}
               placeholder="Name it"
@@ -314,7 +318,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
               maxLength={60}
               returnKeyType="go"
               onSubmitEditing={start}
-              selectionColor={FLAME}
+              selectionColor={accent}
               keyboardAppearance="dark"
               autoCapitalize="sentences"
             />
@@ -322,9 +326,9 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
             <Pressable
               onPress={start}
               disabled={!draft.trim()}
-              style={({ pressed }) => [styles.primary, !draft.trim() && styles.disabled, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.primary, t.primary, !draft.trim() && styles.disabled, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryText}>Start the clock</Text>
+              <Text style={[styles.primaryText, t.primaryText]}>Start the clock</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -340,7 +344,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
               <View style={styles.sheet}>
                 <View style={styles.grab} />
                 <View style={styles.stopHead}>
-                  <Flame size={30} />
+                  <Flame size={30} color={accent} />
                   <Text style={styles.stopTitle}>Stop “{held.name}”?</Text>
                   <Text style={styles.stopText}>
                     It's been running <Text style={styles.stopStrong}>{e.days} {e.days === 1 ? 'day' : 'days'}, {e.hours}h</Text>
@@ -368,6 +372,18 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
   );
 };
 
+// Accent-colored pieces, rebuilt when the part of the day changes.
+const makeThemedStyles = (accent: string) =>
+  StyleSheet.create({
+    primary: { backgroundColor: accent },
+    primaryText: { color: textOnColor(accent) },
+    text: { color: accent },
+    soft: { color: withAlpha(accent, 0.75) },
+    rowIcon: { backgroundColor: withAlpha(accent, 0.12) },
+    hero: { backgroundColor: withAlpha(accent, 0.08), borderColor: withAlpha(accent, 0.28) },
+    input: { borderColor: accent },
+  });
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -394,11 +410,10 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     height: 50,
     borderRadius: 14,
-    backgroundColor: FLAME,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryText: { fontSize: 16, fontWeight: '700', color: '#1A0C00' },
+  primaryText: { fontSize: 16, fontWeight: '700', },
   secondary: {
     alignSelf: 'stretch',
     height: 50,
@@ -419,12 +434,11 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 138, 61, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowIconPast: { backgroundColor: '#1C1C1C' },
-  stepNum: { fontSize: 15, fontWeight: '800', color: FLAME },
+  stepNum: { fontSize: 15, fontWeight: '800', },
   rowMain: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: '#E8E8E8' },
   rowMeta: { fontSize: 12, color: '#7A7A7A', marginTop: 2 },
@@ -437,16 +451,14 @@ const styles = StyleSheet.create({
   hero: {
     borderRadius: 22,
     padding: 18,
-    backgroundColor: '#1D130C',
     borderWidth: 1,
-    borderColor: '#3A2410',
     gap: 2,
   },
-  heroLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.3, color: FLAME },
+  heroLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.3, },
   heroName: { fontSize: 17, fontWeight: '700', color: '#F2F2F2', marginTop: 2 },
   heroDays: { fontSize: 44, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1, fontVariant: ['tabular-nums'] },
-  heroDaysUnit: { fontSize: 22, fontWeight: '700', color: '#C9A68A' },
-  heroClock: { fontSize: 16, color: '#C9A68A', fontVariant: ['tabular-nums'] },
+  heroDaysUnit: { fontSize: 22, fontWeight: '700', },
+  heroClock: { fontSize: 16, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12, color: '#555', textAlign: 'center', marginTop: 2 },
 
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
@@ -471,7 +483,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#111',
     borderWidth: 1.5,
-    borderColor: FLAME,
     paddingHorizontal: 16,
     fontSize: 18,
     color: '#F2F2F2',
