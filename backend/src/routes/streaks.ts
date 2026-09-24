@@ -53,14 +53,90 @@ const withBest = (row: StreakRow, best: Map<string, number>) => ({
   best_seconds: best.get(row.name.trim().toLowerCase()) ?? 0,
 });
 
+// Milestones every streak can earn (days): same for all streaks.
+const MILESTONES = [1, 3, 7, 14, 30, 60, 90, 180, 365];
+const DAY_MS = 86400_000;
+
+function milestonesUpTo(days: number): number[] {
+  const out = MILESTONES.filter(m => days >= m);
+  for (let y = 2; y * 365 <= days; y++) out.push(y * 365);
+  return out;
+}
+
+interface BadgeRow {
+  run_id: string;
+  streak_name: string;
+  kind: 'milestone' | 'personal_best';
+  days: number;
+  earned_at: string;
+}
+
+// Record every achievement the runs have reached so far: each milestone
+// (earned the moment the run crossed it) and a personal best when a run
+// passes every earlier run of the same name (earned when it passed the old
+// best, which must have been at least a day). Existing badges are left as
+// they are, so the record is permanent.
+async function syncBadges(userId: string, rows: StreakRow[], now: number) {
+  const badges: (BadgeRow & { user_id: string })[] = [];
+  for (const row of rows) {
+    const start = Date.parse(row.started_at);
+    const length = runSeconds(row, now) * 1000;
+    for (const days of milestonesUpTo(Math.floor(length / DAY_MS))) {
+      badges.push({
+        user_id: userId,
+        run_id: row.id,
+        streak_name: row.name,
+        kind: 'milestone',
+        days,
+        earned_at: new Date(start + days * DAY_MS).toISOString(),
+      });
+    }
+    const earlier = rows.filter(
+      r => r.id !== row.id && r.name.trim().toLowerCase() === row.name.trim().toLowerCase() && Date.parse(r.started_at) < start,
+    );
+    const previousBest = Math.max(0, ...earlier.map(r => runSeconds(r, now) * 1000));
+    if (previousBest >= DAY_MS && length > previousBest) {
+      badges.push({
+        user_id: userId,
+        run_id: row.id,
+        streak_name: row.name,
+        kind: 'personal_best',
+        days: Math.floor(previousBest / DAY_MS),
+        earned_at: new Date(start + previousBest).toISOString(),
+      });
+    }
+  }
+  if (badges.length === 0) return;
+  const { error } = await getSupabase()
+    .schema('oasis')
+    .from('streak_badges')
+    .upsert(badges, { onConflict: 'run_id,kind,days', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+async function loadBadges(userId: string) {
+  const { data, error } = await getSupabase()
+    .schema('oasis')
+    .from('streak_badges')
+    .select('id, run_id, streak_name, kind, days, earned_at')
+    .eq('user_id', userId)
+    .order('earned_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 /**
  * GET /api/streaks
- * Running streaks (longest first) and past runs (most recent first).
+ * Running streaks (longest first), past runs (most recent first), and every
+ * badge earned (newest first). Badges are brought up to date on each call.
  */
 router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const rows = await loadRows(req.user!.id);
+    const userId = req.user!.id;
+    const rows = await loadRows(userId);
     const now = Date.now();
+    await syncBadges(userId, rows, now);
+    const badges = await loadBadges(userId);
     const best = bestByName(rows, now);
     const active = rows
       .filter(r => !r.ended_at)
@@ -70,7 +146,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
       .filter(r => r.ended_at)
       .sort((a, b) => Date.parse(b.ended_at!) - Date.parse(a.ended_at!))
       .map(r => withBest(r, best));
-    res.json({ success: true, data: { active, past, server_time: new Date(now).toISOString() } });
+    res.json({ success: true, data: { active, past, badges, server_time: new Date(now).toISOString() } });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
