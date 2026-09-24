@@ -1114,9 +1114,11 @@ const RoutineScreen: React.FC = () => {
               <Text style={[styles.weekDayDate, isSelected && [styles.weekDayDateSelected, themed.weekDayDateSelected]]}>
                 {weekDates[index]}
               </Text>
-              {isPastDay && !isSelected && (
+              {/* Past days stay crossed out, selected or not; on the
+                  highlight the line takes the text color so it shows. */}
+              {isPastDay && (
                 <View pointerEvents="none" style={styles.pastDaySlashContainer}>
-                  <View style={styles.pastDaySlash} />
+                  <View style={[styles.pastDaySlash, isSelected && themed.pastDaySlashSelected]} />
                 </View>
               )}
             </TouchableOpacity>
@@ -1382,6 +1384,7 @@ const makeThemedStyles = (accent: string) => {
     weekDayLabelSelected: { color: onAccent, opacity: 0.7 },
     weekDayDateSelected: { color: onAccent },
     sectionAccent: { backgroundColor: accent },
+    pastDaySlashSelected: { backgroundColor: withAlpha(onAccent === '#FFFFFF' ? '#FFFFFF' : '#0D0D0D', 0.35) },
   });
 };
 
