@@ -42,6 +42,8 @@ interface Props {
 }
 
 const DAY = 86400;
+// 21.3 — days to one decimal, rounded down so it never shows a day early.
+const decimalDays = (seconds: number) => (Math.floor((seconds / DAY) * 10) / 10).toFixed(1);
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -197,7 +199,7 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
     Math.max(0, ...past.filter(p => sameName(p.name, s.name)).map(p => elapsed(p.started_at, p.ended_at, now).total));
 
   const bestDays = (s: Streak) =>
-    Math.floor(Math.max(s.best_seconds ?? 0, elapsed(s.started_at, s.ended_at, now).total) / DAY);
+    decimalDays(Math.max(s.best_seconds ?? 0, elapsed(s.started_at, s.ended_at, now).total));
 
   const renderRow = (s: Streak, last: boolean) => {
     const e = elapsed(s.started_at, null, now);
@@ -216,8 +218,8 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
           <Text style={styles.rowMeta}>since {shortDate(s.started_at)} · best {bestDays(s)}d</Text>
         </View>
         <View style={styles.rowRight}>
-          <Text style={styles.rowDays}>{e.days}d</Text>
-          <Text style={styles.rowClock}>{e.clock}</Text>
+          <Text style={styles.rowDays}>{decimalDays(e.total)}</Text>
+          <Text style={styles.rowClock}>days</Text>
         </View>
       </Pressable>
     );
@@ -273,9 +275,8 @@ const StreaksScreen: React.FC<Props> = ({ addRequest }) => {
                   <Text style={[styles.heroLabel, t.text]}>LONGEST RUNNING</Text>
                   <Text style={styles.heroName} numberOfLines={1}>{top.name}</Text>
                   <Text style={styles.heroDays}>
-                    {e.days} <Text style={[styles.heroDaysUnit, t.soft]}>{e.days === 1 ? 'day' : 'days'}</Text>
+                    {decimalDays(e.total)} <Text style={[styles.heroDaysUnit, t.soft]}>days</Text>
                   </Text>
-                  <Text style={[styles.heroClock, t.soft]}>{e.clock}</Text>
                   <Text style={styles.heroCompare}>{compareToBest(e.total, previousBest(top))}</Text>
                 </Pressable>
               );
@@ -502,7 +503,6 @@ const styles = StyleSheet.create({
   heroName: { fontSize: 17, fontWeight: '700', color: '#F2F2F2', marginTop: 2 },
   heroDays: { fontSize: 44, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   heroDaysUnit: { fontSize: 22, fontWeight: '700', },
-  heroClock: { fontSize: 16, fontVariant: ['tabular-nums'] },
   heroCompare: { fontSize: 13, color: '#9A9A9A', marginTop: 8 },
   hint: { fontSize: 12, color: '#555', textAlign: 'center', marginTop: 2 },
 

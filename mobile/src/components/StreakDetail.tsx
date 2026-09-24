@@ -37,15 +37,6 @@ const decimalDays = (seconds: number) => (Math.floor((seconds / DAY) * 10) / 10)
 const secondsOf = (run: StreakRun, now: number) =>
   Math.max(0, Math.floor(((run.ended_at ? Date.parse(run.ended_at) : now) - Date.parse(run.started_at)) / 1000));
 
-function short(seconds: number) {
-  const d = Math.floor(seconds / DAY);
-  const h = Math.floor((seconds % DAY) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d${h ? ` ${h}h` : ''}`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 const dateLabel = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClose, onMore, onDeleteRun }) => {
@@ -54,7 +45,6 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
   const current = ordered.find(r => !r.ended_at) ?? null;
   const lengths = ordered.map(r => secondsOf(r, now));
   const best = Math.max(0, ...lengths);
-  const total = lengths.reduce((a, b) => a + b, 0);
   const restarts = Math.max(0, ordered.length - 1);
 
   const cur = current ? secondsOf(current, now) : 0;
@@ -66,8 +56,7 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
     : '';
   const facts: [string, string, string?][] = [
     [current ? 'Started' : 'Last started', startedLabel],
-    ['Best run', short(best), currentIsBest ? 'this run' : undefined],
-    ['Total', short(total)],
+    ['Best run', `${decimalDays(best)} days`, currentIsBest ? 'this run' : undefined],
     ['Restarts', String(restarts)],
   ];
 
@@ -146,7 +135,7 @@ const StreakDetail: React.FC<Props> = ({ visible, name, runs, now, accent, onClo
                   </Text>
                   <Text style={styles.rowMeta}>{run.ended_at ? 'ended' : 'running'}</Text>
                 </View>
-                <Text style={[styles.rowValue, !run.ended_at && { color: accent }]}>{short(secondsOf(run, now))}</Text>
+                <Text style={[styles.rowValue, !run.ended_at && { color: accent }]}>{decimalDays(secondsOf(run, now))}d</Text>
               </Pressable>
             ))}
           </View>
@@ -164,10 +153,10 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, gap: 14 },
   readout: { paddingTop: 12, paddingBottom: 4 },
   name: {
-    fontFamily: 'Snell Roundhand',
     fontWeight: '700',
-    fontSize: 44,
-    lineHeight: 56,
+    fontSize: 30,
+    lineHeight: 38,
+    letterSpacing: -0.3,
     color: '#F2F2F2',
     textAlign: 'center',
   },
