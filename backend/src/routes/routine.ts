@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getStorage } from '../services/merciaCore';
 import { getSupabase } from '../services/supabase';
-import { ensureDaysClosed, recountDay } from '../lib/routineYear';
+import { adjustDay, ensureDaysClosed, recountGoalPoints, removeOneActivity } from '../lib/routineYear';
 
 const notepadSchema = z.object({
   content: z.string().max(10000),
@@ -256,6 +256,9 @@ router.patch(
           console.error('Failed to log task activity:', err);
         }
       } else if (becameUncompleted) {
+        // Take back the action logged when it was checked off.
+        await removeOneActivity(userId, 'task_completed', activityDate).catch(err =>
+          console.error('[Routine] removeOneActivity failed:', err));
         // Remove the history entry when a task is unchecked (awaited, as above).
         const supabase = getSupabase();
         await supabase
@@ -270,10 +273,10 @@ router.patch(
           });
       }
 
-      // A past day checked off or un-checked: re-count that closed day.
+      // A past day checked off or un-checked: adjust that closed day by this one item.
       if ((becameCompleted || becameUncompleted) && activityDate < today) {
-        await recountDay(userId, activityDate).catch(err =>
-          console.error('[Routine] recountDay failed:', err));
+        await adjustDay(userId, activityDate, task.id, becameCompleted ? 1 : -1).catch(err =>
+          console.error('[Routine] adjustDay failed:', err));
       }
 
       res.json({
@@ -602,10 +605,11 @@ router.patch(
         try {
           const supabase = getSupabase();
 
-          // Fire-and-forget: record the completion BY NAME so reviews and the
+          // Record the completion BY NAME so reviews and the
           // LLM can reference specific goals ("Run 4x" not "a weekly goal").
           // Mirrors task_completion_history; keyed per goal per local day.
-          supabase
+          // Awaited so an immediate un-check finds it.
+          await supabase
             .schema('oasis')
             .from('goal_completion_history')
             .upsert(
@@ -643,18 +647,35 @@ router.patch(
           console.error('Failed to log goal activity:', err);
         }
       } else if (becameUncompleted) {
-        // Fire-and-forget: remove today's history row when a goal is un-completed
-        const supabase = getSupabase();
-        supabase
-          .schema('oasis')
-          .from('goal_completion_history')
-          .delete()
-          .eq('user_id', userId)
-          .eq('goal_id', goal.id)
-          .eq('completed_date', getLocalDateString(timezone))
-          .then(({ error }) => {
-            if (error) console.error('[Routine] goal_completion_history delete failed:', error);
-          });
+        // Un-checked: take back its most recent completion — whichever day that
+        // was — along with the action it logged, and re-count that day's goal
+        // points if the day has already closed.
+        try {
+          const supabase = getSupabase();
+          const { data: last } = await supabase
+            .schema('oasis')
+            .from('goal_completion_history')
+            .select('completed_date')
+            .eq('user_id', userId)
+            .eq('goal_id', goal.id)
+            .order('completed_date', { ascending: false })
+            .limit(1);
+          const date = last?.[0]?.completed_date as string | undefined;
+          if (date) {
+            const { error: delErr } = await supabase
+              .schema('oasis')
+              .from('goal_completion_history')
+              .delete()
+              .eq('user_id', userId)
+              .eq('goal_id', goal.id)
+              .eq('completed_date', date);
+            if (delErr) console.error('[Routine] goal_completion_history delete failed:', delErr);
+            await removeOneActivity(userId, 'goal_completed', date);
+            if (date < getLocalDateString(timezone)) await recountGoalPoints(userId, date);
+          }
+        } catch (err) {
+          console.error('[Routine] goal un-complete cleanup failed:', err);
+        }
       }
 
       res.json({
