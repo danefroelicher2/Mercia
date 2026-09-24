@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
-import { ArchivedYear, SAMPLE_YEAR, num, pct, shortDate } from './statsArchiveData';
+import { ArchivedYear, SAMPLE_YEAR, num, pct } from './statsArchiveData';
 
 // One card per finished year; tapping opens that year's full stats.
 
@@ -53,9 +53,6 @@ const StatsArchiveScreen: React.FC = () => {
                   {y.sample ? <Text style={styles.tag}>SAMPLE</Text> : null}
                   {!y.sample && !d.final ? <Text style={styles.tag}>FINALIZING</Text> : null}
                 </View>
-                <Text style={styles.range}>
-                  {shortDate(d.from)} – {shortDate(d.to)} · {num(d.countedDays)} days tracked
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#555" />
             </View>
@@ -93,7 +90,6 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#999',
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden',
   },
-  range: { fontSize: 13, color: '#777', marginTop: 2 },
   figures: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#2A2A2A', paddingTop: 14 },
   figure: { flex: 1 },
   figureValue: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', fontVariant: ['tabular-nums'] },

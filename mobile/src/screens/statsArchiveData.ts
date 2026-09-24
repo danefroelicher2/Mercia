@@ -59,8 +59,6 @@ export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export const pct = (r: number | null | undefined) => (r == null ? '—' : `${Math.round(r * 100)}%`);
 export const num = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const shortDate = (iso: string | null) => (iso ? `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}` : '—');
 
 const bucket = (planned: number, done: number, points: number, days: number): Bucket => ({
   planned, done, points, days, rate: planned > 0 ? (done + points) / planned : null,

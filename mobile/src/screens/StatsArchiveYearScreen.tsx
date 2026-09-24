@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { SECTION_COLORS } from '../utils/timeOfDay';
-import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct, shortDate } from './statsArchiveData';
+import { ArchivedYear, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, num, pct } from './statsArchiveData';
 
 // One finished year, laid out in the same groups as the Stats tab.
 
@@ -30,9 +30,6 @@ const StatsArchiveYearScreen: React.FC = () => {
           <Text style={styles.year}>{entry.year}</Text>
           {entry.sample ? <Text style={styles.tag}>SAMPLE</Text> : null}
         </View>
-        <Text style={styles.range}>
-          {shortDate(d.from)} – {shortDate(d.to)} · {num(d.countedDays)} days tracked
-        </Text>
       </View>
 
       <View style={styles.hero}>
@@ -191,7 +188,6 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700', letterSpacing: 1, color: '#999',
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden',
   },
-  range: { fontSize: 13, color: '#777', marginTop: 2 },
   hero: { flexDirection: 'row', backgroundColor: '#161616', borderRadius: 14, paddingVertical: 16 },
   heroCell: { flex: 1, alignItems: 'center' },
   heroRule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A' },
