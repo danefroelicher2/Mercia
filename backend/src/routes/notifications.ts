@@ -4,6 +4,7 @@ import Expo from 'expo-server-sdk';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
+import { validZone } from '../lib/routineYear';
 
 const router = Router();
 router.use(authenticateToken);
@@ -98,11 +99,19 @@ router.post('/ping', async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const supabase = getSupabase();
 
+  // The app also sends its time zone and Morning/Afternoon/Night boundaries
+  // so days (and years) close at the user's own midnight.
+  const update: Record<string, unknown> = { last_active_at: new Date().toISOString() };
+  const { timezone, afternoonStart, nightStart } = req.body ?? {};
+  if (typeof timezone === 'string' && validZone(timezone) === timezone) update.timezone = timezone;
+  if (Number.isInteger(afternoonStart) && afternoonStart >= 0 && afternoonStart < 1440) update.afternoon_start = afternoonStart;
+  if (Number.isInteger(nightStart) && nightStart >= 0 && nightStart < 1440) update.night_start = nightStart;
+
   const { error } = await supabase
     .schema('oasis')
     .from('user_profiles')
-    .update({ last_active_at: new Date().toISOString() })
-    .eq('user_id', userId);
+    .update(update)
+    .eq('id', userId);
 
   if (error) {
     console.error('[NOTIFICATIONS] Ping update failed for user', userId, ':', error);

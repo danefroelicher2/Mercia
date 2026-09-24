@@ -154,21 +154,12 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   const sections: InsightSection[] = [];
 
   // ===== ROUTINE =====
-  const routineRows: InsightRow[] = [];
   const windowNote = windowStart
     ? `Last ${daysBetween(windowStart, yesterday) + 1} days, against today's routine`
     : 'No completions recorded yet';
 
-  for (const s of SECTIONS) routineRows.push({ label: `${SECTION_LABEL[s]} completion`, value: pct(bySection[s].d, bySection[s].p) });
-  sections.push({ id: 'routine-sections', title: 'Routine · by part of day', note: windowNote, rows: routineRows });
 
-  const wdRows = DAYS.map(d => ({ label: DAY_LABEL[d], value: pct(byWeekday[d].d, byWeekday[d].p) }));
-  const ranked = DAYS.filter(d => byWeekday[d].p > 0).sort((a, b) => byWeekday[b].d / byWeekday[b].p - byWeekday[a].d / byWeekday[a].p);
-  if (ranked.length) {
-    wdRows.push({ label: 'Strongest day', value: DAY_LABEL[ranked[0]] });
-    wdRows.push({ label: 'Weakest day', value: DAY_LABEL[ranked[ranked.length - 1]] });
-  }
-  sections.push({ id: 'routine-weekdays', title: 'Routine · by weekday', note: windowNote, rows: wdRows });
+
 
   // Items: kept / missed / streaks.
   const itemStats = tasks

@@ -3,6 +3,7 @@ import { authenticateCronSecret } from '../middleware/auth';
 import { runDailySummaryGeneration } from '../jobs/dailySummaryJob';
 import { runInactivityCheck } from '../jobs/inactivityJob';
 import { runStreakRiskCheck } from '../jobs/streakRiskJob';
+import { runRoutineDayLog } from '../lib/routineYear';
 
 const router = Router();
 
@@ -30,6 +31,13 @@ router.post('/streak-risk', (_req: Request, res: Response): void => {
   res.json({ success: true, message: 'streak-risk check started' });
   runStreakRiskCheck().catch((err) =>
     console.error('[CRON-TRIGGER] streak-risk failed:', err)
+  );
+});
+
+router.post('/routine-day-log', (_req: Request, res: Response): void => {
+  res.json({ success: true, message: 'routine-day-log started' });
+  runRoutineDayLog().catch((err) =>
+    console.error('[CRON-TRIGGER] routine-day-log failed:', err)
   );
 });
 
