@@ -1,5 +1,5 @@
 import { getSupabase } from '../services/supabase';
-import { GymYear, StreaksYear, gymYear, streaksYear } from './yearGymStreaks';
+import { GymYear, OverallYear, StreaksYear, gymYear, overallYear, streaksYear } from './yearGymStreaks';
 
 // Yearly stats. Everything here is per calendar year (the user's own year,
 // in their time zone) and is saved to oasis.stats_archive once the year ends.
@@ -27,7 +27,7 @@ import { GymYear, StreaksYear, gymYear, streaksYear } from './yearGymStreaks';
 //   - Yearly % = the year's yearly goals completed ÷ total.
 //   - The period in progress is shown separately ("so far"), not averaged.
 //
-// GYM and STREAKS for the year come from lib/yearGymStreaks.
+// GYM, STREAKS and OVERALL for the year come from lib/yearGymStreaks.
 
 export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
 export type Section = (typeof SECTIONS)[number];
@@ -237,6 +237,7 @@ export interface YearSummary {
     monthly: { average: number | null; periods: number; soFar: number | null };
     yearly: { rate: number | null; completed: number; total: number };
   };
+  overall: OverallYear;
   gym: GymYear;
   streaks: StreaksYear;
   final?: boolean;
@@ -256,7 +257,8 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
   const yStart = `${year}-01-01`;
   const yEnd = `${year}-12-31`;
 
-  const [gym, streaks, logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
+  const [overall, gym, streaks, logRes, actRes, goalLogRes, goalsNowRes] = await Promise.all([
+    overallYear(userId, year, today, p.timezone),
     gymYear(userId, year, today),
     streaksYear(userId, year, p.timezone),
     sb.from('routine_day_log').select('log_date, section, planned, done, goal_points, task_ids').eq('user_id', userId).gte('log_date', yStart).lte('log_date', yEnd),
@@ -338,6 +340,7 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
       monthly: { average: avg(months.map(pctOf)), periods: months.length, soFar: isCurrent ? soFar('monthly') : null },
       yearly: { rate: yearlyTotal > 0 ? yearlyCompleted / yearlyTotal : null, completed: yearlyCompleted, total: yearlyTotal },
     },
+    overall,
     gym,
     streaks,
   };

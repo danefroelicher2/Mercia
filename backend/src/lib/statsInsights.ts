@@ -1,8 +1,8 @@
 import { getSupabase } from '../services/supabase';
 import type { YearSummary } from './routineYear';
 
-// The Gym, Streaks and App-wide parts of the Stats tab as display-ready
-// sections (title + rows). Gym and Streaks come from the year summary
+// The Overall, Gym and Streaks parts of the Stats tab as display-ready
+// sections (title + rows). They come from the year summary
 // (lib/routineYear + lib/yearGymStreaks) — the same numbers the Stats Archive
 // saves when the year ends. `group` is the feature a section belongs to; the
 // app draws a header wherever the group changes.
@@ -41,15 +41,26 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
   const today = localDate(new Date(), tz);
   const year = String(summary.year);
 
-  const [profileRes, streaksRes, activityRes, actionDaysRes, gymDaysRes] = await Promise.all([
-    sb.from('user_profiles').select('created_at').eq('id', userId).maybeSingle(),
-    sb.from('streaks').select('ended_at').eq('user_id', userId),
-    sb.from('user_activity_log').select('activity_type, activity_date').eq('user_id', userId),
-    sb.from('user_action_days').select('action_date').eq('user_id', userId),
-    sb.from('gym_memory').select('session_date').eq('user_id', userId),
-  ]);
+  const streaksRes = await sb.from('streaks').select('ended_at').eq('user_id', userId);
+  if (streaksRes.error) throw streaksRes.error;
 
   const sections: InsightSection[] = [];
+
+  // ===== OVERALL (sits between Routine and Gym) =====
+  const o = summary.overall;
+  const month = o.mostActiveMonth;
+  sections.push({
+    id: 'overall',
+    group: 'Overall',
+    title: 'Across the app',
+    note: year,
+    rows: [
+      { label: 'Actions', value: o.actions.toLocaleString('en-US'), sub: 'items and goals crossed off, gym days, messages' },
+      { label: 'Lifetime actions', value: o.lifetimeActions.toLocaleString('en-US') },
+      { label: 'Days since joining', value: o.daysSinceJoining.toLocaleString('en-US') },
+      { label: 'Most active month', value: month ? MONTHS[Number(month.month.slice(5)) - 1] : '—', sub: month ? plural(month.activeDays, 'active day') : undefined },
+    ],
+  });
 
   // ===== GYM (this calendar year) =====
   const gym = summary.gym;
@@ -97,30 +108,6 @@ export async function computeInsights(userId: string, tz: string, summary: YearS
         value: longest ? longest.name : '—',
         sub: longest ? `${longest.days.toFixed(1)} days this year${longest.running ? ' · still going' : ''}` : undefined,
       },
-    ],
-  });
-
-  // ===== APP-WIDE =====
-  const activity = activityRes.data ?? [];
-  const count = (type: string) => activity.filter((a: any) => a.activity_type === type).length;
-  const lifetimeActions = count('task_completed') + count('goal_completed') + count('ai_chat_sent')
-    + new Set((gymDaysRes.data ?? []).map((r: any) => r.session_date)).size;
-  const joined = profileRes.data?.created_at ? localDate(profileRes.data.created_at, tz) : today;
-  const activeDays = new Set<string>([
-    ...activity.map((a: any) => a.activity_date),
-    ...(actionDaysRes.data ?? []).map((a: any) => a.action_date),
-  ]);
-  const byMonth = new Map<string, number>();
-  for (const d of activeDays) byMonth.set(d.slice(0, 7), (byMonth.get(d.slice(0, 7)) ?? 0) + 1);
-  const topMonth = Array.from(byMonth.entries()).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0];
-  sections.push({
-    id: 'app',
-    group: 'App-wide',
-    title: 'All time',
-    rows: [
-      { label: 'Lifetime actions', value: lifetimeActions.toLocaleString('en-US'), sub: 'items and goals crossed off, gym days, messages' },
-      { label: 'Days since joining', value: String(daysBetween(joined, today) + 1) },
-      { label: 'Most active month', value: topMonth ? `${MONTHS[Number(topMonth[0].slice(5)) - 1]} ${topMonth[0].slice(0, 4)}` : '—', sub: topMonth ? plural(topMonth[1], 'active day') : undefined },
     ],
   });
 
