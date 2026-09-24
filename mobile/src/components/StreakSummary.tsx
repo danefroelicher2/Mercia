@@ -14,6 +14,17 @@ export interface StreakData {
 const GREEN = '#5DCAA5';
 const AMBER = '#E8A13A';
 const GOLD = '#D8B45A';
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// "October 2026" within one month, "Oct–Nov, 2026" across months,
+// "Dec 2026–Jan 2027" across years.
+function monthSpan(start: string, end: string): string {
+  const [sy, sm] = [start.slice(0, 4), Number(start.slice(5, 7)) - 1];
+  const [ey, em] = [end.slice(0, 4), Number(end.slice(5, 7)) - 1];
+  if (sy === ey && sm === em) return `${MONTHS[sm]} ${sy}`;
+  if (sy === ey) return `${MONTHS[sm].slice(0, 3)}–${MONTHS[em].slice(0, 3)}, ${sy}`;
+  return `${MONTHS[sm].slice(0, 3)} ${sy}–${MONTHS[em].slice(0, 3)} ${ey}`;
+}
 
 const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
   const current = data?.currentStreak ?? 0;
@@ -24,7 +35,12 @@ const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
     if (current === 0) currentStatus = { text: 'Do anything today to start', color: '#8A8A8A' };
     else currentStatus = data.activeToday ? { text: 'Today counted', color: GREEN } : { text: 'Keep it going today', color: AMBER };
   }
-  const bestStatus = best?.isCurrent && best.length > 0 ? { text: 'Happening now', color: GOLD } : null;
+  // The best run's months; while it's still going, "Happening now".
+  let bestStatus: { text: string; color: string } | null = null;
+  if (best && best.length > 0) {
+    if (best.isCurrent) bestStatus = { text: 'Happening now', color: GOLD };
+    else if (best.startedAt && best.endedAt) bestStatus = { text: monthSpan(best.startedAt, best.endedAt), color: AMBER };
+  }
 
   return (
     <View style={styles.card}>
