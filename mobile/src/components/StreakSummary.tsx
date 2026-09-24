@@ -30,13 +30,13 @@ const StreakSummary: React.FC<{ data: StreakData | null }> = ({ data }) => {
     <View style={styles.card}>
       <Half label="Current streak" value={current} status={currentStatus} />
       <View style={styles.rule} />
-      <Half label="Best streak" value={best?.length ?? 0} status={bestStatus} />
+      <Half label="Best streak" value={best?.length ?? 0} status={bestStatus} centered />
     </View>
   );
 };
 
-const Half = ({ label, value, status }: { label: string; value: number; status: { text: string; color: string } | null }) => (
-  <View style={styles.half}>
+const Half = ({ label, value, status, centered }: { label: string; value: number; status: { text: string; color: string } | null; centered?: boolean }) => (
+  <View style={[styles.half, centered && styles.centered]}>
     <Text style={styles.label}>{label.toUpperCase()}</Text>
     <View style={styles.valueRow}>
       <Text style={styles.value}>{value}</Text>
@@ -59,6 +59,7 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', backgroundColor: '#161616', borderRadius: 18, paddingVertical: 18, marginBottom: 16 },
   rule: { width: StyleSheet.hairlineWidth, backgroundColor: '#2A2A2A', marginVertical: 4 },
   half: { flex: 1, paddingHorizontal: 18 },
+  centered: { alignItems: 'center' },
   label: { fontSize: 11, letterSpacing: 1.2, color: '#777', fontWeight: '600' },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 6 },
   value: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 46, lineHeight: 54, color: '#F2F2F2', fontVariant: ['lining-nums'] },
