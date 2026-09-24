@@ -725,8 +725,10 @@ router.get('/insights', async (req: Request, res: Response): Promise<void> => {
 const WD_LABEL: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
 function yearSections(y: YearSummary) {
   const pctOf = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
-  const detail = (x: { planned: number; done: number; points: number }) =>
-    x.planned > 0 ? `${x.done} of ${x.planned} crossed off${x.points ? ` · +${x.points} goal pts` : ''}` : 'nothing planned yet';
+  const detail = (x: { planned: number; done: number; points: number; days: number }) =>
+    x.planned > 0
+      ? `${x.done} of ${x.planned} crossed off${x.points ? ` · +${x.points} goal pts` : ''} · ${x.days} day${x.days === 1 ? '' : 's'}`
+      : x.days > 0 ? `nothing planned · ${x.days} day${x.days === 1 ? '' : 's'}` : 'no days yet';
   const since = `${y.year} · tracking since ${new Date(`${y.trackingStart}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   const g = y.goals;
   const period = (x: { average: number | null; periods: number; soFar: number | null }, unit: string) => ({

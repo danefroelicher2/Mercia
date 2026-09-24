@@ -207,6 +207,7 @@ interface Bucket {
   done: number;
   points: number;
   rate: number | null;
+  days: number; // days of the year included (for weekdays: that weekday's days)
 }
 export interface YearSummary {
   year: number;
@@ -228,7 +229,7 @@ export interface YearSummary {
   final?: boolean;
 }
 
-const blank = (): Bucket => ({ planned: 0, done: 0, points: 0, rate: null });
+const blank = (): Bucket => ({ planned: 0, done: 0, points: 0, rate: null, days: 0 });
 const rateOf = (b: Bucket) => (b.planned > 0 ? (b.done + b.points) / b.planned : null);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 // ISO week-year of a Monday: the year its Thursday falls in.
@@ -274,6 +275,9 @@ export async function summarizeYear(userId: string, year: number, tzOverride?: s
   }
   for (const s of SECTIONS) bySection[s].rate = rateOf(bySection[s]);
   for (const d of WEEKDAYS) byWeekday[d].rate = rateOf(byWeekday[d]);
+  // Every day of the year so far counts toward each part of the day.
+  for (const s of SECTIONS) bySection[s].days = perDate.size;
+  for (const date of perDate.keys()) byWeekday[weekdayOf(date)].days++;
   const perfectDays = Array.from(perDate.values()).filter(d => d.planned > 0 && d.done >= d.planned).length;
   const dates = Array.from(perDate.keys()).sort();
 

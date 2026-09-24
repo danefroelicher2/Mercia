@@ -256,12 +256,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   }
 
 
-  sections.push({
-    id: 'goals-done',
-    title: 'Goals · completed',
-    note: `${goalHist.length} completions recorded`,
-    rows: goalHist.slice(0, 15).map((g: any) => ({ label: g.goal_text, value: g.completed_date.slice(5), sub: `${g.goal_type} goal` })),
-  });
+
 
   const weeklyDone = goalHist.filter((g: any) => g.goal_type === 'weekly');
   const monthlyDone = goalHist.filter((g: any) => g.goal_type === 'monthly');
@@ -274,20 +269,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   const yearly = byType('yearly');
   const yearStart = `${today.slice(0, 4)}-01-01`;
   const yearElapsed = (daysBetween(yearStart, today) + 1) / (Number(today.slice(0, 4)) % 4 === 0 ? 366 : 365);
-  sections.push({
-    id: 'goals-timing',
-    title: 'Goals · timing',
-    rows: [
-      { label: 'Weekly goals finished on (avg)', value: weeklyDone.length ? DAY_LABEL[DAYS[Math.round(avgWeekday) - 1]] : '—', sub: weeklyDone.length ? `day ${avgWeekday.toFixed(1)} of 7` : undefined },
-      { label: 'Monthly goals finished on (avg)', value: monthlyDone.length ? `day ${Math.round(avgMonthDay)}` : '—' },
-      { label: 'Yearly goals done', value: pct(yearly.filter((g: any) => g.completed).length, yearly.length), sub: `year ${Math.round(yearElapsed * 100)}% through` },
-      ...yearly.map((g: any) => ({
-        label: g.text,
-        value: g.completed ? 'Done' : (g.target_count ?? 1) > 1 ? `${g.target_count - g.current_count}/${g.target_count}` : 'Open',
-        sub: 'yearly goal',
-      })),
-    ],
-  });
+
 
   // ===== WEEKLY SUMMARIES =====
   const scored = summaries.filter((s: any) => s.overall_percentage != null || s.today_percentage != null)
@@ -297,17 +279,7 @@ export async function computeInsights(userId: string, tz: string): Promise<Insig
   for (let i = scored.length - 1; i > 0 && scored[i].score > scored[i - 1].score; i--) improving++;
   const dayWins = new Map<string, number>();
   for (const s of scored) if (s.day && s.day !== '—' && s.day !== '-') dayWins.set(s.day, (dayWins.get(s.day) ?? 0) + 1);
-  sections.push({
-    id: 'weekly',
-    title: 'Weekly scores',
-    rows: [
-      { label: 'Best week', value: best ? `${Math.round(best.score)}%` : '—', sub: best ? `week of ${best.week}` : undefined },
-      { label: 'Weeks improving in a row', value: String(improving) },
-      ...Array.from(dayWins.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3)
-        .map(([d, n]) => ({ label: 'Most consistent day', value: String(d), sub: plural(n, 'week') })),
-      ...scored.slice(-10).reverse().map((s: any) => ({ label: `Week of ${s.week}`, value: `${Math.round(s.score)}%` })),
-    ],
-  });
+
 
   // ===== GYM =====
   const sessions = (gymRes.data ?? []).filter((s: any) => s.workout_group);
