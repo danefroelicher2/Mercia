@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, Alert, AppState } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,6 +26,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { MerciaStackParamList } from '../types/navigation';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
+import { setWidgetDayParts, syncWidgetFromServer } from '../services/widgetSync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../services/notifications';
 import { STORAGE_KEYS } from '../constants/config';
@@ -240,6 +241,19 @@ const MainTabs: React.FC = () => {
       }).catch(() => {});
     });
   }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
+
+  // Streak widget: sync its snapshot at launch, whenever the app comes back to
+  // the foreground, and when the Afternoon/Night times change.
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setWidgetDayParts(boundaries.afternoonStart, boundaries.nightStart);
+    syncWidgetFromServer();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') syncWidgetFromServer();
+    });
+    return () => sub.remove();
+  }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
+
   const [hasConsent, setHasConsent] = useState(false);
   const [isLoadingConsent, setIsLoadingConsent] = useState(true);
 

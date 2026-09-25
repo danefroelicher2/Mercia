@@ -57,9 +57,30 @@ api.interceptors.request.use(
   }
 );
 
+// Called after any successful change the server counts as an action (the same
+// requests as its trackAction), e.g. so the streak widget can mark today.
+const actionListeners = new Set<() => void>();
+export function onAction(listener: () => void): () => void {
+  actionListeners.add(listener);
+  return () => actionListeners.delete(listener);
+}
+const ACTION_PATH = /^\/api\/(routine|gym|streaks|chat|stats)(\/|$)/;
+const NOT_ACTION = /\/(daily-outlook|day-in-review)$/;
+
 // Response interceptor - handle 401 errors and token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const { method, url } = response.config;
+    const path = (url ?? '').split('?')[0];
+    if (method && method.toLowerCase() !== 'get' && ACTION_PATH.test(path) && !NOT_ACTION.test(path)) {
+      actionListeners.forEach(l => {
+        try {
+          l();
+        } catch {}
+      });
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 

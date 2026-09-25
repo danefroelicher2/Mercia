@@ -3,6 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { User, AuthContextType } from '../types';
 import * as authService from '../services/auth';
 import { pingHealth } from '../services/api';
+import { clearWidget } from '../services/widgetSync';
 
 // Create context with undefined default
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,12 +43,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } catch {
             // Token refresh failed, clear auth data
             await authService.logout();
+            clearWidget();
             setUser(null);
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
         await authService.logout();
+        clearWidget();
       } finally {
         setConnectingMessage('');
         setIsLoading(false);
@@ -110,6 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       await authService.logout();
+      clearWidget();
       setUser(null);
     } catch (error) {
       throw error;
