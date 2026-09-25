@@ -5,7 +5,8 @@ import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
 import { liveExtras } from '../lib/statsLifetime';
-import { addDays, summarizeYear, localDate, validZone } from '../lib/routineYear';
+import { summarizeYear, localDate, validZone } from '../lib/routineYear';
+import { computeDayStreaks } from '../lib/dayStreaks';
 
 const router = Router();
 
@@ -40,51 +41,30 @@ router.get('/streaks', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const zone = validZone(typeof req.query.timezone === 'string' ? req.query.timezone : req.header('x-timezone'));
-    const { data, error } = await getSupabase()
-      .schema('oasis')
-      .from('user_activity_log')
-      .select('activity_date')
-      .eq('user_id', userId);
-    if (error) throw error;
+    const sb = getSupabase().schema('oasis');
+    // A day counts if the user did anything in the app (user_action_days);
+    // older days also count from the activity log, which predates it.
+    const [activityRes, actionRes] = await Promise.all([
+      sb.from('user_activity_log').select('activity_date').eq('user_id', userId),
+      sb.from('user_action_days').select('action_date').eq('user_id', userId),
+    ]);
+    if (activityRes.error) throw activityRes.error;
+    if (actionRes.error) throw actionRes.error;
 
-    // Day streaks from activity days (the heatmap's days), in the user's zone.
-    // A streak is still alive today if yesterday was active — it only breaks
-    // once a whole day passes with no activity.
-    const days = Array.from(new Set((data ?? []).map((r: any) => r.activity_date as string))).sort();
-    const active = new Set(days);
-    const today = localDate(new Date(), zone);
-    const yesterday = addDays(today, -1);
-    const activeToday = active.has(today);
-
-    let currentStreak = 0;
-    let currentStart: string | null = null;
-    for (let d = activeToday ? today : yesterday; active.has(d); d = addDays(d, -1)) {
-      currentStreak++;
-      currentStart = d;
-    }
-
-    // Longest run ever (ties go to the most recent).
-    let best = { length: 0, start: null as string | null, end: null as string | null };
-    let runStart: string | null = null;
-    for (let i = 0; i < days.length; i++) {
-      if (i === 0 || days[i] !== addDays(days[i - 1], 1)) runStart = days[i];
-      const length = Math.round((Date.parse(days[i]) - Date.parse(runStart!)) / 86400_000) + 1;
-      if (length >= best.length) best = { length, start: runStart, end: days[i] };
-    }
-    const isCurrent = currentStreak > 0 && best.end === (activeToday ? today : yesterday);
+    const s = computeDayStreaks(
+      [...(activityRes.data ?? []).map((r: any) => r.activity_date), ...(actionRes.data ?? []).map((r: any) => r.action_date)],
+      localDate(new Date(), zone),
+    );
 
     res.json({
       success: true,
       data: {
-        currentStreak,
-        currentStartedAt: currentStart,
-        activeToday,
-        longestStreak: {
-          length: best.length,
-          startedAt: best.start,
-          endedAt: best.end,
-          isCurrent,
-        },
+        currentStreak: s.currentStreak,
+        currentStartedAt: s.currentStartedAt,
+        activeToday: s.activeToday,
+        lastActive: s.lastActive,
+        recentActive: s.recentActive,
+        longestStreak: s.longest,
       },
     });
   } catch (error: any) {
