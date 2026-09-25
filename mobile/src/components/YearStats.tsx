@@ -56,7 +56,8 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
     <View style={styles.root}>
       {live ? <Lifetime l={live.lifetime} /> : null}
 
-      <Group name="Overall" centered spaced={!!live} />
+      {/* Left-aligned on the Stats tab; centered in a Stats Archive year. */}
+      <Group name="Overall" centered={!live} spaced={!!live} />
       <Block title="Across the app">
         <Row label="Actions" value={d.overall ? num(d.overall.actions) : '—'} sub="items and goals crossed off, gym days, messages" />
         <Row
