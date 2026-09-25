@@ -63,6 +63,10 @@ export async function syncWidgetFromServer(): Promise<void> {
     const res = await api.get('/api/stats/streaks');
     const d = res.data?.data;
     if (!d) return;
+    // The server records an action just after responding to it, so a refresh
+    // racing an action can lag a moment behind: never undo "today" once marked.
+    const local = read();
+    if (local?.lastActive === today() && d.lastActive !== today()) return;
     write({ lastActive: d.lastActive ?? null, streakThroughLastActive: d.currentStreak ?? 0, recentActive: d.recentActive ?? [] });
   } catch {
     // Offline or signed out: keep the last snapshot; the widget still follows the clock.

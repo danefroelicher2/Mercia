@@ -33,9 +33,18 @@ func ymd(_ date: Date, _ cal: Calendar) -> String {
   return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
 }
 
+/// Afternoon/Night starts from the snapshot, kept to valid clock times (the
+/// widget must never crash on a bad value): 0…1439, night after afternoon.
+func dayParts(_ s: Snapshot?) -> (Int, Int) {
+  let afternoon = min(max(s?.afternoonStart ?? 720, 0), 1438)
+  let night = min(max(s?.nightStart ?? 1080, afternoon + 1), 1439)
+  return (afternoon, night)
+}
+
 private func partTone(_ minutes: Int, _ s: Snapshot) -> (Mood, Tone, String) {
-  if minutes < s.afternoonStart { return (.morning, .calm, "Keep it going") }
-  if minutes < s.nightStart { return (.afternoon, .amber, "Don't forget") }
+  let (afternoon, night) = dayParts(s)
+  if minutes < afternoon { return (.morning, .calm, "Keep it going") }
+  if minutes < night { return (.afternoon, .amber, "Don't forget") }
   return (.night, .red, "Streak at risk")
 }
 
@@ -75,19 +84,19 @@ func streakState(_ snap: Snapshot?, now: Date, calendar cal: Calendar) -> Streak
 }
 
 /// When the widget should next redraw: today's Afternoon and Night starts (if
-/// still ahead), then midnight and tomorrow's starts — everything within 24h.
+/// still ahead), then midnight and tomorrow's starts — the next 24h or so.
+/// Clock times are set through the calendar so daylight-saving days still flip
+/// at 12:00 / 18:00 local, not an hour off.
 func nextRefreshDates(_ snap: Snapshot?, now: Date, calendar cal: Calendar) -> [Date] {
-  let afternoon = snap?.afternoonStart ?? 720
-  let night = snap?.nightStart ?? 1080
+  let (afternoon, night) = dayParts(snap)
   let today = cal.startOfDay(for: now)
   let tomorrow = cal.date(byAdding: .day, value: 1, to: today)!
-  let limit = cal.date(byAdding: .hour, value: 24, to: now)!
-  let candidates = [
-    cal.date(byAdding: .minute, value: afternoon, to: today)!,
-    cal.date(byAdding: .minute, value: night, to: today)!,
-    tomorrow,
-    cal.date(byAdding: .minute, value: afternoon, to: tomorrow)!,
-    cal.date(byAdding: .minute, value: night, to: tomorrow)!,
-  ]
+  let clock = { (minutes: Int, day: Date) in
+    cal.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)
+  }
+  let candidates = [clock(afternoon, today), clock(night, today), tomorrow, clock(afternoon, tomorrow), clock(night, tomorrow)]
+    .compactMap { $0 }
+  // Everything up to the same clock time tomorrow (covers 23/25-hour days).
+  let limit = cal.date(byAdding: .day, value: 1, to: now)!
   return candidates.filter { $0 > now && $0 <= limit }.sorted()
 }
