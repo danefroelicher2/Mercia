@@ -33,7 +33,8 @@ export async function sendPush(
   const messages: ExpoPushMessage[] = tokenRows
     .map((row: any) => row.token as string)
     .filter((token) => Expo.isExpoPushToken(token))
-    .map((token) => ({ to: token, title, body, data: data ?? {}, sound: 'default' }));
+    // An empty title shows just the app name and the message (iOS style).
+    .map((token) => ({ to: token, ...(title ? { title } : {}), body, data: data ?? {}, sound: 'default' as const }));
 
   if (messages.length === 0) {
     console.log(`[PUSH] No valid Expo tokens for user ${userId}`);
