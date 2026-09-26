@@ -35,6 +35,7 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const latest = useRef(username);
+  const nameInput = useRef<TextInput>(null);
 
   // Live check: rules locally right away, availability from the server after a pause.
   useEffect(() => {
@@ -122,6 +123,8 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
             placeholder="username"
             placeholderTextColor="#555"
             returnKeyType="next"
+            onSubmitEditing={() => nameInput.current?.focus()}
+            blurOnSubmit={false}
             accessibilityLabel="Username"
           />
           {status.kind === 'checking' ? <ActivityIndicator size="small" color="#777" /> : null}
@@ -134,6 +137,7 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
         </Text>
         <View style={styles.field}>
           <TextInput
+            ref={nameInput}
             style={styles.input}
             value={name}
             onChangeText={setName}

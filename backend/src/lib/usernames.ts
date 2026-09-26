@@ -74,6 +74,8 @@ export function suggestUsername(seed: string, isTaken: (u: string) => boolean): 
 
 export function cleanDisplayName(input: unknown): string | null {
   if (typeof input !== 'string') return null;
-  const t = input.replace(/\s+/g, ' ').trim().slice(0, DISPLAY_NAME_MAX);
+  // Cut by characters (code points), never through the middle of an emoji —
+  // the database counts characters the same way.
+  const t = Array.from(input.replace(/\s+/g, ' ').trim()).slice(0, DISPLAY_NAME_MAX).join('').trim();
   return t || null;
 }

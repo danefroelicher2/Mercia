@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { MyProfile, fetchMyProfile } from '../services/profile';
 
@@ -20,20 +20,30 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Bumped on every sign-in/out, so a slow response from a previous session
+  // can never land in the next one.
+  const session = useRef(0);
 
   const refresh = useCallback(async () => {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const mine = session.current;
+    // Bounded: ~1 minute worst case (the first try is long enough for a
+    // server waking from sleep), then the app lets the user in.
+    const timeouts = [30000, 15000, 10000];
+    for (let attempt = 0; attempt < timeouts.length; attempt++) {
       try {
-        setProfile(await fetchMyProfile());
+        const p = await fetchMyProfile(timeouts[attempt]);
+        if (session.current !== mine) return;
+        setProfile(p);
         break;
       } catch {
-        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+        if (attempt < timeouts.length - 1) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
       }
     }
-    setLoaded(true);
+    if (session.current === mine) setLoaded(true);
   }, []);
 
   useEffect(() => {
+    session.current += 1;
     setProfile(null);
     setLoaded(false);
     if (isAuthenticated) refresh();

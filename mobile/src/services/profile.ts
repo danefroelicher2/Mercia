@@ -6,8 +6,8 @@ export interface MyProfile {
   needsUsername: boolean;
 }
 
-export async function fetchMyProfile(): Promise<MyProfile> {
-  const res = await api.get('/api/profile/me');
+export async function fetchMyProfile(timeoutMs?: number): Promise<MyProfile> {
+  const res = await api.get('/api/profile/me', timeoutMs ? { timeout: timeoutMs } : undefined);
   return res.data.data;
 }
 
