@@ -5,29 +5,51 @@ import Constants from 'expo-constants';
 import api from './api';
 
 const PUSH_TOKEN_KEY = 'mercia_push_token';
-const NOTIFICATION_PREFS_KEY = 'mercia_notification_prefs';
 
-export interface NotificationPrefs {
-  weeklySummaryReady: boolean;
-  inactivityReminder: boolean;
-  streakAtRisk: boolean;
+// The eight reminders (Profile → Notifications). The server decides when to
+// send each one; these switches only say which ones the user wants.
+export const REMINDER_KEYS = [
+  'morningWrapup',
+  'afternoonWrapup',
+  'nightCheck',
+  'streakAtRisk',
+  'lastCall',
+  'freshStart',
+  'weeklyGoals',
+  'monthlyGoals',
+] as const;
+export type ReminderKey = (typeof REMINDER_KEYS)[number];
+export type ReminderPrefs = Record<ReminderKey, boolean>;
+export const ALL_ON: ReminderPrefs = Object.fromEntries(REMINDER_KEYS.map(k => [k, true])) as ReminderPrefs;
+
+export async function fetchReminderPrefs(): Promise<ReminderPrefs> {
+  const res = await api.get('/api/notifications/preferences');
+  return { ...ALL_ON, ...(res.data?.data ?? {}) };
 }
 
-export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
-  weeklySummaryReady: true,
-  inactivityReminder: true,
-  streakAtRisk: true,
-};
+export async function saveReminderPref(key: ReminderKey, on: boolean): Promise<void> {
+  await api.put('/api/notifications/preferences', { [key]: on });
+}
+
+/** Whether iOS allows Mercia's notifications at all. */
+export async function notificationsAllowed(): Promise<boolean> {
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted';
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {
+  // 1.x scheduled a local Monday "Weekly Summary Ready" reminder on the device; it's retired.
+  Notifications.cancelScheduledNotificationAsync('weekly-summary').catch(() => {});
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -65,56 +87,4 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   return token;
-}
-
-export async function scheduleLocalNotification(
-  identifier: string,
-  title: string,
-  body: string,
-  trigger: any
-): Promise<void> {
-  await Notifications.scheduleNotificationAsync({
-    identifier,
-    content: { title, body },
-    trigger,
-  });
-}
-
-export async function cancelNotification(identifier: string): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(identifier);
-}
-
-export async function cancelAllNotifications(): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
-}
-
-export async function applyNotificationPreferences(prefs: NotificationPrefs): Promise<void> {
-  await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(prefs));
-
-  // Weekly summary
-  await cancelNotification('weekly-summary');
-  if (prefs.weeklySummaryReady) {
-    await scheduleLocalNotification(
-      'weekly-summary',
-      'Weekly Summary Ready',
-      "Your weekly Mercia summary is ready to review.",
-      {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        weekday: 2, // Monday
-        hour: 9,
-        minute: 0,
-      }
-    );
-  }
-
-  // Sync all preferences (including server-side ones) to backend
-  try {
-    await api.put('/api/notifications/preferences', {
-      weeklySummaryEnabled: prefs.weeklySummaryReady,
-      inactivityReminderEnabled: prefs.inactivityReminder,
-      streakAtRiskEnabled: prefs.streakAtRisk,
-    });
-  } catch {
-    // Non-fatal — local prefs still applied
-  }
 }

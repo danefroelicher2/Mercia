@@ -31,6 +31,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../services/notifications';
 import { STORAGE_KEYS } from '../constants/config';
 import SideDrawer from '../components/SideDrawer';
+import NotificationTapHandler from '../components/NotificationTapHandler';
 import { DrawerProvider } from '../context/DrawerContext';
 
 // Root stack param list (tabs + paywall modal)
@@ -197,7 +198,7 @@ const ProfileStackNavigator: React.FC = () => {
         component={NotificationSettingsScreen}
         options={{
           headerShown: true,
-          title: 'Notification Settings',
+          title: 'Notifications',
           headerBackTitle: 'Back',
           headerStyle: { backgroundColor: '#1A1A1A' },
           headerTintColor: '#FFFFFF',
@@ -243,13 +244,17 @@ const MainTabs: React.FC = () => {
   }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
 
   // Streak widget: sync its snapshot at launch, whenever the app comes back to
-  // the foreground, and when the Afternoon/Night times change.
+  // the foreground, and when the Afternoon/Night times change. Foregrounding
+  // also refreshes the server's last-active time.
   useEffect(() => {
     if (!prefsLoaded) return;
     setWidgetDayParts(boundaries.afternoonStart, boundaries.nightStart);
     syncWidgetFromServer();
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') syncWidgetFromServer();
+      if (state !== 'active') return;
+      syncWidgetFromServer();
+      // Last-active time: reminders hold off while the user was just in the app.
+      api.post('/api/notifications/ping', {}).catch(() => {});
     });
     return () => sub.remove();
   }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
@@ -295,6 +300,7 @@ const MainTabs: React.FC = () => {
 
   return (
     <DrawerProvider onShowRoutineTab={showRoutineTab}>
+    <NotificationTapHandler />
     <SideDrawer>
     <Tab.Navigator
       screenOptions={{
