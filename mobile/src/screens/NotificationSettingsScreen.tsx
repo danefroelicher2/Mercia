@@ -63,6 +63,9 @@ type Permission = 'granted' | 'denied' | 'undetermined';
 const NotificationSettingsScreen: React.FC = () => {
   const { boundaries } = useRoutinePreferences();
   const [prefs, setPrefs] = useState<ReminderPrefs>(ALL_ON);
+  // Switches stay disabled until the saved settings arrive, so they never
+  // show a default that isn't really saved.
+  const [loaded, setLoaded] = useState(false);
   const [permission, setPermission] = useState<Permission>('granted');
 
   const checkPermission = useCallback(() => {
@@ -73,7 +76,12 @@ const NotificationSettingsScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchReminderPrefs().then(setPrefs).catch(() => {});
+      fetchReminderPrefs()
+        .then(p => {
+          setPrefs(p);
+          setLoaded(true);
+        })
+        .catch(() => {});
       checkPermission();
     }, [checkPermission]),
   );
@@ -136,6 +144,7 @@ const NotificationSettingsScreen: React.FC = () => {
                 <Switch
                   value={prefs[r.key]}
                   onValueChange={on => toggle(r.key, on)}
+                  disabled={!loaded}
                   trackColor={{ false: '#39393D', true: GREEN }}
                   ios_backgroundColor="#39393D"
                   accessibilityLabel={r.title}

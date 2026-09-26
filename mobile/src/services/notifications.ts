@@ -31,6 +31,16 @@ export async function saveReminderPref(key: ReminderKey, on: boolean): Promise<v
   await api.put('/api/notifications/preferences', { [key]: on });
 }
 
+/** Sign-out: stop sending this account's reminders to this device. */
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    const token = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (token) await api.delete('/api/notifications/register', { data: { token } });
+  } catch {
+    // Best effort — the next sign-in on this device re-assigns the token anyway.
+  }
+}
+
 /** Whether iOS allows Mercia's notifications at all. */
 export async function notificationsAllowed(): Promise<boolean> {
   const { status } = await Notifications.getPermissionsAsync();

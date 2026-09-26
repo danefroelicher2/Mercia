@@ -4,6 +4,7 @@ import { User, AuthContextType } from '../types';
 import * as authService from '../services/auth';
 import { pingHealth } from '../services/api';
 import { clearWidget } from '../services/widgetSync';
+import { unregisterPushToken } from '../services/notifications';
 
 // Create context with undefined default
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -112,6 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout function
   const logout = useCallback(async () => {
     try {
+      await unregisterPushToken(); // while still signed in
       await authService.logout();
       clearWidget();
       setUser(null);

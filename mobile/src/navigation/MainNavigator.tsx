@@ -253,8 +253,13 @@ const MainTabs: React.FC = () => {
     const sub = AppState.addEventListener('change', state => {
       if (state !== 'active') return;
       syncWidgetFromServer();
-      // Last-active time: reminders hold off while the user was just in the app.
-      api.post('/api/notifications/ping', {}).catch(() => {});
+      // Last-active time (reminders hold off while the user was just in the
+      // app), plus the time zone in case they've travelled.
+      api.post('/api/notifications/ping', {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        afternoonStart: boundaries.afternoonStart,
+        nightStart: boundaries.nightStart,
+      }).catch(() => {});
     });
     return () => sub.remove();
   }, [prefsLoaded, boundaries.afternoonStart, boundaries.nightStart]);
