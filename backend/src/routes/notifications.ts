@@ -50,10 +50,50 @@ router.post(
 );
 
 // ============================================================
-// PUT /api/notifications/preferences
-// Upserts the caller's notification preferences.
+// GET / PUT /api/notifications/preferences
+// The eight reminder switches (all on unless switched off). PUT also still
+// accepts the three older fields the 1.x app sends.
 // ============================================================
+const SWITCHES = {
+  morningWrapup: 'morning_wrapup_enabled',
+  afternoonWrapup: 'afternoon_wrapup_enabled',
+  nightCheck: 'night_check_enabled',
+  streakAtRisk: 'streak_at_risk_enabled',
+  lastCall: 'last_call_enabled',
+  freshStart: 'fresh_start_enabled',
+  weeklyGoals: 'weekly_goals_enabled',
+  monthlyGoals: 'monthly_goals_enabled',
+} as const;
+type SwitchKey = keyof typeof SWITCHES;
+
+router.get('/preferences', async (req: Request, res: Response): Promise<void> => {
+  const { data, error } = await getSupabase()
+    .schema('oasis')
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', req.user!.id)
+    .maybeSingle();
+  if (error) {
+    console.error('[NOTIFICATIONS] Preferences read failed:', error);
+    res.status(500).json({ success: false, error: 'Failed to load preferences' });
+    return;
+  }
+  const prefs = Object.fromEntries(
+    (Object.keys(SWITCHES) as SwitchKey[]).map(k => [k, (data as any)?.[SWITCHES[k]] !== false]),
+  );
+  res.json({ success: true, data: prefs });
+});
+
 const prefsSchema = z.object({
+  morningWrapup: z.boolean().optional(),
+  afternoonWrapup: z.boolean().optional(),
+  nightCheck: z.boolean().optional(),
+  streakAtRisk: z.boolean().optional(),
+  lastCall: z.boolean().optional(),
+  freshStart: z.boolean().optional(),
+  weeklyGoals: z.boolean().optional(),
+  monthlyGoals: z.boolean().optional(),
+  // 1.x app
   weeklySummaryEnabled: z.boolean().optional(),
   inactivityReminderEnabled: z.boolean().optional(),
   streakAtRiskEnabled: z.boolean().optional(),
@@ -65,21 +105,16 @@ router.put(
   async (req: Request, res: Response): Promise<void> => {
     const userId = req.user!.id;
     const body = req.body as z.infer<typeof prefsSchema>;
+    const row: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
+    for (const k of Object.keys(SWITCHES) as SwitchKey[]) if (body[k] !== undefined) row[SWITCHES[k]] = body[k];
+    if (body.weeklySummaryEnabled !== undefined) row.weekly_summary_enabled = body.weeklySummaryEnabled;
+    if (body.inactivityReminderEnabled !== undefined) row.inactivity_reminder_enabled = body.inactivityReminderEnabled;
+    if (body.streakAtRiskEnabled !== undefined && body.streakAtRisk === undefined) row.streak_at_risk_enabled = body.streakAtRiskEnabled;
 
-    const supabase = getSupabase();
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .schema('oasis')
       .from('notification_preferences')
-      .upsert(
-        {
-          user_id: userId,
-          ...(body.weeklySummaryEnabled     !== undefined && { weekly_summary_enabled:       body.weeklySummaryEnabled }),
-          ...(body.inactivityReminderEnabled !== undefined && { inactivity_reminder_enabled: body.inactivityReminderEnabled }),
-          ...(body.streakAtRiskEnabled      !== undefined && { streak_at_risk_enabled:       body.streakAtRiskEnabled }),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
+      .upsert(row, { onConflict: 'user_id' });
 
     if (error) {
       console.error('[NOTIFICATIONS] Preferences upsert failed:', error);
