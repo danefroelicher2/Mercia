@@ -23,6 +23,7 @@ if (!isExpoGo) {
 export interface SocialAuthResult {
   idToken: string;
   nonce?: string;
+  fullName?: string; // Apple shares the name only on the first sign-in on a device
 }
 
 export const signInWithGoogle = async (): Promise<SocialAuthResult> => {
@@ -64,9 +65,12 @@ export const signInWithApple = async (): Promise<SocialAuthResult> => {
       throw new Error('No identity token received from Apple');
     }
 
+    const fullName = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ') || undefined;
+
     return {
       idToken: credential.identityToken,
       nonce,
+      fullName,
     };
   } catch (error: any) {
     console.error('Apple Sign-In Error:', error);

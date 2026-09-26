@@ -43,11 +43,13 @@ export const login = async (
 export const socialLogin = async (
   provider: 'google' | 'apple',
   idToken: string,
-  nonce?: string
+  nonce?: string,
+  fullName?: string
 ): Promise<{ user: User; tokens: AuthTokens }> => {
   const response = await authApi.post<AuthResponse>(`/api/auth/${provider}`, {
     idToken,
     ...(nonce && { nonce }),
+    ...(fullName && { fullName }),
   });
 
   const { user, tokens } = response.data.data;

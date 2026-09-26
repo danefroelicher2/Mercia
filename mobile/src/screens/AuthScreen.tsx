@@ -33,7 +33,6 @@ const AuthScreen: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +82,8 @@ const AuthScreen: React.FC = () => {
         await login(email.trim(), password);
         console.log('[AuthScreen] login returned successfully');
       } else {
-        await register(email.trim(), password, username.trim() || undefined);
+        // The username is chosen on the next screen (same for every sign-up method).
+        await register(email.trim(), password);
       }
     } catch (err) {
       if (isTimeoutError(err)) {
@@ -125,8 +125,8 @@ const AuthScreen: React.FC = () => {
     setError(null);
     setIsAppleLoading(true);
     try {
-      const { idToken, nonce } = await signInWithApple();
-      await socialLogin('apple', idToken, nonce);
+      const { idToken, nonce, fullName } = await signInWithApple();
+      await socialLogin('apple', idToken, nonce, fullName);
     } catch (err: any) {
       if (err.message === 'Apple sign-in was canceled') return;
       if (isTimeoutError(err)) {
@@ -144,7 +144,6 @@ const AuthScreen: React.FC = () => {
     setError(null);
     setEmail('');
     setPassword('');
-    setUsername('');
   };
 
   return (
@@ -210,21 +209,6 @@ const AuthScreen: React.FC = () => {
             </View>
 
             {/* Email/Password Fields */}
-            {mode === 'signup' && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Username (optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={username}
-                  onChangeText={setUsername}
-                  placeholder="Enter username"
-                  placeholderTextColor="#999"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-            )}
-
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email</Text>
               <TextInput

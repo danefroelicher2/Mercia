@@ -42,6 +42,6 @@ export interface AuthContextType {
   connectingMessage: string;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username?: string) => Promise<void>;
-  socialLogin: (provider: 'google' | 'apple', idToken: string, nonce?: string) => Promise<void>;
+  socialLogin: (provider: 'google' | 'apple', idToken: string, nonce?: string, fullName?: string) => Promise<void>;
   logout: () => Promise<void>;
 }

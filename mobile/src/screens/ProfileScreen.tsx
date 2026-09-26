@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { useNavigation } from '@react-navigation/native';
+import { useProfile } from '../context/ProfileContext';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -26,6 +27,7 @@ const ProfileScreen: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
+  const { profile } = useProfile();
 
   // Change Password state
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -173,22 +175,15 @@ const ProfileScreen: React.FC = () => {
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {user?.email?.charAt(0).toUpperCase() || '?'}
+                {(profile?.displayName || profile?.username || user?.email || '?').charAt(0).toUpperCase()}
               </Text>
             </View>
           </View>
-
-          <View style={styles.infoContainer}>
-            <Text style={styles.label}>Email</Text>
-            <Text style={styles.value}>{user?.email || 'Unknown'}</Text>
-          </View>
-
-          {user?.username && (
-            <View style={styles.infoContainer}>
-              <Text style={styles.label}>Username</Text>
-              <Text style={styles.value}>{user.username}</Text>
-            </View>
-          )}
+          <Text style={styles.displayName} numberOfLines={1}>{profile?.displayName || profile?.username || ''}</Text>
+          {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
+          <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.7}>
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ACCOUNT SECTION */}
@@ -421,6 +416,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#232323',
   },
+  displayName: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 24, color: '#F2F2F2', textAlign: 'center' },
+  handle: { fontSize: 14, color: '#8A8A8A', marginTop: 2, textAlign: 'center' },
+  editButton: { alignSelf: 'center', marginTop: 12, borderWidth: 1, borderColor: '#333', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 7 },
+  editButtonText: { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
   avatarContainer: {
     alignItems: 'center',
     marginBottom: 20,

@@ -6,10 +6,13 @@ import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 import ConsentScreen from '../screens/ConsentScreen';
+import ChooseUsernameScreen from '../screens/ChooseUsernameScreen';
+import { useProfile } from '../context/ProfileContext';
 import { hasConsentBeenAnswered } from '../services/consentService';
 
 const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading: isAuthLoading, connectingMessage, isReconnecting } = useAuth();
+  const { profile, loaded: profileLoaded } = useProfile();
   // null = not yet checked, true = answered (yes or no), false = not yet answered
   const [consentAnswered, setConsentAnswered] = useState<boolean | null>(null);
 
@@ -26,7 +29,7 @@ const RootNavigator: React.FC = () => {
   }, [isAuthenticated, isAuthLoading]);
 
   // Show spinner while auth is resolving or while we check AsyncStorage for consent
-  if (isAuthLoading || (isAuthenticated && consentAnswered === null)) {
+  if (isAuthLoading || (isAuthenticated && (consentAnswered === null || !profileLoaded))) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B35" />
@@ -44,6 +47,12 @@ const RootNavigator: React.FC = () => {
         <AuthNavigator />
       </NavigationContainer>
     );
+  }
+
+  // New account that hasn't chosen a username yet (any sign-up method):
+  // the required Choose-your-username screen, before anything else.
+  if (profile?.needsUsername) {
+    return <ChooseUsernameScreen mode="setup" />;
   }
 
   // Authenticated but consent not yet answered — show ConsentScreen ONLY.

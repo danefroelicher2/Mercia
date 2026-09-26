@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AuthProvider } from './context/AuthContext';
+import { ProfileProvider } from './context/ProfileContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import { RoutinePreferencesProvider } from './context/RoutinePreferencesContext';
 import RootNavigator from './navigation/RootNavigator';
@@ -13,6 +14,7 @@ const App: React.FC = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <AuthProvider>
+        <ProfileProvider>
         <SubscriptionProvider>
           <RoutinePreferencesProvider>
             <BottomSheetModalProvider>
@@ -21,6 +23,7 @@ const App: React.FC = () => {
             </BottomSheetModalProvider>
           </RoutinePreferencesProvider>
         </SubscriptionProvider>
+        </ProfileProvider>
       </AuthProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

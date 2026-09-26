@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../context/ProfileContext';
 import { DrawerSection, useDrawer } from '../context/DrawerContext';
 import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
 
@@ -121,7 +122,8 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const panelShift = progress.interpolate({ inputRange: [0, 1], outputRange: [-drawerWidth, 0], extrapolate: 'clamp' });
   const dim = progress.interpolate({ inputRange: [0, 1], outputRange: [0, DIM], extrapolate: 'clamp' });
 
-  const name = user?.username || user?.email?.split('@')[0] || 'You';
+  const { profile } = useProfile();
+  const name = profile?.displayName || profile?.username || user?.email?.split('@')[0] || 'You';
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -151,7 +153,7 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
           <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          {user?.username ? <Text style={styles.handle} numberOfLines={1}>@{user.username}</Text> : null}
+          {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
 
           <View style={styles.divider} />
 

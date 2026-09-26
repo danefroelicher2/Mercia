@@ -15,6 +15,7 @@ import GymMemoryScreen from '../screens/GymMemoryScreen';
 import GymArchiveScreen from '../screens/GymArchiveScreen';
 import YearlyReviewsScreen from '../screens/YearlyReviewsScreen';
 import StatsArchiveScreen from '../screens/StatsArchiveScreen';
+import ChooseUsernameScreen from '../screens/ChooseUsernameScreen';
 import StatsArchiveYearScreen from '../screens/StatsArchiveYearScreen';
 import type { ArchivedYear } from '../screens/statsArchiveData';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
@@ -55,6 +56,7 @@ export type ProfileStackParamList = {
   GymArchive: undefined;
   YearlyReviews: undefined;
   StatsArchive: undefined;
+  EditProfile: undefined;
   StatsArchiveYear: { entry: ArchivedYear };
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
@@ -133,6 +135,9 @@ const ProfileStackNavigator: React.FC = () => {
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
       />
+      <ProfileStack.Screen name="EditProfile" options={{ headerShown: false }}>
+        {({ navigation }) => <ChooseUsernameScreen mode="edit" onClose={() => navigation.goBack()} />}
+      </ProfileStack.Screen>
       <ProfileStack.Screen
         name="StatsArchive"
         component={StatsArchiveScreen}

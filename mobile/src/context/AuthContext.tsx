@@ -101,9 +101,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Social login function
-  const socialLogin = useCallback(async (provider: 'google' | 'apple', idToken: string, nonce?: string) => {
+  const socialLogin = useCallback(async (provider: 'google' | 'apple', idToken: string, nonce?: string, fullName?: string) => {
     try {
-      const { user: socialUser } = await authService.socialLogin(provider, idToken, nonce);
+      const { user: socialUser } = await authService.socialLogin(provider, idToken, nonce, fullName);
       setUser(socialUser);
     } catch (error) {
       throw error;
