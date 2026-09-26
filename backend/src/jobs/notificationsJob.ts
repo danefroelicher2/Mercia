@@ -39,7 +39,10 @@ async function stateFor(userId: string, now: Date): Promise<{ state: UserState; 
   if (error) throw error;
   if (!profile) return null;
 
-  const tz = validZone(profile.timezone);
+  // No known time zone (only possible from 1.x clients): skip rather than
+  // send on UTC time. The 2.0 app reports it at every launch/foreground.
+  if (!profile.timezone || validZone(profile.timezone) !== profile.timezone) return null;
+  const tz = profile.timezone;
   const local = localNow(now, tz);
   const today = local.date;
   const yesterday = addDays(today, -1);
