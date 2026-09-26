@@ -244,13 +244,16 @@ export async function removeOneActivity(userId: string, type: string, date: stri
   if (delErr) throw delErr;
 }
 
-// The user did something today.
+// The user did something: today counts, and they're active right now (so
+// reminders hold off while they're using the app).
 export async function markAction(userId: string, tz?: string): Promise<void> {
   const p = await loadProfile(userId, tz);
-  await getSupabase()
-    .schema('oasis')
-    .from('user_action_days')
-    .upsert({ user_id: userId, action_date: localDate(new Date(), p.timezone) }, { onConflict: 'user_id,action_date', ignoreDuplicates: true });
+  const sb = getSupabase().schema('oasis');
+  await Promise.all([
+    sb.from('user_action_days')
+      .upsert({ user_id: userId, action_date: localDate(new Date(), p.timezone) }, { onConflict: 'user_id,action_date', ignoreDuplicates: true }),
+    sb.from('user_profiles').update({ last_active_at: new Date().toISOString() }).eq('id', userId),
+  ]);
 }
 
 // ---------- the year ----------

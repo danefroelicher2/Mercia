@@ -86,6 +86,12 @@ export function fireMinute(kind: Kind, s: Pick<UserState, 'afternoonStart' | 'ni
   }
 }
 
+function clock(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${h % 12 === 0 ? 12 : h % 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
 function listNames(names: string[]): string {
   const shown = names.slice(0, 2).join(', ');
   return names.length > 2 ? `${shown}, +${names.length - 2}` : shown;
@@ -97,11 +103,11 @@ export function build(kind: Kind, s: UserState, now: LocalNow): Reminder | null 
   switch (kind) {
     case 'morning_wrapup': {
       const l = s.left.morning;
-      return l.length ? { kind, screen: 'routine', body: `${plural(l.length, 'morning item')} left: ${listNames(l)}. Afternoon starts in an hour.` } : null;
+      return l.length ? { kind, screen: 'routine', body: `${plural(l.length, 'morning item')} left: ${listNames(l)}. Afternoon starts at ${clock(s.afternoonStart)}.` } : null;
     }
     case 'afternoon_wrapup': {
       const l = s.left.afternoon;
-      return l.length ? { kind, screen: 'routine', body: `${plural(l.length, 'afternoon item')} left: ${listNames(l)}. Night starts in an hour.` } : null;
+      return l.length ? { kind, screen: 'routine', body: `${plural(l.length, 'afternoon item')} left: ${listNames(l)}. Night starts at ${clock(s.nightStart)}.` } : null;
     }
     case 'night_check': {
       const l = s.left.night;
@@ -113,7 +119,7 @@ export function build(kind: Kind, s: UserState, now: LocalNow): Reminder | null 
         : null;
     case 'last_call':
       return s.streak >= 3 && !s.activeToday
-        ? { kind, screen: 'home', body: `Last call: about an hour left to save your ${s.streak}-day streak.` }
+        ? { kind, screen: 'home', body: `Last call: midnight is close. Do anything in Mercia to save your ${s.streak}-day streak.` }
         : null;
     case 'fresh_start':
       return s.endedLastNight >= 2 && !s.activeToday

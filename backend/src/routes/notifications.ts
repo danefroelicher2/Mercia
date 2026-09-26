@@ -31,6 +31,9 @@ router.post(
     }
 
     const supabase = getSupabase();
+    // A device belongs to whoever is signed in on it now: drop this token from
+    // any other account so a shared or re-used phone gets one account's reminders.
+    await supabase.schema('oasis').from('push_tokens').delete().eq('token', token).neq('user_id', userId);
     const { error } = await supabase
       .schema('oasis')
       .from('push_tokens')
@@ -48,6 +51,26 @@ router.post(
     res.json({ success: true });
   }
 );
+
+// ============================================================
+// DELETE /api/notifications/register — on sign-out, stop sending to this
+// device for this account.
+// ============================================================
+router.delete('/register', validate(registerSchema), async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.body as z.infer<typeof registerSchema>;
+  const { error } = await getSupabase()
+    .schema('oasis')
+    .from('push_tokens')
+    .delete()
+    .eq('user_id', req.user!.id)
+    .eq('token', token);
+  if (error) {
+    console.error('[NOTIFICATIONS] Token delete failed:', error);
+    res.status(500).json({ success: false, error: 'Failed to unregister token' });
+    return;
+  }
+  res.json({ success: true });
+});
 
 // ============================================================
 // GET / PUT /api/notifications/preferences
