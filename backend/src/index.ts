@@ -14,6 +14,7 @@ import gymRoutes from './routes/gym';
 import notificationRoutes from './routes/notifications';
 import cronRoutes from './routes/cron';
 import streakRoutes from './routes/streaks';
+import profileRoutes from './routes/profile';
 import { markAction } from './lib/routineYear';
 
 // Load environment variables
@@ -76,6 +77,7 @@ app.use('/api/summaries', summaryRoutes);
 app.use('/api/gym', gymRoutes);
 app.use('/api/streaks', streakRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/cron', cronRoutes);
 
 // Error handler (must be last)
