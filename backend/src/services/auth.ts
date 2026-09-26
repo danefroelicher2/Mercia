@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import { ensureProfile } from '../lib/profiles';
 
 // Lazy-initialized Supabase client
 let supabaseClient: SupabaseClient | null = null;
@@ -64,23 +65,17 @@ export async function registerUser(
     throw new Error('User creation failed');
   }
 
-  // Create user profile
-  const { error: profileError } = await supabase
-    .schema('oasis')  // ← Add schema method
-    .from('user_profiles')
-    .insert({
-      id: authData.user.id,
-      username: username || email.split('@')[0],
-    });
-
-  if (profileError) {
+  // Create the profile with a suggested username; the app then asks the user
+  // to choose one. (A username from the 1.x sign-up form is only a seed.)
+  try {
+    await ensureProfile(authData.user.id, { email, usernameSeed: username });
+  } catch (profileError) {
     console.error('Failed to create user profile:', profileError);
   }
 
   const user: User = {
     id: authData.user.id,
     email: authData.user.email!,
-    username,
   };
 
   const tokens = generateTokens(user);

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { authenticateToken } from '../middleware/auth';
 import { registerUser, loginUser, refreshAccessToken, generateTokens, getSupabase, User } from '../services/auth';
+import { ensureProfile } from '../lib/profiles';
 
 const router = Router();
 
@@ -146,20 +147,13 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Upsert profile so returning users don't hit duplicate key errors
-    const googleUsername = data.user.email
-      ? data.user.email.split('@')[0]
-      : `user_${data.user.id.substring(0, 8)}`;
-    const { error: profileError } = await supabase
-      .schema('oasis')
-      .from('user_profiles')
-      .upsert(
-        { id: data.user.id, username: googleUsername },
-        { onConflict: 'id' }
-      );
-
-    if (profileError) {
-      console.error('Failed to upsert Google user profile:', profileError);
+    // First sign-in creates the profile (suggested username, name from Google);
+    // returning sign-ins never touch it.
+    try {
+      const meta = data.user.user_metadata ?? {};
+      await ensureProfile(data.user.id, { email: data.user.email, displayName: meta.full_name ?? meta.name });
+    } catch (profileError) {
+      console.error('Failed to create Google user profile:', profileError);
     }
 
     // Generate our own JWT tokens for consistent auth
@@ -191,7 +185,7 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
  */
 router.post('/apple', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { idToken, nonce } = req.body;
+    const { idToken, nonce, fullName } = req.body;
 
     if (!idToken) {
       res.status(400).json({
@@ -228,21 +222,13 @@ router.post('/apple', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Upsert profile so returning users don't hit duplicate key errors
-    // Apple only provides email on first sign-in; fall back to user ID prefix on subsequent logins
-    const appleUsername = data.user.email
-      ? data.user.email.split('@')[0]
-      : `user_${data.user.id.substring(0, 8)}`;
-    const { error: profileError } = await supabase
-      .schema('oasis')
-      .from('user_profiles')
-      .upsert(
-        { id: data.user.id, username: appleUsername },
-        { onConflict: 'id' }
-      );
-
-    if (profileError) {
-      console.error('Failed to upsert Apple user profile:', profileError);
+    // First sign-in creates the profile. Apple shares the name only on the very
+    // first sign-in on a device, so the app forwards it; returning sign-ins
+    // never touch the profile.
+    try {
+      await ensureProfile(data.user.id, { email: data.user.email, displayName: typeof fullName === 'string' ? fullName : null });
+    } catch (profileError) {
+      console.error('Failed to create Apple user profile:', profileError);
     }
 
     // Generate our own JWT tokens for consistent auth
