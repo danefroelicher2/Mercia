@@ -13,7 +13,7 @@ import { getStorage } from '../services/merciaCore';
  * 2. All weekly goal completions (uncheck, never delete)
  *
  * NOTE: Weekly summary generation is handled by Supabase pg_cron
- * (oasis.generate_weekly_summaries() runs before this reset via pg_cron schedule)
+ * (mercia.generate_weekly_summaries() runs before this reset via pg_cron schedule)
  */
 export function startWeeklyResetCronJob(): CronJob {
   const job = new CronJob(
@@ -47,7 +47,7 @@ async function runWeeklyReset(): Promise<void> {
   const storage = getStorage();
 
   // NOTE: Weekly summary generation is now handled by Supabase pg_cron
-  // (oasis.generate_weekly_summaries() runs at Monday midnight via pg_cron,
+  // (mercia.generate_weekly_summaries() runs at Monday midnight via pg_cron,
   //  scheduled before this Node.js reset fires)
 
   console.log('[Reset] Updating weekly goals to current week...');

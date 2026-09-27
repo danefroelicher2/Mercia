@@ -290,7 +290,7 @@ router.post(
       try {
         const supabase = getSupabase();
         const { error: logError } = await supabase
-          .schema('oasis')
+          .schema('mercia')
           .from('user_activity_log')
           .insert({
             user_id: userId,

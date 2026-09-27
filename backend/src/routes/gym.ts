@@ -162,7 +162,7 @@ router.post(
       const today = localDate(new Date(), validZone(req.header('x-timezone')));
       const monday = addDays(today, -WEEKDAYS.indexOf(weekdayOf(today)));
       const restDate = addDays(monday, WEEKDAYS.indexOf(dayOfWeek));
-      const rd = getSupabase().schema('oasis').from('gym_rest_days');
+      const rd = getSupabase().schema('mercia').from('gym_rest_days');
       const { error: rdError } = rest
         ? await rd.upsert({ user_id: userId, rest_date: restDate }, { onConflict: 'user_id,rest_date', ignoreDuplicates: true })
         : await rd.delete().eq('user_id', userId).eq('rest_date', restDate);

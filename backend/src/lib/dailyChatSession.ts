@@ -22,7 +22,7 @@ async function findExistingChatForToday(
   getLocalDateString: (timezone?: string, date?: Date) => string
 ): Promise<Chat | null> {
   const { data } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('chats')
     .select('*')
     .eq('user_id', userId)

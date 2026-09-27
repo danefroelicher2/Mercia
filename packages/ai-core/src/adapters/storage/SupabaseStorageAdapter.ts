@@ -31,7 +31,7 @@ function getISOWeekDayDate(dayOfWeek: string, weekNumber: number, year: number):
 }
 
 export class SupabaseStorageAdapter implements StorageAdapter {
-  private client: SupabaseClient<any, 'oasis'>; // ← Specify schema type
+  private client: SupabaseClient<any, 'mercia'>; // ← Specify schema type
 
   constructor(supabaseUrl: string, supabaseKey: string) {
     this.client = createClient(supabaseUrl, supabaseKey, {
@@ -39,7 +39,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         persistSession: false,
       },
       db: {
-        schema: 'oasis',
+        schema: 'mercia',
       },
     });
   }

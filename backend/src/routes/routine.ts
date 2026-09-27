@@ -218,7 +218,7 @@ router.patch(
 
           console.log('[Routine] Inserting activity log for task completion, user:', userId);
           const { error: logError } = await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('user_activity_log')
             .insert({
               user_id: userId,
@@ -235,7 +235,7 @@ router.patch(
           // Completion history (daily summaries, yearly stats). Awaited so a
           // past day's stats can be re-counted right after.
           await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('task_completion_history')
             .upsert(
               {
@@ -262,7 +262,7 @@ router.patch(
         // Remove the history entry when a task is unchecked (awaited, as above).
         const supabase = getSupabase();
         await supabase
-          .schema('oasis')
+          .schema('mercia')
           .from('task_completion_history')
           .delete()
           .eq('user_id', userId)
@@ -327,7 +327,7 @@ function cleanupDeletedTasks(userId: string, ids: string[]): void {
   const deleted = new Set(ids);
 
   supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('task_completion_history')
     .delete()
     .eq('user_id', userId)
@@ -337,7 +337,7 @@ function cleanupDeletedTasks(userId: string, ids: string[]): void {
     });
 
   supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('weekly_summaries')
     .select('id, tasks_missed_frequently')
     .eq('user_id', userId)
@@ -350,7 +350,7 @@ function cleanupDeletedTasks(userId: string, ids: string[]): void {
         const filtered = missed.filter((m: any) => !deleted.has(m.task_id));
         if (filtered.length !== missed.length) {
           await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('weekly_summaries')
             .update({ tasks_missed_frequently: filtered })
             .eq('id', summary.id);
@@ -610,7 +610,7 @@ router.patch(
           // Mirrors task_completion_history; keyed per goal per local day.
           // Awaited so an immediate un-check finds it.
           await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('goal_completion_history')
             .upsert(
               {
@@ -629,7 +629,7 @@ router.patch(
           console.log('[Routine] Inserting activity log for goal completion, user:', userId);
           // Log the activity
           const { error: logError } = await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('user_activity_log')
             .insert({
               user_id: userId,
@@ -653,7 +653,7 @@ router.patch(
         try {
           const supabase = getSupabase();
           const { data: last } = await supabase
-            .schema('oasis')
+            .schema('mercia')
             .from('goal_completion_history')
             .select('completed_date')
             .eq('user_id', userId)
@@ -663,7 +663,7 @@ router.patch(
           const date = last?.[0]?.completed_date as string | undefined;
           if (date) {
             const { error: delErr } = await supabase
-              .schema('oasis')
+              .schema('mercia')
               .from('goal_completion_history')
               .delete()
               .eq('user_id', userId)
@@ -867,7 +867,7 @@ router.get('/notepad', async (req: Request, res: Response): Promise<void> => {
     const supabase = getSupabase();
 
     const { data, error } = await supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('routine_notepad')
       .select('content')
       .eq('user_id', userId)
@@ -895,7 +895,7 @@ router.put(
       const supabase = getSupabase();
 
       const { error } = await supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('routine_notepad')
         .upsert({ user_id: userId, content, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
 
@@ -940,13 +940,13 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
       { data: monthlyRows },
     ] = await Promise.all([
       supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('routine_tasks')
         .select('id, day_of_week')
         .eq('user_id', userId)
         .eq('type', 'today'),
       supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('task_completion_history')
         .select('task_id, snapshot_date')
         .eq('user_id', userId)
@@ -954,14 +954,14 @@ router.get('/summary-data', async (req: Request, res: Response): Promise<void> =
         .lte('snapshot_date', datesUpToToday[datesUpToToday.length - 1])
         .eq('completed', true),
       supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('weekly_routine_stats')
         .select('week_start, week_end, total_possible, total_completed, percentage')
         .eq('user_id', userId)
         .gte('week_start', currentMonthStart)
         .order('week_start', { ascending: false }),
       supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('monthly_routine_stats')
         .select('year, month, total_possible, total_completed, percentage')
         .eq('user_id', userId)

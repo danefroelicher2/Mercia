@@ -18,7 +18,7 @@ export async function buildMonthLog({ userId, todayDateStr, supabase }: MonthLog
 
   const [{ data: monthRows }, todayStats] = await Promise.all([
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('weekly_summaries')
       .select(
         'week_end_date, today_completed, today_total, overall_percentage, ' +
@@ -78,7 +78,7 @@ export async function buildYesterdayLog({ userId, yesterdayDateStr, supabase }: 
   const [stats, { data: gymRows }] = await Promise.all([
     computeSummaryStats(userId, yesterdayDateStr, supabase),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('gym_workout_log')
       .select('workout_group, is_rest')
       .eq('user_id', userId)

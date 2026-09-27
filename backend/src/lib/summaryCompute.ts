@@ -125,39 +125,39 @@ export async function computeSummaryStats(
     { data: gymWeekRows },
   ] = await Promise.all([
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('task_completion_history')
       .select('task_id, task_text, task_type')
       .eq('user_id', userId)
       .eq('snapshot_date', date)
       .eq('completed', true),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('routine_tasks')
       .select('id, text, type')
       .eq('user_id', userId)
       .eq('day_of_week', dayOfWeek),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('gym_workout_log')
       .select('workout_group')
       .eq('user_id', userId)
       .eq('logged_date', date)
       .eq('is_rest', false), // intentional rest days are not gym sessions
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('routine_goals')
       .select('id, text, completed, completed_at')
       .eq('user_id', userId)
       .eq('type', 'weekly'),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('routine_goals')
       .select('id, text, completed, completed_at')
       .eq('user_id', userId)
       .eq('type', 'monthly'),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('weekly_summaries')
       .select('overall_percentage, weekly_goals_completed, monthly_goals_completed')
       .eq('user_id', userId)
@@ -166,13 +166,13 @@ export async function computeSummaryStats(
       .limit(1)
       .maybeSingle(),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('routine_tasks')
       .select('id, text, day_of_week')
       .eq('user_id', userId)
       .eq('type', 'today'),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('task_completion_history')
       .select('task_id, snapshot_date')
       .eq('user_id', userId)
@@ -180,7 +180,7 @@ export async function computeSummaryStats(
       .lte('snapshot_date', date)
       .eq('completed', true),
     supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('gym_workout_log')
       .select('logged_date')
       .eq('user_id', userId)

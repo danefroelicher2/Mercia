@@ -30,7 +30,7 @@ export interface RunResult {
 }
 
 async function stateFor(userId: string, now: Date): Promise<{ state: UserState; local: ReturnType<typeof localNow> } | null> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const { data: profile, error } = await sb
     .from('user_profiles')
     .select('timezone, afternoon_start, night_start, last_active_at')
@@ -99,7 +99,7 @@ async function stateFor(userId: string, now: Date): Promise<{ state: UserState; 
 }
 
 export async function runNotifications(opts: { dryRun?: boolean; now?: Date } = {}): Promise<RunResult[]> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const now = opts.now ?? new Date();
   const { data: tokens, error } = await sb.from('push_tokens').select('user_id');
   if (error) throw error;

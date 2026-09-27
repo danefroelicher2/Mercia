@@ -11,7 +11,7 @@ import { WEEKDAYS, weekdayOf } from './routineYear';
 //     the Gym tab has archived still count — gym_memory never deletes.
 //   - Favorite training day = the weekday with the most sessions (ties go to
 //     the earlier weekday).
-//   - Rest days = days marked as rest (oasis.gym_rest_days), counted once the
+//   - Rest days = days marked as rest (mercia.gym_rest_days), counted once the
 //     day has arrived.
 //   - Split = sessions per muscle group, and its share of all sessions.
 //   In the year in progress, only days up to today count.
@@ -66,7 +66,7 @@ function startOfDay(date: string, tz: string): number {
 }
 
 export async function gymYear(userId: string, year: number, today: string): Promise<GymYear> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const from = `${year}-01-01`;
   const to = today.slice(0, 4) === String(year) ? today : `${year}-12-31`;
   const [memRes, restRes] = await Promise.all([
@@ -104,7 +104,7 @@ export async function gymYear(userId: string, year: number, today: string): Prom
 
 export async function streaksYear(userId: string, year: number, tz: string): Promise<StreaksYear> {
   const { data, error } = await getSupabase()
-    .schema('oasis')
+    .schema('mercia')
     .from('streaks')
     .select('name, started_at, ended_at')
     .eq('user_id', userId)
@@ -148,7 +148,7 @@ export async function streaksYear(userId: string, year: number, tz: string): Pro
 }
 
 export async function overallYear(userId: string, year: number, today: string): Promise<OverallYear> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const from = `${year}-01-01`;
   const to = today.slice(0, 4) === String(year) ? today : `${year}-12-31`;
   const [activityRes, actionDaysRes, gymRes] = await Promise.all([

@@ -34,6 +34,7 @@ app.get('/health', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     service: 'Mercia',
     version: '0.1.0',
+    db: 'mercia',
   });
 });
 

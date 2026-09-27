@@ -39,7 +39,7 @@ function top<K>(counts: Map<K, number>, order: K[]): { key: K; n: number } | nul
 }
 
 export async function liveExtras(userId: string, tz: string): Promise<LiveExtras> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const today = localDate(new Date(), tz);
   const [streaksRes, profileRes, activityRes, actionDaysRes, gymRes] = await Promise.all([
     sb.from('streaks').select('ended_at').eq('user_id', userId),

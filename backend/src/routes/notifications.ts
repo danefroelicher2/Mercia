@@ -33,9 +33,9 @@ router.post(
     const supabase = getSupabase();
     // A device belongs to whoever is signed in on it now: drop this token from
     // any other account so a shared or re-used phone gets one account's reminders.
-    await supabase.schema('oasis').from('push_tokens').delete().eq('token', token).neq('user_id', userId);
+    await supabase.schema('mercia').from('push_tokens').delete().eq('token', token).neq('user_id', userId);
     const { error } = await supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('push_tokens')
       .upsert(
         { user_id: userId, token, platform: platform ?? null, updated_at: new Date().toISOString() },
@@ -59,7 +59,7 @@ router.post(
 router.delete('/register', validate(registerSchema), async (req: Request, res: Response): Promise<void> => {
   const { token } = req.body as z.infer<typeof registerSchema>;
   const { error } = await getSupabase()
-    .schema('oasis')
+    .schema('mercia')
     .from('push_tokens')
     .delete()
     .eq('user_id', req.user!.id)
@@ -91,7 +91,7 @@ type SwitchKey = keyof typeof SWITCHES;
 
 router.get('/preferences', async (req: Request, res: Response): Promise<void> => {
   const { data, error } = await getSupabase()
-    .schema('oasis')
+    .schema('mercia')
     .from('notification_preferences')
     .select('*')
     .eq('user_id', req.user!.id)
@@ -135,7 +135,7 @@ router.put(
     if (body.streakAtRiskEnabled !== undefined && body.streakAtRisk === undefined) row.streak_at_risk_enabled = body.streakAtRiskEnabled;
 
     const { error } = await getSupabase()
-      .schema('oasis')
+      .schema('mercia')
       .from('notification_preferences')
       .upsert(row, { onConflict: 'user_id' });
 
@@ -166,7 +166,7 @@ router.post('/ping', async (req: Request, res: Response): Promise<void> => {
   if (Number.isInteger(nightStart) && nightStart >= 0 && nightStart < 1440) update.night_start = nightStart;
 
   const { error } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('user_profiles')
     .update(update)
     .eq('id', userId);
