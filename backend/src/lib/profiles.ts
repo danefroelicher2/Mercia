@@ -40,3 +40,14 @@ export async function ensureProfile(
   }
   throw new Error('Could not create a profile');
 }
+
+// How many people follow the user, and how many they follow.
+export async function followCounts(userId: string): Promise<{ followers: number; following: number }> {
+  const [followers, following] = await Promise.all([
+    getSupabase().schema('mercia').from('follows').select('follower_id', { count: 'exact', head: true }).eq('followee_id', userId),
+    getSupabase().schema('mercia').from('follows').select('followee_id', { count: 'exact', head: true }).eq('follower_id', userId),
+  ]);
+  if (followers.error) throw followers.error;
+  if (following.error) throw following.error;
+  return { followers: followers.count ?? 0, following: following.count ?? 0 };
+}

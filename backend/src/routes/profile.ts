@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getSupabase } from '../services/supabase';
-import { ensureProfile } from '../lib/profiles';
+import { ensureProfile, followCounts } from '../lib/profiles';
 import { cleanDisplayName, normalizeUsername, usernameProblem } from '../lib/usernames';
 
-// The signed-in user's own profile: username and display name.
+// The signed-in user's own profile: username, display name, follow counts.
 // needsUsername = they haven't chosen one yet (new accounts), so the app shows
 // its required "Choose your username" screen.
 
@@ -26,6 +26,7 @@ async function readProfile(userId: string, email?: string) {
     username: data!.username as string,
     displayName: (data!.display_name as string | null) ?? null,
     needsUsername: !data!.username_chosen_at,
+    ...(await followCounts(userId)),
   };
 }
 
