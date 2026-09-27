@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useProfile } from '../context/ProfileContext';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +28,10 @@ const ProfileScreen: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
-  const { profile } = useProfile();
+  const { profile, refresh: refreshProfile } = useProfile();
+
+  // Follow counts change from other screens (and other people), so re-read on focus.
+  useFocusEffect(useCallback(() => { refreshProfile().catch(() => {}); }, [refreshProfile]));
 
   // Change Password state
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -160,7 +164,18 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader />
+      <ScreenHeader
+        right={
+          <TouchableOpacity
+            onPress={() => navigation.navigate('FindPeople')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Find people"
+          >
+            <Ionicons name="person-add-outline" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        }
+      />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -181,6 +196,17 @@ const ProfileScreen: React.FC = () => {
           </View>
           <Text style={styles.displayName} numberOfLines={1}>{profile?.displayName || profile?.username || ''}</Text>
           {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
+          {user?.id && profile ? (
+            <View style={styles.followCounts}>
+              <TouchableOpacity onPress={() => navigation.navigate('FollowList', { userId: user.id, username: profile.username, kind: 'followers' })} activeOpacity={0.7}>
+                <Text style={styles.followCountText}><Text style={styles.followCountNum}>{profile.followers ?? 0}</Text> {profile.followers === 1 ? 'follower' : 'followers'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.followDot}>·</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('FollowList', { userId: user.id, username: profile.username, kind: 'following' })} activeOpacity={0.7}>
+                <Text style={styles.followCountText}><Text style={styles.followCountNum}>{profile.following ?? 0}</Text> following</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.7}>
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
@@ -269,6 +295,15 @@ const ProfileScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             <Text style={styles.navRowLabel}>Notifications</Text>
+            <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => navigation.navigate('BlockedAccounts')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navRowLabel}>Blocked accounts</Text>
             <Text style={styles.navRowChevron}>›</Text>
           </TouchableOpacity>
 
@@ -418,6 +453,10 @@ const styles = StyleSheet.create({
   },
   displayName: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 24, color: '#F2F2F2', textAlign: 'center' },
   handle: { fontSize: 14, color: '#8A8A8A', marginTop: 2, textAlign: 'center' },
+  followCounts: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 10 },
+  followCountText: { color: '#8A8A8A', fontSize: 14 },
+  followCountNum: { color: '#F2F2F2', fontWeight: '700' },
+  followDot: { color: '#555', fontSize: 14 },
   editButton: { alignSelf: 'center', marginTop: 12, borderWidth: 1, borderColor: '#333', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 7 },
   editButtonText: { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
   avatarContainer: {

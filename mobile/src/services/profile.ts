@@ -4,6 +4,8 @@ export interface MyProfile {
   username: string;
   displayName: string | null;
   needsUsername: boolean;
+  followers?: number;
+  following?: number;
 }
 
 export async function fetchMyProfile(timeoutMs?: number): Promise<MyProfile> {

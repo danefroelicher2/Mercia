@@ -22,6 +22,10 @@ import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import YearlyReviewDetailScreen from '../screens/YearlyReviewDetailScreen';
 import YearlyGoalsScreen from '../screens/YearlyGoalsScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import FindPeopleScreen from '../screens/FindPeopleScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
+import FollowListScreen from '../screens/FollowListScreen';
+import BlockedAccountsScreen from '../screens/BlockedAccountsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { useSubscription } from '../context/SubscriptionContext';
 import { MerciaStackParamList } from '../types/navigation';
@@ -61,7 +65,21 @@ export type ProfileStackParamList = {
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
+  FindPeople: undefined;
+  UserProfile: { userId: string; username?: string };
+  FollowList: { userId: string; username: string; kind: 'followers' | 'following' };
+  BlockedAccounts: undefined;
 };
+
+// Native header shared by the people screens.
+const peopleHeader = (title: string) => ({
+  headerShown: true,
+  title,
+  headerBackTitle: 'Back',
+  headerStyle: { backgroundColor: '#1A1A1A' },
+  headerTintColor: '#FFFFFF',
+  headerTitleStyle: { fontWeight: '600' as const, fontSize: 17 },
+});
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const MerciaStack = createNativeStackNavigator<MerciaStackParamList>();
@@ -135,6 +153,10 @@ const ProfileStackNavigator: React.FC = () => {
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
       />
+      <ProfileStack.Screen name="FindPeople" component={FindPeopleScreen} options={peopleHeader('Find people')} />
+      <ProfileStack.Screen name="UserProfile" component={UserProfileScreen} options={peopleHeader('')} />
+      <ProfileStack.Screen name="FollowList" component={FollowListScreen} options={peopleHeader('')} />
+      <ProfileStack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} options={peopleHeader('Blocked accounts')} />
       <ProfileStack.Screen name="EditProfile" options={{ headerShown: false }}>
         {({ navigation }) => <ChooseUsernameScreen mode="edit" onClose={() => navigation.goBack()} />}
       </ProfileStack.Screen>
