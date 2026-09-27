@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
 import { DrawerSection, useDrawer } from '../context/DrawerContext';
 import { useTimeOfDayAccent } from '../hooks/useTimeOfDayAccent';
+import { useNavigation } from '@react-navigation/native';
+import Avatar from './people/Avatar';
 
 // X-style side drawer around the bottom tabs. A right swipe anywhere on any
 // tab pulls it in from the left; the page slides over by the drawer's width
@@ -124,7 +126,14 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const { profile } = useProfile();
   const name = profile?.displayName || profile?.username || user?.email?.split('@')[0] || 'You';
-  const initial = name.charAt(0).toUpperCase();
+  // The drawer sits above the tabs, so this is the root stack: people screens
+  // open over whichever tab is showing.
+  const navigation = useNavigation<any>();
+  const openScreen = (screen: 'UserProfile' | 'FindPeople') => {
+    close();
+    if (screen === 'FindPeople') navigation.navigate('FindPeople');
+    else if (user?.id) navigation.navigate('UserProfile', { userId: user.id, username: profile?.username });
+  };
 
   return (
     <GestureDetector gesture={pan}>
@@ -148,14 +157,28 @@ const SideDrawer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ]}
           accessibilityViewIsModal={isOpen}
         >
-          {/* Profile picture spot — becomes your photo and opens your profile later */}
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-          <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
+          {/* You: opens your profile */}
+          <Pressable
+            onPress={() => openScreen('UserProfile')}
+            style={({ pressed }) => [styles.me, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open your profile"
+          >
+            <Avatar person={profile ? profile : { username: name }} size={52} />
+            <Text style={styles.name} numberOfLines={1}>{name}</Text>
+            {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
+          </Pressable>
 
           <View style={styles.divider} />
+
+          <Pressable
+            onPress={() => openScreen('FindPeople')}
+            style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="search-outline" size={24} color="#E8E8E8" />
+            <Text style={styles.itemText}>Search</Text>
+          </Pressable>
 
           {ITEMS.map(item => {
             const active = item.key === section;
@@ -204,19 +227,7 @@ const styles = StyleSheet.create({
     borderRightColor: '#2A2A2A',
     paddingHorizontal: 20,
   },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#2A2A2A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#E8E8E8',
-  },
+  me: { alignSelf: 'flex-start' },
   name: {
     marginTop: 12,
     fontSize: 18,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useProfile } from '../context/ProfileContext';
+import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -28,10 +26,6 @@ const ProfileScreen: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { isSubscribed } = useSubscription();
   const navigation = useNavigation<any>();
-  const { profile, refresh: refreshProfile } = useProfile();
-
-  // Follow counts change from other screens (and other people), so re-read on focus.
-  useFocusEffect(useCallback(() => { refreshProfile().catch(() => {}); }, [refreshProfile]));
 
   // Change Password state
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -164,52 +158,14 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader
-        right={
-          <TouchableOpacity
-            onPress={() => navigation.navigate('FindPeople')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel="Find people"
-          >
-            <Ionicons name="person-add-outline" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
-      />
+      <ScreenHeader />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
-
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(profile?.displayName || profile?.username || user?.email || '?').charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.displayName} numberOfLines={1}>{profile?.displayName || profile?.username || ''}</Text>
-          {profile?.username ? <Text style={styles.handle} numberOfLines={1}>@{profile.username}</Text> : null}
-          {user?.id && profile ? (
-            <View style={styles.followCounts}>
-              <TouchableOpacity onPress={() => navigation.navigate('FollowList', { userId: user.id, username: profile.username, kind: 'followers' })} activeOpacity={0.7}>
-                <Text style={styles.followCountText}><Text style={styles.followCountNum}>{profile.followers ?? 0}</Text> {profile.followers === 1 ? 'follower' : 'followers'}</Text>
-              </TouchableOpacity>
-              <Text style={styles.followDot}>·</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('FollowList', { userId: user.id, username: profile.username, kind: 'following' })} activeOpacity={0.7}>
-                <Text style={styles.followCountText}><Text style={styles.followCountNum}>{profile.following ?? 0}</Text> following</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile')} activeOpacity={0.7}>
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>Settings</Text>
         </View>
 
         {/* ACCOUNT SECTION */}
@@ -285,7 +241,7 @@ const ProfileScreen: React.FC = () => {
         {/* SETTINGS SECTION */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionAccent} />
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.sectionTitle}>Preferences</Text>
         </View>
 
         <View style={styles.navGroup}>
@@ -442,40 +398,6 @@ const styles = StyleSheet.create({
     color: '#E8E8E8',
   },
 
-  // Profile Card
-  profileCard: {
-    backgroundColor: '#161616',
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#232323',
-  },
-  displayName: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 24, color: '#F2F2F2', textAlign: 'center' },
-  handle: { fontSize: 14, color: '#8A8A8A', marginTop: 2, textAlign: 'center' },
-  followCounts: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 10 },
-  followCountText: { color: '#8A8A8A', fontSize: 14 },
-  followCountNum: { color: '#F2F2F2', fontWeight: '700' },
-  followDot: { color: '#555', fontSize: 14 },
-  editButton: { alignSelf: 'center', marginTop: 12, borderWidth: 1, borderColor: '#333', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 7 },
-  editButtonText: { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1D9E75',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
   infoContainer: {
     marginBottom: 16,
   },

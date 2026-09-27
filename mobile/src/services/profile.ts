@@ -6,6 +6,8 @@ export interface MyProfile {
   needsUsername: boolean;
   followers?: number;
   following?: number;
+  avatarUrl?: string | null;
+  memberSince?: string;
 }
 
 export async function fetchMyProfile(timeoutMs?: number): Promise<MyProfile> {
@@ -25,5 +27,24 @@ export async function saveMyProfile(changes: { username?: string; displayName?: 
     return res.data.data;
   } catch (e: any) {
     throw new Error(e?.response?.data?.problem ?? e?.response?.data?.error ?? "Couldn't save. Try again.");
+  }
+}
+
+/** Sets the profile photo from a base64 JPEG (already cropped square and shrunk). */
+export async function uploadAvatar(base64: string): Promise<MyProfile> {
+  try {
+    const res = await api.post('/api/profile/avatar', { image: base64 }, { timeout: 60000 });
+    return res.data.data;
+  } catch (e: any) {
+    throw new Error(e?.response?.data?.problem ?? e?.response?.data?.error ?? "Couldn't save your photo. Try again.");
+  }
+}
+
+export async function deleteAvatar(): Promise<MyProfile> {
+  try {
+    const res = await api.delete('/api/profile/avatar');
+    return res.data.data;
+  } catch (e: any) {
+    throw new Error(e?.response?.data?.error ?? "Couldn't remove your photo. Try again.");
   }
 }

@@ -43,6 +43,11 @@ import { DrawerProvider } from '../context/DrawerContext';
 export type MainRootStackParamList = {
   Tabs: undefined;
   Paywall: undefined;
+  // People screens sit above the tabs so the side drawer can open them from anywhere.
+  FindPeople: undefined;
+  UserProfile: { userId: string; username?: string };
+  FollowList: { userId: string; username: string; kind: 'followers' | 'following' };
+  EditProfile: undefined;
 };
 
 // Main tab param list
@@ -60,14 +65,10 @@ export type ProfileStackParamList = {
   GymArchive: undefined;
   YearlyReviews: undefined;
   StatsArchive: undefined;
-  EditProfile: undefined;
   StatsArchiveYear: { entry: ArchivedYear };
   YearlyReviewDetail: { year: number };
   NotificationSettings: undefined;
   YearlyGoals: undefined;
-  FindPeople: undefined;
-  UserProfile: { userId: string; username?: string };
-  FollowList: { userId: string; username: string; kind: 'followers' | 'following' };
   BlockedAccounts: undefined;
 };
 
@@ -153,13 +154,7 @@ const ProfileStackNavigator: React.FC = () => {
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
         }}
       />
-      <ProfileStack.Screen name="FindPeople" component={FindPeopleScreen} options={peopleHeader('Find people')} />
-      <ProfileStack.Screen name="UserProfile" component={UserProfileScreen} options={peopleHeader('')} />
-      <ProfileStack.Screen name="FollowList" component={FollowListScreen} options={peopleHeader('')} />
       <ProfileStack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} options={peopleHeader('Blocked accounts')} />
-      <ProfileStack.Screen name="EditProfile" options={{ headerShown: false }}>
-        {({ navigation }) => <ChooseUsernameScreen mode="edit" onClose={() => navigation.goBack()} />}
-      </ProfileStack.Screen>
       <ProfileStack.Screen
         name="StatsArchive"
         component={StatsArchiveScreen}
@@ -433,7 +428,7 @@ const MainTabs: React.FC = () => {
         options={{
           tabBarIcon: ({ focused }) => (
             <Ionicons
-              name={focused ? 'person' : 'person-outline'}
+              name={focused ? 'settings' : 'settings-outline'}
               size={24}
               color={focused ? '#FFFFFF' : '#555555'}
             />
@@ -455,6 +450,12 @@ const MainNavigator: React.FC = () => {
         component={PaywallScreen}
         options={{ presentation: 'modal', headerShown: false }}
       />
+      <MainRootStack.Screen name="FindPeople" component={FindPeopleScreen} options={peopleHeader('Search')} />
+      <MainRootStack.Screen name="UserProfile" component={UserProfileScreen} options={peopleHeader('')} />
+      <MainRootStack.Screen name="FollowList" component={FollowListScreen} options={peopleHeader('')} />
+      <MainRootStack.Screen name="EditProfile" options={{ headerShown: false }}>
+        {({ navigation }) => <ChooseUsernameScreen mode="edit" onClose={() => navigation.goBack()} />}
+      </MainRootStack.Screen>
     </MainRootStack.Navigator>
   );
 };

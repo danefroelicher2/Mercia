@@ -51,6 +51,14 @@
       "@react-native-google-signin/google-signin",
       "expo-notifications",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mercia uses your photo library so you can choose a profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

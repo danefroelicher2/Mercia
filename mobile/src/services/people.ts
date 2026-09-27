@@ -6,6 +6,7 @@ export interface Person {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl: string | null;
   isFollowing?: boolean;
 }
 
@@ -20,7 +21,7 @@ export interface PublicProfile extends Person {
   bestStreak: number;
 }
 
-export type ReportReason = 'inappropriate_name' | 'spam' | 'impersonation' | 'other';
+export type ReportReason = 'inappropriate_name' | 'inappropriate_photo' | 'spam' | 'impersonation' | 'other';
 
 // Readable message from a failed request.
 const reason = (e: any, fallback: string) => new Error(e?.response?.data?.error ?? fallback);

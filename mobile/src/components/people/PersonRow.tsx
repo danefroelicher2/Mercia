@@ -2,12 +2,11 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Person } from '../../services/people';
 import FollowButton from './FollowButton';
+import Avatar from './Avatar';
 
 // One person in a list (search results, followers, following, blocked):
-// initial avatar, name, @username, and an optional action on the right.
+// photo (or initial), name, @username, and an optional action on the right.
 
-export const initialOf = (p: { displayName?: string | null; username?: string }) =>
-  (Array.from((p.displayName || p.username || '?').trim())[0] ?? '?').toUpperCase();
 
 interface Props {
   person: Person;
@@ -23,9 +22,7 @@ const PersonRow: React.FC<Props> = ({ person, onPress, right, hideFollow }) => (
     accessibilityRole={onPress ? 'button' : undefined}
     accessibilityLabel={`${person.displayName || person.username}, @${person.username}`}
   >
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initialOf(person)}</Text>
-    </View>
+    <Avatar person={person} size={44} />
     <View style={styles.text}>
       <Text style={styles.name} numberOfLines={1}>{person.displayName || person.username}</Text>
       <Text style={styles.handle} numberOfLines={1}>@{person.username}</Text>
@@ -36,8 +33,6 @@ const PersonRow: React.FC<Props> = ({ person, onPress, right, hideFollow }) => (
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1D9E75', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   text: { flex: 1, minWidth: 0 },
   name: { color: '#F2F2F2', fontSize: 15, fontWeight: '600' },
   handle: { color: '#8A8A8A', fontSize: 13, marginTop: 1 },

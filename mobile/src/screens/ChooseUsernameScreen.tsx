@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProfile } from '../context/ProfileContext';
 import { checkUsername, saveMyProfile } from '../services/profile';
 import { DISPLAY_NAME_MAX, USERNAME_MAX, normalizeUsername, usernameProblem } from '../utils/usernames';
+import Avatar from '../components/people/Avatar';
+import { useProfilePhoto } from '../hooks/useProfilePhoto';
 
 // "Choose your username": shown once, required, right after any sign-up
 // (email, Google or Apple) — mode "setup". The same screen opens from
@@ -36,6 +38,7 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const latest = useRef(username);
   const nameInput = useRef<TextInput>(null);
+  const { changePhoto, busy: photoBusy } = useProfilePhoto();
 
   // Live check: rules locally right away, availability from the server after a pause.
   useEffect(() => {
@@ -105,7 +108,15 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
             <Text style={styles.title}>Choose your username</Text>
             <Text style={styles.sub}>This is how people will find you on Mercia. You can change it later.</Text>
           </>
-        ) : null}
+        ) : (
+          <Pressable onPress={changePhoto} style={styles.photo} accessibilityRole="button" accessibilityLabel="Change profile photo">
+            <View>
+              <Avatar person={profile ? { ...profile, displayName: name || profile.displayName } : null} size={88} />
+              {photoBusy ? <View style={styles.photoBusy}><ActivityIndicator color="#FFFFFF" /></View> : null}
+            </View>
+            <Text style={styles.photoLink}>{profile?.avatarUrl ? 'Change photo' : 'Add photo'}</Text>
+          </Pressable>
+        )}
 
         <Text style={styles.label}>USERNAME</Text>
         <View style={[styles.field, status.kind === 'ok' && styles.fieldOk, status.kind === 'bad' && styles.fieldBad]}>
@@ -182,6 +193,9 @@ const styles = StyleSheet.create({
   markText: { fontFamily: 'Palatino', fontWeight: '700', fontSize: 28, color: '#3A3326' },
   title: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 32, lineHeight: 38, color: '#F2F2F2' },
   sub: { color: '#8A8A8A', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 24 },
+  photo: { alignItems: 'center', gap: 10, marginBottom: 28 },
+  photoBusy: { ...StyleSheet.absoluteFillObject, borderRadius: 44, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  photoLink: { color: GREEN, fontSize: 15, fontWeight: '600' },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 1.1, color: '#777', marginBottom: 8 },
   optional: { color: '#555', fontWeight: '500', letterSpacing: 0 },
   field: {
