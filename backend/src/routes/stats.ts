@@ -6,7 +6,7 @@ import { getSupabase } from '../services/supabase';
 import { getLLM } from '../services/merciaCore';
 import { liveExtras } from '../lib/statsLifetime';
 import { summarizeYear, localDate, validZone } from '../lib/routineYear';
-import { computeDayStreaks } from '../lib/dayStreaks';
+import { loadDayStreaks } from '../lib/activityStreaks';
 
 const router = Router();
 
@@ -41,20 +41,7 @@ router.get('/streaks', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const zone = validZone(typeof req.query.timezone === 'string' ? req.query.timezone : req.header('x-timezone'));
-    const sb = getSupabase().schema('mercia');
-    // A day counts if the user did anything in the app (user_action_days);
-    // older days also count from the activity log, which predates it.
-    const [activityRes, actionRes] = await Promise.all([
-      sb.from('user_activity_log').select('activity_date').eq('user_id', userId),
-      sb.from('user_action_days').select('action_date').eq('user_id', userId),
-    ]);
-    if (activityRes.error) throw activityRes.error;
-    if (actionRes.error) throw actionRes.error;
-
-    const s = computeDayStreaks(
-      [...(activityRes.data ?? []).map((r: any) => r.activity_date), ...(actionRes.data ?? []).map((r: any) => r.action_date)],
-      localDate(new Date(), zone),
-    );
+    const s = await loadDayStreaks(userId, zone);
 
     res.json({
       success: true,
