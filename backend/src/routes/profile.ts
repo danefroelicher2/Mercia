@@ -2,9 +2,10 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getSupabase } from '../services/supabase';
 import { ensureProfile, followCounts } from '../lib/profiles';
+import { decodeAvatar, removeAvatar, setAvatar } from '../lib/avatars';
 import { cleanDisplayName, normalizeUsername, usernameProblem } from '../lib/usernames';
 
-// The signed-in user's own profile: username, display name, follow counts.
+// The signed-in user's own profile: username, display name, photo, follow counts.
 // needsUsername = they haven't chosen one yet (new accounts), so the app shows
 // its required "Choose your username" screen.
 
@@ -13,7 +14,7 @@ router.use(authenticateToken);
 
 async function readProfile(userId: string, email?: string) {
   const sb = getSupabase().schema('mercia');
-  const select = () => sb.from('user_profiles').select('username, display_name, username_chosen_at').eq('id', userId).maybeSingle();
+  const select = () => sb.from('user_profiles').select('username, display_name, username_chosen_at, avatar_url, created_at').eq('id', userId).maybeSingle();
   let { data, error } = await select();
   if (error) throw error;
   if (!data) {
@@ -26,6 +27,8 @@ async function readProfile(userId: string, email?: string) {
     username: data!.username as string,
     displayName: (data!.display_name as string | null) ?? null,
     needsUsername: !data!.username_chosen_at,
+    avatarUrl: (data!.avatar_url as string | null) ?? null,
+    memberSince: data!.created_at as string,
     ...(await followCounts(userId)),
   };
 }
@@ -90,6 +93,35 @@ router.put('/', async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     console.error('[Profile] update failed:', error);
     res.status(500).json({ success: false, error: 'Failed to save profile' });
+  }
+});
+
+// POST /api/profile/avatar  { image: base64 JPEG } — the app sends it already
+// cropped square and shrunk.
+router.post('/avatar', async (req: Request, res: Response): Promise<void> => {
+  const decoded = decodeAvatar(req.body?.image);
+  if ('problem' in decoded) {
+    res.status(400).json({ success: false, error: decoded.problem, problem: decoded.problem });
+    return;
+  }
+  try {
+    await readProfile(req.user!.id, req.user!.email); // makes sure the row exists
+    await setAvatar(req.user!.id, decoded.bytes);
+    res.json({ success: true, data: await readProfile(req.user!.id, req.user!.email) });
+  } catch (error: any) {
+    console.error('[Profile] avatar upload failed:', error);
+    res.status(500).json({ success: false, error: "Couldn't save your photo" });
+  }
+});
+
+// DELETE /api/profile/avatar
+router.delete('/avatar', async (req: Request, res: Response): Promise<void> => {
+  try {
+    await removeAvatar(req.user!.id);
+    res.json({ success: true, data: await readProfile(req.user!.id, req.user!.email) });
+  } catch (error: any) {
+    console.error('[Profile] avatar remove failed:', error);
+    res.status(500).json({ success: false, error: "Couldn't remove your photo" });
   }
 });
 

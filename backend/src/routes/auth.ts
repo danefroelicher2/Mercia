@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { authenticateToken } from '../middleware/auth';
+import { removeAllAvatars } from '../lib/avatars';
 import { registerUser, loginUser, refreshAccessToken, generateTokens, getSupabase, User } from '../services/auth';
 import { ensureProfile } from '../lib/profiles';
 
@@ -391,6 +392,9 @@ router.delete('/account', authenticateToken, async (req: Request, res: Response)
     const userId = req.user?.id;
 
     const supabase = getSupabase();
+
+    // Profile photos live in storage, which the database cascade doesn't reach.
+    await removeAllAvatars(userId!).catch(err => console.error('[Delete Account] avatar cleanup failed:', err));
 
     // Delete user from Supabase Auth (triggers cascade delete in database)
     const { error } = await supabase.auth.admin.deleteUser(userId!);

@@ -4,7 +4,7 @@
 export const SEARCH_LIMIT = 20;
 export const LIST_LIMIT = 50;
 
-export const REPORT_REASONS = ['inappropriate_name', 'spam', 'impersonation', 'other'] as const;
+export const REPORT_REASONS = ['inappropriate_name', 'inappropriate_photo', 'spam', 'impersonation', 'other'] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
