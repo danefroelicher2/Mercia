@@ -23,9 +23,13 @@ interface Person {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl: string | null;
 }
 
-const toPerson = (r: any): Person => ({ id: r.id, username: r.username, displayName: r.display_name ?? null });
+const PERSON_COLS = 'id, username, display_name, avatar_url';
+const toPerson = (r: any): Person => ({
+  id: r.id, username: r.username, displayName: r.display_name ?? null, avatarUrl: r.avatar_url ?? null,
+});
 
 // Everyone the user has blocked or been blocked by.
 async function blockedEither(me: string): Promise<Set<string>> {
@@ -59,7 +63,7 @@ async function followingAmong(me: string, ids: string[]): Promise<Set<string>> {
 async function profileRow(id: string) {
   const { data, error } = await db()
     .from('user_profiles')
-    .select('id, username, display_name, created_at, timezone')
+    .select(`${PERSON_COLS}, created_at, timezone`)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -91,12 +95,11 @@ router.get('/search', async (req: Request, res: Response): Promise<void> => {
       res.json({ success: true, data: [] });
       return;
     }
-    const cols = 'id, username, display_name';
     const [byName, byUser, blocked] = await Promise.all([
-      db().from('user_profiles').select(cols).not('username_chosen_at', 'is', null)
+      db().from('user_profiles').select(PERSON_COLS).not('username_chosen_at', 'is', null)
         .ilike('display_name', likePattern(q, 'contains')).limit(SEARCH_LIMIT * 2),
       // Usernames are stored lowercase, and q is lowercase.
-      db().from('user_profiles').select(cols).not('username_chosen_at', 'is', null)
+      db().from('user_profiles').select(PERSON_COLS).not('username_chosen_at', 'is', null)
         .like('username', likePattern(q, 'prefix')).order('username').limit(SEARCH_LIMIT * 2),
       blockedEither(me),
     ]);
@@ -132,7 +135,7 @@ router.get('/blocked', async (req: Request, res: Response): Promise<void> => {
 
 async function peopleByIds(ids: string[]): Promise<Map<string, Person>> {
   if (!ids.length) return new Map();
-  const { data, error } = await db().from('user_profiles').select('id, username, display_name').in('id', ids);
+  const { data, error } = await db().from('user_profiles').select(PERSON_COLS).in('id', ids);
   if (error) throw error;
   return new Map((data ?? []).map((r: any) => [r.id, toPerson(r)]));
 }

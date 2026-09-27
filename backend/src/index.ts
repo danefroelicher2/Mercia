@@ -26,7 +26,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+// 1mb: room for a profile photo (a ~100 KB JPEG, base64) — see /api/profile/avatar.
+app.use(express.json({ limit: '1mb' }));
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
