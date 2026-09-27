@@ -2,9 +2,9 @@ import { getSupabase } from '../services/supabase';
 import { GymYear, OverallYear, StreaksYear, gymYear, overallYear, streaksYear } from './yearGymStreaks';
 
 // Yearly stats. Everything here is per calendar year (the user's own year,
-// in their time zone) and is saved to oasis.stats_archive once the year ends.
+// in their time zone) and is saved to mercia.stats_archive once the year ends.
 //
-// ROUTINE (oasis.routine_day_log — one row per day per part of the day):
+// ROUTINE (mercia.routine_day_log — one row per day per part of the day):
 //   Each finished day is "closed": the items that were on that day's list
 //   (their ids), how many were crossed off, and goal points earned that day.
 //   Weekly goal = 1.5 points, monthly goal = 3; points only add (can pass
@@ -15,12 +15,12 @@ import { GymYear, OverallYear, StreaksYear, gymYear, overallYear, streaksYear } 
 //   - Perfect day = every item in Morning, Afternoon and Night crossed off
 //     (goals excluded; a day with nothing planned isn't perfect).
 //
-// ACTIONS (oasis.user_action_days — one row per day the user did anything):
+// ACTIONS (mercia.user_action_days — one row per day the user did anything):
 //   - Missed day = a finished day with no action at all.
 //   - Consistency = days with an action ÷ days since tracking began this
 //     year (today counts once there's been an action today).
 //
-// GOALS (oasis.goal_period_log — written by the weekly/monthly/yearly reset
+// GOALS (mercia.goal_period_log — written by the weekly/monthly/yearly reset
 // just before it un-checks goals: goals that existed and how many were done):
 //   - Weekly % = average of each finished week's %; a week belongs to the
 //     year its Thursday falls in (ISO weeks). Monthly likewise.
@@ -77,7 +77,7 @@ export interface Profile {
 }
 
 async function loadProfile(userId: string, tzOverride?: string): Promise<Profile> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const { data } = await sb
     .from('user_profiles')
     .select('timezone, afternoon_start, night_start, routine_log_start, created_at')
@@ -120,7 +120,7 @@ export interface DayRow {
 // Counts one date from the routine as it stands now (used to close a day
 // right after it ends, and for today live).
 async function countDay(userId: string, date: string, p: Profile): Promise<DayRow[]> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const [tasksRes, histRes, goalsRes] = await Promise.all([
     sb.from('routine_tasks').select('id, time_of_day, created_at, type').eq('user_id', userId).eq('day_of_week', weekdayOf(date)),
     sb.from('task_completion_history').select('task_id').eq('user_id', userId).eq('snapshot_date', date).eq('completed', true),
@@ -152,7 +152,7 @@ async function countDay(userId: string, date: string, p: Profile): Promise<DayRo
 
 // Close every finished day (start … yesterday) not closed yet. Idempotent.
 async function closeDays(userId: string, p: Profile): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const yesterday = addDays(localDate(new Date(), p.timezone), -1);
   const { data: last, error } = await sb
     .from('routine_day_log')
@@ -190,7 +190,7 @@ export async function ensureDaysClosed(userId: string, tz?: string): Promise<voi
 // item. Adjusts by the one change rather than re-counting from history, since
 // deleting an item also deletes its history and would undercount the day.
 export async function adjustDay(userId: string, date: string, taskId: string, delta: 1 | -1): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const { data, error } = await sb
     .from('routine_day_log')
     .select('section, planned, done, task_ids')
@@ -207,7 +207,7 @@ export async function adjustDay(userId: string, date: string, taskId: string, de
 // A past day's goal completions changed after the day closed: recompute that
 // day's goal points from its remaining completions.
 export async function recountGoalPoints(userId: string, date: string): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const p = await loadProfile(userId);
   const [rowsRes, goalsRes] = await Promise.all([
     sb.from('routine_day_log').select('section').eq('user_id', userId).eq('log_date', date),
@@ -230,7 +230,7 @@ export async function recountGoalPoints(userId: string, date: string): Promise<v
 // Take back one logged action (an item or goal un-checked), so lifetime and
 // yearly action counts can't be inflated by checking something on and off.
 export async function removeOneActivity(userId: string, type: string, date: string): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const { data, error } = await sb
     .from('user_activity_log')
     .select('id')
@@ -248,7 +248,7 @@ export async function removeOneActivity(userId: string, type: string, date: stri
 // reminders hold off while they're using the app).
 export async function markAction(userId: string, tz?: string): Promise<void> {
   const p = await loadProfile(userId, tz);
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   await Promise.all([
     sb.from('user_action_days')
       .upsert({ user_id: userId, action_date: localDate(new Date(), p.timezone) }, { onConflict: 'user_id,action_date', ignoreDuplicates: true }),
@@ -295,7 +295,7 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 const isoYearOfWeek = (monday: string) => Number(addDays(monday, 3).slice(0, 4));
 
 export async function summarizeYear(userId: string, year: number, tzOverride?: string): Promise<YearSummary> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const p = await loadProfile(userId, tzOverride);
   const today = localDate(new Date(), p.timezone);
   const isCurrent = Number(today.slice(0, 4)) === year;
@@ -407,7 +407,7 @@ function yearIsFinal(year: number): boolean {
 // One user: close finished days, then save each finished year to the
 // archive — re-saved on each run until all its periods are in, then frozen.
 export async function logAndArchiveUser(userId: string): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const p = await loadProfile(userId);
   await closeDays(userId, p);
   closedThrough.set(userId, addDays(localDate(new Date(), p.timezone), -1));
@@ -427,7 +427,7 @@ export async function logAndArchiveUser(userId: string): Promise<void> {
 
 // Hourly: every user, one at a time; one user's failure never stops the rest.
 export async function runRoutineDayLog(): Promise<void> {
-  const { data: users, error } = await getSupabase().schema('oasis').from('user_profiles').select('id');
+  const { data: users, error } = await getSupabase().schema('mercia').from('user_profiles').select('id');
   if (error) throw error;
   for (const u of users ?? []) {
     try {

@@ -12,7 +12,7 @@ export function getSupabase(): SupabaseClient {
     }
 
     console.log('[Supabase] Connecting to:', url);
-    console.log('[Supabase] Using schema: oasis');
+    console.log('[Supabase] Using schema: mercia');
     supabaseClient = createClient(url, key);
     console.log('[Supabase] Connection established');
   }

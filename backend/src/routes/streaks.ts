@@ -5,7 +5,7 @@ import { validate } from '../middleware/validation';
 import { getSupabase } from '../services/supabase';
 
 // Streaks: a clock the user names and starts, which counts until they stop
-// it. Each run is one row in oasis.streaks (running while ended_at is null);
+// it. Each run is one row in mercia.streaks (running while ended_at is null);
 // restarting ends the current run and starts a new one under the same name.
 // "Best" is the longest run ever recorded under that name (case-insensitive),
 // the current one included.
@@ -29,7 +29,7 @@ const runSeconds = (row: StreakRow, now: number) =>
 
 async function loadRows(userId: string): Promise<StreakRow[]> {
   const { data, error } = await getSupabase()
-    .schema('oasis')
+    .schema('mercia')
     .from('streaks')
     .select('id, name, started_at, ended_at')
     .eq('user_id', userId)
@@ -83,7 +83,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 router.post('/', validate(nameSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { data, error } = await getSupabase()
-      .schema('oasis')
+      .schema('mercia')
       .from('streaks')
       .insert({ user_id: req.user!.id, name: req.body.name.trim() })
       .select('id, name, started_at, ended_at')
@@ -98,7 +98,7 @@ router.post('/', validate(nameSchema), async (req: Request, res: Response): Prom
 // End a running streak; returns the ended row, or null if it wasn't running.
 async function endRun(userId: string, id: string): Promise<StreakRow | null> {
   const { data, error } = await getSupabase()
-    .schema('oasis')
+    .schema('mercia')
     .from('streaks')
     .update({ ended_at: new Date().toISOString() })
     .eq('id', id)
@@ -140,7 +140,7 @@ router.post('/:id/restart', async (req: Request, res: Response): Promise<void> =
       return;
     }
     const { data, error } = await getSupabase()
-      .schema('oasis')
+      .schema('mercia')
       .from('streaks')
       .insert({ user_id: userId, name: ended.name })
       .select('id, name, started_at, ended_at')
@@ -159,7 +159,7 @@ router.post('/:id/restart', async (req: Request, res: Response): Promise<void> =
 router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const { error } = await getSupabase()
-      .schema('oasis')
+      .schema('mercia')
       .from('streaks')
       .delete()
       .eq('id', req.params.id)

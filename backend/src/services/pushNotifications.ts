@@ -15,7 +15,7 @@ export async function sendPush(
   const supabase = getSupabase();
 
   const { data: tokenRows, error } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('push_tokens')
     .select('token')
     .eq('user_id', userId);
@@ -58,7 +58,7 @@ export async function sendBulkPush(
   const supabase = getSupabase();
 
   const { data: tokenRows, error } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('push_tokens')
     .select('user_id, token')
     .in('user_id', userIds);
@@ -116,7 +116,7 @@ async function sendMessages(messages: ExpoPushMessage[], userId?: string): Promi
       if (staleTokens.length > 0) {
         console.log(`[PUSH] Removing ${staleTokens.length} stale token(s)`);
         await supabase
-          .schema('oasis')
+          .schema('mercia')
           .from('push_tokens')
           .delete()
           .in('token', staleTokens);

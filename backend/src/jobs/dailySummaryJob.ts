@@ -49,7 +49,7 @@ export async function runDailySummaryGeneration(): Promise<{ usersProcessed: num
 
   // Get every distinct user who has routine tasks set up
   const { data: userRows, error: usersError } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('routine_tasks')
     .select('user_id');
 
@@ -89,7 +89,7 @@ async function generateSummaryForUser(
 
   // ── 8. Upsert into weekly_summaries ───────────────────────────────────────
   const { error: upsertError } = await supabase
-    .schema('oasis')
+    .schema('mercia')
     .from('weekly_summaries')
     .upsert(
       {

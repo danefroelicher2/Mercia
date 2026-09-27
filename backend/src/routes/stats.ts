@@ -41,7 +41,7 @@ router.get('/streaks', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const zone = validZone(typeof req.query.timezone === 'string' ? req.query.timezone : req.header('x-timezone'));
-    const sb = getSupabase().schema('oasis');
+    const sb = getSupabase().schema('mercia');
     // A day counts if the user did anything in the app (user_action_days);
     // older days also count from the activity log, which predates it.
     const [activityRes, actionRes] = await Promise.all([
@@ -196,7 +196,7 @@ router.get('/week-activity', async (req: Request, res: Response): Promise<void> 
     }
 
     const { data, error } = await supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('user_activity_log')
       .select('activity_date')
       .eq('user_id', userId)
@@ -245,7 +245,7 @@ router.get('/monthly-review', async (req: Request, res: Response): Promise<void>
     const monthEnd = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const { data: rows, error } = await supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('weekly_summaries')
       .select(
         'week_end_date, today_completed, today_total, overall_percentage, ' +
@@ -339,26 +339,26 @@ function longestStreakInDates(dates: string[]): { length: number; start: string;
 
 // Gathers every stat a year's review needs. Data for a completed year is
 // frozen (the year ended), so this is computed live per request; only the
-// LLM narrative is cached (oasis.yearly_reviews).
+// LLM narrative is cached (mercia.yearly_reviews).
 async function computeYearReviewStats(userId: string, year: number, supabase: any) {
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
   const [activityRes, gymRes, summariesRes, taskHistRes, goalHistRes, creationRes] = await Promise.all([
-    supabase.schema('oasis').from('user_activity_log')
+    supabase.schema('mercia').from('user_activity_log')
       .select('activity_type, activity_date')
       .eq('user_id', userId).gte('activity_date', yearStart).lte('activity_date', yearEnd),
-    supabase.schema('oasis').from('gym_memory')
+    supabase.schema('mercia').from('gym_memory')
       .select('session_date, workout_group')
       .eq('user_id', userId).gte('session_date', yearStart).lte('session_date', yearEnd),
-    supabase.schema('oasis').from('weekly_summaries')
+    supabase.schema('mercia').from('weekly_summaries')
       .select('week_end_date, today_completed, today_total, overall_percentage, has_complete_data')
       .eq('user_id', userId).gte('week_end_date', yearStart).lte('week_end_date', yearEnd),
-    supabase.schema('oasis').from('task_completion_history')
+    supabase.schema('mercia').from('task_completion_history')
       .select('task_text')
       .eq('user_id', userId).eq('completed', true)
       .gte('snapshot_date', yearStart).lte('snapshot_date', yearEnd),
-    supabase.schema('oasis').from('goal_completion_history')
+    supabase.schema('mercia').from('goal_completion_history')
       .select('goal_text, goal_type')
       .eq('user_id', userId).eq('goal_type', 'weekly')
       .gte('completed_date', yearStart).lte('completed_date', yearEnd),
@@ -485,7 +485,7 @@ router.get('/yearly-reviews', async (req: Request, res: Response): Promise<void>
  * GET /api/stats/yearly-review/:year?timezone=
  * Full review for one completed year: all stats + the coach retrospective.
  * The narrative is generated ONCE from the complete stat set (so Mercia can
- * reference items and workouts by name) and cached in oasis.yearly_reviews.
+ * reference items and workouts by name) and cached in mercia.yearly_reviews.
  */
 router.get('/yearly-review/:year', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -509,7 +509,7 @@ router.get('/yearly-review/:year', async (req: Request, res: Response): Promise<
     // Narrative: cached forever after first generation.
     let narrative: string | null = null;
     const { data: cached } = await supabase
-      .schema('oasis')
+      .schema('mercia')
       .from('yearly_reviews')
       .select('narrative')
       .eq('user_id', userId)
@@ -547,7 +547,7 @@ router.get('/yearly-review/:year', async (req: Request, res: Response): Promise<
         );
 
         await supabase
-          .schema('oasis')
+          .schema('mercia')
           .from('yearly_reviews')
           .upsert({ user_id: userId, year, narrative }, { onConflict: 'user_id,year' });
       } catch (llmError) {
@@ -581,24 +581,24 @@ router.get('/lifetime', async (req: Request, res: Response): Promise<void> => {
       perfectDaysResult,
     ] = await Promise.all([
       supabase.rpc('get_account_creation_date', { p_user_id: userId }),
-      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+      supabase.schema('mercia').from('user_activity_log').select('id', { count: 'exact', head: true })
         .eq('user_id', userId).eq('activity_type', 'task_completed'),
-      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+      supabase.schema('mercia').from('user_activity_log').select('id', { count: 'exact', head: true })
         .eq('user_id', userId).eq('activity_type', 'goal_completed'),
-      supabase.schema('oasis').from('user_activity_log').select('id', { count: 'exact', head: true })
+      supabase.schema('mercia').from('user_activity_log').select('id', { count: 'exact', head: true })
         .eq('user_id', userId).eq('activity_type', 'ai_chat_sent'),
       // Lifetime gym days come from gym_memory — the PERMANENT record
       // (includes archived sessions; rest markers never create memory rows).
       // gym_workout_log is wiped weekly, so counting it could only ever see
       // the current week. Distinct session_date dedupes multi-group days.
-      supabase.schema('oasis').from('gym_memory').select('session_date')
+      supabase.schema('mercia').from('gym_memory').select('session_date')
         .eq('user_id', userId),
-      supabase.schema('oasis').from('user_activity_log').select('activity_date').eq('user_id', userId),
+      supabase.schema('mercia').from('user_activity_log').select('activity_date').eq('user_id', userId),
       // Perfect Days: days where 100% of routine tasks were completed, from
       // the per-day weekly_summaries rows. completed >= total is compared in
       // JS because PostgREST can't filter column-vs-column; row volume is one
       // per day, so this stays tiny.
-      supabase.schema('oasis').from('weekly_summaries')
+      supabase.schema('mercia').from('weekly_summaries')
         .select('today_completed, today_total')
         .eq('user_id', userId)
         .eq('has_complete_data', true)
@@ -678,7 +678,7 @@ router.post(
 
       // Insert activity log
       const { error: logError } = await supabase
-        .schema('oasis')
+        .schema('mercia')
         .from('user_activity_log')
         .insert({
           user_id: userId,
@@ -722,7 +722,7 @@ router.get('/year', async (req: Request, res: Response): Promise<void> => {
 router.get('/archive', async (req: Request, res: Response): Promise<void> => {
   try {
     const { data, error } = await getSupabase()
-      .schema('oasis')
+      .schema('mercia')
       .from('stats_archive')
       .select('year, data, created_at')
       .eq('user_id', req.user!.id)

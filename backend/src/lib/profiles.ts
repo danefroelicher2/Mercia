@@ -11,7 +11,7 @@ export async function ensureProfile(
   userId: string,
   info: { email?: string | null; displayName?: string | null; usernameSeed?: string | null },
 ): Promise<void> {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const { data: existing, error } = await sb.from('user_profiles').select('id').eq('id', userId).maybeSingle();
   if (error) throw error;
   if (existing) return;

@@ -12,7 +12,7 @@ const router = Router();
 router.use(authenticateToken);
 
 async function readProfile(userId: string, email?: string) {
-  const sb = getSupabase().schema('oasis');
+  const sb = getSupabase().schema('mercia');
   const select = () => sb.from('user_profiles').select('username, display_name, username_chosen_at').eq('id', userId).maybeSingle();
   let { data, error } = await select();
   if (error) throw error;
@@ -48,7 +48,7 @@ router.get('/username-available', async (req: Request, res: Response): Promise<v
       res.json({ success: true, data: { username: u, available: false, problem } });
       return;
     }
-    const { data, error } = await getSupabase().schema('oasis').from('user_profiles').select('id').eq('username', u).maybeSingle();
+    const { data, error } = await getSupabase().schema('mercia').from('user_profiles').select('id').eq('username', u).maybeSingle();
     if (error) throw error;
     const available = !data || data.id === req.user!.id;
     res.json({ success: true, data: { username: u, available, problem: available ? null : 'That username is taken' } });
@@ -77,7 +77,7 @@ router.put('/', async (req: Request, res: Response): Promise<void> => {
 
   try {
     await readProfile(userId, req.user!.email); // makes sure the row exists
-    const { error } = await getSupabase().schema('oasis').from('user_profiles').update(update).eq('id', userId);
+    const { error } = await getSupabase().schema('mercia').from('user_profiles').update(update).eq('id', userId);
     if (error) {
       if (error.code === '23505') {
         res.status(409).json({ success: false, error: 'That username is taken', problem: 'That username is taken' });
