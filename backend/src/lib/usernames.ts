@@ -79,3 +79,19 @@ export function cleanDisplayName(input: unknown): string | null {
   const t = Array.from(input.replace(/\s+/g, ' ').trim()).slice(0, DISPLAY_NAME_MAX).join('').trim();
   return t || null;
 }
+
+export const BIO_MAX = 150;
+
+// A bio: up to 150 characters and 4 lines. Line breaks are kept, other runs
+// of spaces collapse, blank lines squeeze to one. Empty clears it.
+export function cleanBio(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  const lines = input
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(l => l.replace(/[ \t\u00a0]+/g, ' ').trim());
+  const squeezed: string[] = [];
+  for (const l of lines) if (l || (squeezed.length && squeezed[squeezed.length - 1] !== '')) squeezed.push(l);
+  const t = squeezed.slice(0, 4).join('\n').trim();
+  return Array.from(t).slice(0, BIO_MAX).join('').trim() || null;
+}
