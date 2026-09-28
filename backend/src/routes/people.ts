@@ -63,7 +63,7 @@ async function followingAmong(me: string, ids: string[]): Promise<Set<string>> {
 async function profileRow(id: string) {
   const { data, error } = await db()
     .from('user_profiles')
-    .select(`${PERSON_COLS}, created_at, timezone`)
+    .select(`${PERSON_COLS}, created_at, timezone, bio`)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -158,6 +158,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
       data: {
         ...toPerson(row),
         memberSince: row.created_at,
+        bio: row.bio ?? null,
         ...counts,
         isMe: id === me,
         isFollowing: iFollow,

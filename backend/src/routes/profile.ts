@@ -3,7 +3,7 @@ import { authenticateToken } from '../middleware/auth';
 import { getSupabase } from '../services/supabase';
 import { ensureProfile, followCounts } from '../lib/profiles';
 import { decodeAvatar, removeAvatar, setAvatar } from '../lib/avatars';
-import { cleanDisplayName, normalizeUsername, usernameProblem } from '../lib/usernames';
+import { cleanBio, cleanDisplayName, normalizeUsername, usernameProblem } from '../lib/usernames';
 
 // The signed-in user's own profile: username, display name, photo, follow counts.
 // needsUsername = they haven't chosen one yet (new accounts), so the app shows
@@ -14,7 +14,7 @@ router.use(authenticateToken);
 
 async function readProfile(userId: string, email?: string) {
   const sb = getSupabase().schema('mercia');
-  const select = () => sb.from('user_profiles').select('username, display_name, username_chosen_at, avatar_url, created_at').eq('id', userId).maybeSingle();
+  const select = () => sb.from('user_profiles').select('username, display_name, username_chosen_at, avatar_url, created_at, bio').eq('id', userId).maybeSingle();
   let { data, error } = await select();
   if (error) throw error;
   if (!data) {
@@ -28,6 +28,7 @@ async function readProfile(userId: string, email?: string) {
     displayName: (data!.display_name as string | null) ?? null,
     needsUsername: !data!.username_chosen_at,
     avatarUrl: (data!.avatar_url as string | null) ?? null,
+    bio: (data!.bio as string | null) ?? null,
     memberSince: data!.created_at as string,
     ...(await followCounts(userId)),
   };
@@ -62,7 +63,7 @@ router.get('/username-available', async (req: Request, res: Response): Promise<v
   }
 });
 
-// PUT /api/profile  { username?, displayName? }
+// PUT /api/profile  { username?, displayName?, bio? }
 router.put('/', async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -78,6 +79,7 @@ router.put('/', async (req: Request, res: Response): Promise<void> => {
     update.username_chosen_at = new Date().toISOString();
   }
   if (req.body?.displayName !== undefined) update.display_name = cleanDisplayName(req.body.displayName);
+  if (req.body?.bio !== undefined) update.bio = cleanBio(req.body.bio);
 
   try {
     await readProfile(userId, req.user!.email); // makes sure the row exists
