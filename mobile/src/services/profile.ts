@@ -8,6 +8,7 @@ export interface MyProfile {
   following?: number;
   avatarUrl?: string | null;
   memberSince?: string;
+  bio?: string | null;
 }
 
 export async function fetchMyProfile(timeoutMs?: number): Promise<MyProfile> {
@@ -21,7 +22,7 @@ export async function checkUsername(u: string): Promise<{ available: boolean; pr
 }
 
 /** Saves; throws an Error whose message is the reason to show (e.g. "That username is taken"). */
-export async function saveMyProfile(changes: { username?: string; displayName?: string }): Promise<MyProfile> {
+export async function saveMyProfile(changes: { username?: string; displayName?: string; bio?: string }): Promise<MyProfile> {
   try {
     const res = await api.put('/api/profile', changes);
     return res.data.data;

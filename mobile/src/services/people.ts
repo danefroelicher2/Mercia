@@ -12,6 +12,7 @@ export interface Person {
 
 export interface PublicProfile extends Person {
   memberSince: string;
+  bio: string | null;
   followers: number;
   following: number;
   isMe: boolean;

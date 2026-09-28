@@ -8,9 +8,19 @@ import Avatar from '../components/people/Avatar';
 import FollowButton from '../components/people/FollowButton';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
 import { PublicProfile, ReportReason, fetchPerson, reportPerson, setBlocked } from '../services/people';
+import Ring from '../components/profile/Ring';
+import LevelCard from '../components/profile/LevelCard';
+import LevelSheet from '../components/profile/LevelSheet';
+import PostCard from '../components/profile/PostCard';
+import ProfileStatsTab from '../components/profile/ProfileStatsTab';
+import ProfileRecordsTab from '../components/profile/ProfileRecordsTab';
+import { levelFromXp, tierOf } from '../utils/levels';
+import type { ProfileExtras, ProfilePost } from '../types/profileFeed';
+import { PROFILE_MOCK, PROFILE_MOCK_ENABLED, PROFILE_MOCK_FILL } from './profile/profileMock';
 
-// A profile page, Instagram-style: photo beside Posts / Followers / Following,
-// name, then Edit profile (yours) or Follow (theirs), then Posts | Stats tabs.
+// A profile page, Instagram-style: photo (with level ring) beside Posts /
+// Followers / Following, name and bio, then Edit profile (yours) or Follow
+// (theirs), then level + Whoop-style dials, then Posts | Stats | Records.
 // The same screen shows your own profile (from the side drawer) and anyone
 // else's. On someone else's, "⋯" has Report and Block.
 
@@ -24,7 +34,13 @@ const REPORT_OPTIONS: { label: string; reason: ReportReason }[] = [
   { label: 'Something else', reason: 'other' },
 ];
 
-type Tab = 'posts' | 'stats';
+type Tab = 'posts' | 'stats' | 'records';
+
+const TAB_ICONS: Record<Tab, [string, string, string]> = {
+  posts: ['albums', 'albums-outline', 'Posts'],
+  stats: ['stats-chart', 'stats-chart-outline', 'Stats'],
+  records: ['trophy', 'trophy-outline', 'Records'],
+};
 
 const joined = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
@@ -33,6 +49,15 @@ const count = (n: number) =>
   n >= 10_000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K` :
   n.toLocaleString('en-US');
 
+const Dial: React.FC<{ value: string; label: string; progress: number; color: string }> = ({ value, label, progress, color }) => (
+  <View style={styles.dial}>
+    <Ring size={84} stroke={7} progress={progress} color={color}>
+      <Text style={styles.dialValue}>{value}</Text>
+    </Ring>
+    <Text style={styles.dialLabel}>{label}</Text>
+  </View>
+);
+
 const UserProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { userId, username } = useRoute<any>().params as { userId: string; username?: string };
@@ -40,6 +65,9 @@ const UserProfileScreen: React.FC = () => {
   const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>('posts');
+  const [levelInfo, setLevelInfo] = useState(false);
+  // Pins/hides are local until real posts exist.
+  const [posts, setPosts] = useState<ProfilePost[]>(PROFILE_MOCK.posts);
 
   const load = useCallback(async () => {
     try {
@@ -144,6 +172,21 @@ const UserProfileScreen: React.FC = () => {
     return <View style={[styles.root, styles.center]}><ActivityIndicator color="#777" /></View>;
   }
 
+  // Level, posts, stats and records: sample data on your own profile in the
+  // dev app until the real feed exists (see profile/profileMock.ts).
+  const extras: ProfileExtras | null = p.isMe && PROFILE_MOCK_ENABLED ? PROFILE_MOCK : null;
+  const level = extras ? (() => {
+    const l = levelFromXp(extras.totalXp);
+    return { ...l, color: tierOf(l.level).color };
+  })() : null;
+  const visiblePosts = [...posts].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || Date.parse(b.at) - Date.parse(a.at));
+  const followers = extras && !p.followers ? PROFILE_MOCK_FILL.followers : p.followers;
+  const following = extras && !p.following ? PROFILE_MOCK_FILL.following : p.following;
+  const bio = p.bio || (extras ? PROFILE_MOCK_FILL.bio : null);
+  const currentStreak = extras ? PROFILE_MOCK_FILL.currentStreak : p.currentStreak;
+  const bestStreak = extras ? PROFILE_MOCK_FILL.bestStreak : p.bestStreak;
+  const tabs: Tab[] = extras ? ['posts', 'stats', 'records'] : ['posts', 'stats'];
+
   const openList = (kind: 'followers' | 'following') =>
     navigation.push('FollowList', { userId: p.id, username: p.username, kind });
 
@@ -167,22 +210,34 @@ const UserProfileScreen: React.FC = () => {
           accessibilityRole={p.isMe ? 'button' : 'image'}
           accessibilityLabel={p.isMe ? 'Change profile photo' : `${p.displayName || p.username}'s photo`}
         >
-          <Avatar person={p} size={86} />
+          {level ? (
+            <View style={styles.levelWrap}>
+              <Ring size={100} stroke={3.5} progress={level.progress} color={level.color} track="#262626">
+                <Avatar person={p} size={86} />
+              </Ring>
+              <View style={[styles.levelPill, { backgroundColor: level.color }]}>
+                <Text style={styles.levelPillText}>LV {level.level}</Text>
+              </View>
+            </View>
+          ) : (
+            <Avatar person={p} size={86} />
+          )}
           {p.isMe ? (
-            <View style={styles.photoBadge}>
+            <View style={[styles.photoBadge, level && styles.photoBadgeRing]}>
               {photoBusy ? <ActivityIndicator size="small" color="#0B1F18" /> : <Ionicons name="add" size={16} color="#0B1F18" />}
             </View>
           ) : null}
         </Pressable>
         <View style={styles.stats}>
-          {stat(0, 'posts')}
-          {stat(p.followers, 'followers', () => openList('followers'))}
-          {stat(p.following, 'following', () => openList('following'))}
+          {stat(extras ? visiblePosts.length : 0, 'posts')}
+          {stat(followers, 'followers', () => openList('followers'))}
+          {stat(following, 'following', () => openList('following'))}
         </View>
       </View>
 
-      <View style={styles.bio}>
+      <View style={[styles.bio, level && { marginTop: 18 }]}>
         <Text style={styles.name} numberOfLines={1}>{p.displayName || p.username}</Text>
+        {bio ? <Text style={styles.bioText}>{bio}</Text> : null}
         <View style={styles.metaRow}>
           <Text style={styles.meta}>Joined {joined(p.memberSince)}</Text>
           {p.followsYou ? <View style={styles.tag}><Text style={styles.tagText}>Follows you</Text></View> : null}
@@ -209,25 +264,50 @@ const UserProfileScreen: React.FC = () => {
         )}
       </View>
 
+      {extras ? (
+        <>
+          <LevelCard totalXp={extras.totalXp} onPress={() => setLevelInfo(true)} />
+          <View style={styles.dials}>
+            <Dial value={`${extras.year.consistency}%`} label="Consistency" progress={extras.year.consistency / 100} color="#5DCAA5" />
+            <Dial value={String(currentStreak)} label="Day streak" progress={bestStreak ? currentStreak / bestStreak : 0} color="#F2705B" />
+            <Dial value={String(extras.year.gymSessions)} label="Gym sessions" progress={0.82} color="#4FA3F7" />
+          </View>
+          <LevelSheet visible={levelInfo} totalXp={extras.totalXp} onClose={() => setLevelInfo(false)} />
+        </>
+      ) : null}
+
       <View style={styles.tabs}>
-        {(['posts', 'stats'] as Tab[]).map(t => (
-          <Pressable key={t} onPress={() => setTab(t)} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: tab === t }} accessibilityLabel={t === 'posts' ? 'Posts' : 'Stats'}>
-            <Ionicons
-              name={t === 'posts' ? (tab === t ? 'grid' : 'grid-outline') : (tab === t ? 'stats-chart' : 'stats-chart-outline')}
-              size={22}
-              color={tab === t ? '#FFFFFF' : '#6A6A6A'}
-            />
+        {tabs.map(t => (
+          <Pressable key={t} onPress={() => setTab(t)} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: tab === t }} accessibilityLabel={TAB_ICONS[t][2]}>
+            <Ionicons name={(tab === t ? TAB_ICONS[t][0] : TAB_ICONS[t][1]) as any} size={22} color={tab === t ? '#FFFFFF' : '#6A6A6A'} />
             <View style={[styles.tabLine, tab === t && styles.tabLineOn]} />
           </Pressable>
         ))}
       </View>
 
       {tab === 'posts' ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyRing}><Ionicons name="camera-outline" size={34} color="#E8E8E8" /></View>
-          <Text style={styles.emptyHeading}>No posts yet</Text>
-          {p.isMe ? <Text style={styles.emptySub}>When you share posts, they'll show up here.</Text> : null}
-        </View>
+        extras && visiblePosts.length ? (
+          visiblePosts.map(post => (
+            <PostCard
+              key={post.id}
+              post={post}
+              author={p}
+              mine={p.isMe}
+              onPin={id => setPosts(cur => cur.map(x => (x.id === id ? { ...x, pinned: !x.pinned } : x)))}
+              onHide={id => setPosts(cur => cur.filter(x => x.id !== id))}
+            />
+          ))
+        ) : (
+          <View style={styles.empty}>
+            <View style={styles.emptyRing}><Ionicons name="albums-outline" size={32} color="#E8E8E8" /></View>
+            <Text style={styles.emptyHeading}>No posts yet</Text>
+            {p.isMe ? <Text style={styles.emptySub}>Workouts, perfect days, PRs and milestones post here on their own.</Text> : null}
+          </View>
+        )
+      ) : tab === 'stats' && extras ? (
+        <ProfileStatsTab year={extras.year} currentStreak={currentStreak} bestStreak={bestStreak} />
+      ) : tab === 'records' && extras ? (
+        <ProfileRecordsTab lifts={extras.lifts} bests={extras.bests} />
       ) : (
         <View style={styles.streaks}>
           <View style={styles.streakBox}>
@@ -256,6 +336,15 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: '#0D0D0D', alignItems: 'center', justifyContent: 'center',
   },
   stats: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', marginLeft: 12 },
+  levelWrap: { alignItems: 'center' },
+  levelPill: { position: 'absolute', bottom: -8, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 2, borderColor: '#0D0D0D' },
+  levelPillText: { color: '#0D0D0D', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  photoBadgeRing: { right: 2, bottom: 6 },
+  bioText: { color: '#E0E0E0', fontSize: 14, lineHeight: 19, marginTop: 3 },
+  dials: { flexDirection: 'row', justifyContent: 'space-around', marginHorizontal: 16, marginTop: 12, paddingVertical: 14, borderRadius: 16, backgroundColor: '#141414', borderWidth: 1, borderColor: '#232323' },
+  dial: { alignItems: 'center', width: '31%' },
+  dialValue: { color: '#F5F5F5', fontSize: 19, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  dialLabel: { color: '#8A8A8A', fontSize: 12, marginTop: 6 },
   stat: { alignItems: 'center', minWidth: 64 },
   statNum: { color: '#F5F5F5', fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
   statLabel: { color: '#A8A8A8', fontSize: 13, marginTop: 1 },

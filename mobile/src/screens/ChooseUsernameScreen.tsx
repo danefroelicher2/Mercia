@@ -5,7 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProfile } from '../context/ProfileContext';
 import { checkUsername, saveMyProfile } from '../services/profile';
-import { DISPLAY_NAME_MAX, USERNAME_MAX, normalizeUsername, usernameProblem } from '../utils/usernames';
+import { BIO_MAX, BIO_MAX_LINES, DISPLAY_NAME_MAX, USERNAME_MAX, normalizeUsername, usernameProblem } from '../utils/usernames';
 import Avatar from '../components/people/Avatar';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
 
@@ -33,11 +33,13 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
   const { profile, setProfile } = useProfile();
   const [username, setUsername] = useState(profile?.username ?? '');
   const [name, setName] = useState(profile?.displayName ?? '');
+  const [bio, setBio] = useState(profile?.bio ?? '');
   const [status, setStatus] = useState<Status>(profile?.username ? { kind: 'ok' } : { kind: 'idle' });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const latest = useRef(username);
   const nameInput = useRef<TextInput>(null);
+  const bioInput = useRef<TextInput>(null);
   const { changePhoto, busy: photoBusy } = useProfilePhoto();
 
   // Live check: rules locally right away, availability from the server after a pause.
@@ -67,7 +69,7 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
     setSaving(true);
     setSaveError(null);
     try {
-      const next = await saveMyProfile({ username, displayName: name });
+      const next = await saveMyProfile(mode === 'edit' ? { username, displayName: name, bio } : { username, displayName: name });
       setProfile(next); // setup: needsUsername is now false, so the app moves on
       onClose?.();
     } catch (e: any) {
@@ -157,11 +159,38 @@ const ChooseUsernameScreen: React.FC<Props> = ({ mode, onClose }) => {
             placeholderTextColor="#555"
             autoComplete="name"
             textContentType="name"
-            returnKeyType="done"
-            onSubmitEditing={save}
+            returnKeyType={mode === 'edit' ? 'next' : 'done'}
+            onSubmitEditing={mode === 'edit' ? () => bioInput.current?.focus() : save}
+            blurOnSubmit={mode !== 'edit'}
             accessibilityLabel="Name"
           />
         </View>
+
+        {mode === 'edit' ? (
+          <>
+            <View style={styles.bioLabelRow}>
+              <Text style={[styles.label, { marginTop: 24, marginBottom: 0 }]}>
+                BIO <Text style={styles.optional}>· optional</Text>
+              </Text>
+              <Text style={[styles.counter, Array.from(bio).length > BIO_MAX - 15 && { color: '#E5A54D' }]}>
+                {Array.from(bio).length}/{BIO_MAX}
+              </Text>
+            </View>
+            <View style={[styles.field, styles.bioField]}>
+              <TextInput
+                ref={bioInput}
+                style={[styles.input, styles.bioInput]}
+                value={bio}
+                onChangeText={t => setBio(t.split('\n').slice(0, BIO_MAX_LINES).join('\n'))}
+                maxLength={BIO_MAX}
+                multiline
+                placeholder="A line about you"
+                placeholderTextColor="#555"
+                accessibilityLabel="Bio"
+              />
+            </View>
+          </>
+        ) : null}
 
         <View style={{ flex: 1, minHeight: 28 }} />
 
@@ -193,6 +222,10 @@ const styles = StyleSheet.create({
   markText: { fontFamily: 'Palatino', fontWeight: '700', fontSize: 28, color: '#3A3326' },
   title: { fontFamily: 'Palatino', fontStyle: 'italic', fontWeight: '700', fontSize: 32, lineHeight: 38, color: '#F2F2F2' },
   sub: { color: '#8A8A8A', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 24 },
+  bioLabelRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 8 },
+  counter: { color: '#666', fontSize: 12, fontVariant: ['tabular-nums'] },
+  bioField: { height: undefined, minHeight: 96, alignItems: 'flex-start', paddingVertical: 12 },
+  bioInput: { alignSelf: 'stretch', textAlignVertical: 'top', lineHeight: 22, minHeight: 72 },
   photo: { alignItems: 'center', gap: 10, marginBottom: 28 },
   photoBusy: { ...StyleSheet.absoluteFillObject, borderRadius: 44, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   photoLink: { color: GREEN, fontSize: 15, fontWeight: '600' },

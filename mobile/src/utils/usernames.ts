@@ -29,3 +29,7 @@ export function usernameProblem(u: string): string | null {
   if (RESERVED.has(u)) return 'That name is reserved';
   return null;
 }
+
+// Mirrors the server: 150 characters, 4 lines.
+export const BIO_MAX = 150;
+export const BIO_MAX_LINES = 4;
