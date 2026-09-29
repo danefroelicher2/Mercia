@@ -27,12 +27,7 @@
           }
         ]
       },
-      "appleTeamId": "9N735S4L4M",
-      "entitlements": {
-        "com.apple.security.application-groups": [
-          "group.com.oasisai.app"
-        ]
-      }
+      "appleTeamId": "9N735S4L4M"
     },
     "android": {
       "adaptiveIcon": {
@@ -68,8 +63,7 @@
         }
       ],
       "./plugins/withGlobalModularHeaders",
-      "./plugins/withFollyPatch",
-      "@bacons/apple-targets"
+      "./plugins/withFollyPatch"
     ],
     "privacyPolicyUrl": "https://tranquil-marigold-3d7831.netlify.app",
     "extra": {
