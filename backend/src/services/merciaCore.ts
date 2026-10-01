@@ -29,7 +29,7 @@ export function initializeMerciaCore(): void {
 
   // Initialize LLM adapter (graceful degradation if no API key)
   if (groqApiKey) {
-    llm = new GroqLLMAdapter(groqApiKey);
+    llm = new GroqLLMAdapter(groqApiKey, process.env.GROQ_MODEL || undefined);
     console.log('  LLM adapter initialized (Groq)');
   } else {
     console.warn('  GROQ_API_KEY not set - chat disabled');
