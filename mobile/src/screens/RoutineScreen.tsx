@@ -17,23 +17,11 @@ import { useAuth } from '../context/AuthContext';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal, DayOfWeek } from '../types/routine';
-import TodayTimeBlocks, { CreateTaskInput, TaskChanges, TodayTimeBlocksHandle } from '../components/TodayTimeBlocks';
+import TodayTimeBlocks, { CreateTaskInput, TaskChanges } from '../components/TodayTimeBlocks';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import RoutineSettingsSheet from '../components/RoutineSettingsSheet';
 import GoalCard from '../components/GoalCard';
-import DayRings from '../components/DayRings';
-import EarlierCard from '../components/EarlierCard';
-import SlidePresence from '../components/SlidePresence';
-import { TimeOfDay } from '../types/routine';
-import {
-  SECTION_COLORS,
-  TIME_OF_DAY_ORDER,
-  getCurrentTimeOfDay,
-  parseCountSuffix,
-  taskTimeOfDay,
-  textOnColor,
-  withAlpha,
-} from '../utils/timeOfDay';
+import { parseCountSuffix, textOnColor, withAlpha } from '../utils/timeOfDay';
 
 type GoalType = 'weekly' | 'monthly' | 'yearly';
 import QuoteCard from '../components/QuoteCard';
@@ -102,9 +90,6 @@ const headerDateLabel = (day: DayOfWeek): string => {
 const GOAL_EXPANDED_KEY = 'routine_goal_expanded';
 const DEFAULT_GOAL_EXPANDED: Record<GoalType, boolean> = { weekly: true, monthly: true, yearly: false };
 
-// Items skipped from the "left from earlier" card, per calendar date.
-const skippedKey = (date: string) => `routine_skipped_${date}`;
-
 const RoutineScreen: React.FC = () => {
   const { user } = useAuth();
   const prefs = useRoutinePreferences();
@@ -115,8 +100,10 @@ const RoutineScreen: React.FC = () => {
   const { section: activeSection } = useDrawer();
   // The header + on Streaks opens its add sheet.
   const [streakAddRequest, setStreakAddRequest] = useState(0);
-  // Gym and Streaks take the color of the current part of the day.
-  const { accent: nowAccent } = useTimeOfDayAccent();
+  // The whole area (Routine, Gym, Streaks) takes the color of the current
+  // part of the day.
+  const { accent } = useTimeOfDayAccent();
+  const themed = useMemo(() => makeThemedStyles(accent), [accent]);
 
   // State
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
@@ -130,9 +117,6 @@ const RoutineScreen: React.FC = () => {
 
 
 
-  // Bumped on every tab focus so the Today pager snaps back to the section
-  // matching the current time.
-  const [focusCount, setFocusCount] = useState(0);
   const [copyMenuVisible, setCopyMenuVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
@@ -149,10 +133,6 @@ const RoutineScreen: React.FC = () => {
   // Client id → server id for tasks created this session, so a selection made
   // before a reload still points at the right row afterwards.
   const resolvedTaskIds = useRef<Map<string, string>>(new Map());
-  // The whole tab takes its accent from the Today section being shown.
-  const [todaySection, setTodaySection] = useState<TimeOfDay>(() => getCurrentTimeOfDay(new Date(), boundaries));
-  const accent = SECTION_COLORS[todaySection];
-  const themed = useMemo(() => makeThemedStyles(accent), [accent]);
   const tasksRef = useRef<RoutineTask[]>([]);
   tasksRef.current = tasks;
   // Tasks typed into the Today notepad get a client id immediately; this
@@ -161,15 +141,9 @@ const RoutineScreen: React.FC = () => {
   const orderSyncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
-  const todayCardRef = useRef<TodayTimeBlocksHandle>(null);
 
-  // Minute clock for the day bar, the "left from earlier" card and the
-  // goal countdowns.
+  // Minute clock for the Today card's NOW line and the goal countdowns.
   const [now, setNow] = useState(() => new Date());
-
-  // Day bar / "Later today" taps ask the Today card to switch sections.
-  const [requestedSection, setRequestedSection] = useState<{ section: TimeOfDay; token: number } | null>(null);
-  const showSection = (section: TimeOfDay) => setRequestedSection({ section, token: Date.now() });
 
   const [goalExpanded, setGoalExpanded] = useState<Record<GoalType, boolean>>(DEFAULT_GOAL_EXPANDED);
   useEffect(() => {
@@ -187,36 +161,6 @@ const RoutineScreen: React.FC = () => {
       return next;
     });
   };
-
-  // Today's skips, kept on the device for the rest of the day. The earlier
-  // card waits for them to load so skipped items never flash back in.
-  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
-  const [skipsLoaded, setSkipsLoaded] = useState(false);
-  const todayDate = getCalendarDateForDay(todayDayOfWeek());
-  useEffect(() => {
-    let cancelled = false;
-    setSkipsLoaded(false);
-    AsyncStorage.getItem(skippedKey(todayDate))
-      .then(raw => {
-        if (!cancelled) setSkippedIds(new Set(raw ? JSON.parse(raw) : []));
-      })
-      .catch(() => {
-        if (!cancelled) setSkippedIds(new Set());
-      })
-      .finally(() => {
-        if (!cancelled) setSkipsLoaded(true);
-      });
-    // Earlier days' skips no longer matter.
-    AsyncStorage.getAllKeys()
-      .then(keys => {
-        const stale = keys.filter(k => k.startsWith('routine_skipped_') && k !== skippedKey(todayDate));
-        if (stale.length > 0) return AsyncStorage.multiRemove(stale);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [todayDate]);
 
   // Countdown state
   // Weekly reset countdown ("2d 5h left"); also ticks the goal cards'
@@ -280,7 +224,6 @@ const RoutineScreen: React.FC = () => {
     const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
     const dayIndex = today === 0 ? 6 : today - 1; // Convert to Mon=0, Tue=1, ..., Sun=6
     setSelectedDay(DAYS[dayIndex]);
-    setFocusCount(c => c + 1);
   }, []));
 
   // Reload notepad content each time this tab gains focus. (Visibility and
@@ -1030,52 +973,7 @@ const RoutineScreen: React.FC = () => {
   // Filter tasks by type
   const todayTasks = tasks.filter(t => t.type === 'today');
 
-  // ============================================
-  // LEFT FROM EARLIER
-  // ============================================
-
   const isToday = selectedDay === todayDayOfWeek();
-  const nowSection = getCurrentTimeOfDay(now, boundaries);
-  const nowIndex = TIME_OF_DAY_ORDER.indexOf(nowSection);
-  const earlierTasks = isToday
-    ? todayTasks.filter(t =>
-        // The list can still hold the previous day's tasks for a moment
-        // after switching back to today.
-        t.day_of_week === selectedDay &&
-        // Only the part of the day just before now: the afternoon picks up
-        // the morning's leftovers, the night the afternoon's.
-        TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) === nowIndex - 1 &&
-        !skippedIds.has(t.id))
-    : [];
-
-  // Edit finished on a row of the "left from earlier" card — same rules as
-  // editing in the Today card: empty deletes, "Run x3" sets a counter.
-  const handleEarlierEditDone = (id: string, raw: string) => {
-    const task = tasksRef.current.find(t => t.id === id);
-    if (!task) return;
-    if (!raw.trim()) {
-      handleDeleteTask(id);
-      return;
-    }
-    const parsed = parseCountSuffix(raw);
-    const changes: TaskChanges = {};
-    if (parsed.text !== task.text) changes.text = parsed.text;
-    if (parsed.targetCount !== null && parsed.targetCount !== task.target_count) {
-      changes.targetCount = parsed.targetCount;
-    }
-    if (changes.text !== undefined || changes.targetCount !== undefined) handleUpdateTask(id, changes);
-  };
-
-  const handleSkipEarlier = (ids: string[]) => {
-    const serverIds = ids.map(id => resolvedTaskIds.current.get(id) ?? id);
-    setSkippedIds(prev => {
-      const next = new Set(prev);
-      ids.forEach(id => next.add(id));
-      serverIds.forEach(id => next.add(id));
-      AsyncStorage.setItem(skippedKey(todayDate), JSON.stringify(Array.from(next))).catch(() => {});
-      return next;
-    });
-  };
 
   // "Day x of y" for each goal card, on the local calendar (leap-year and
   // month-length aware — see utils/periodProgress).
@@ -1160,9 +1058,9 @@ const RoutineScreen: React.FC = () => {
               onPress={() => setStreakAddRequest(n => n + 1)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityLabel="Start a streak"
-              style={[styles.streakAdd, { backgroundColor: withAlpha(nowAccent, 0.15) }]}
+              style={[styles.streakAdd, { backgroundColor: withAlpha(accent, 0.15) }]}
             >
-              <Ionicons name="add" size={20} color={nowAccent} />
+              <Ionicons name="add" size={20} color={accent} />
             </TouchableOpacity>
           ) : undefined
         }
@@ -1186,55 +1084,21 @@ const RoutineScreen: React.FC = () => {
           />
         }
       >
-        {/* One ring per part of the day; tap one to switch the Today card */}
-        <DayRings
+        {/* Today — the whole day, Morning / Afternoon / Night */}
+        <TodayTimeBlocks
           tasks={todayTasks}
           isToday={isToday}
           now={now}
-          boundaries={boundaries}
-          shownSection={todaySection}
-          onSelectSection={showSection}
-        />
-
-        {/* Still open from the part of the day before this one. It slides
-            away (with the page) while the Today card shows that earlier part
-            itself, so the list never jumps. */}
-        {isToday && skipsLoaded && (
-          <SlidePresence visible={TIME_OF_DAY_ORDER.indexOf(todaySection) >= nowIndex}>
-            <EarlierCard
-                tasks={earlierTasks}
-                resetKey={`${selectedDay}:${nowSection}`}
-                onTick={handleToggleTask}
-                onSkip={handleSkipEarlier}
-                onHold={(id, startEdit) => todayCardRef.current?.openItemMenu(id, startEdit)}
-                onEditDone={handleEarlierEditDone}
-                selectionMode={multiSelect}
-                selectedIds={selectedIds}
-                onToggleSelect={id => toggleSelected(id, 'task')}
-                onRequestBulkDelete={openBulkMenu}
-              />
-          </SlidePresence>
-        )}
-
-        {/* Today — Morning / Afternoon / Night notepad */}
-        <TodayTimeBlocks
-          ref={todayCardRef}
-          tasks={todayTasks}
-          isToday={isToday}
-          resetToken={`${selectedDay}:${focusCount}`}
           onToggle={handleToggleTask}
           onCreate={handleCreateTask}
           onUpdate={handleUpdateTask}
           onDelete={handleDeleteTask}
           onReorder={handleReorderTasks}
           onCopyFromDay={openCopyFromDay}
-          onSectionChange={setTodaySection}
           selectionMode={multiSelect}
           selectedIds={selectedIds}
           onToggleSelect={id => toggleSelected(id, 'task')}
           onRequestBulkDelete={openBulkMenu}
-          showTabs={false}
-          requestedSection={requestedSection}
         />
         <ActionMenu
           visible={copyMenuVisible}
@@ -1385,7 +1249,7 @@ const RoutineScreen: React.FC = () => {
   );
 };
 
-// Accent-colored pieces of the tab, rebuilt when the Today section changes.
+// Accent-colored pieces of the tab, rebuilt when the part of the day changes.
 const makeThemedStyles = (accent: string) => {
   const onAccent = textOnColor(accent);
   return StyleSheet.create({

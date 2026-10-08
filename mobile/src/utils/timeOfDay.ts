@@ -1,4 +1,4 @@
-import { RoutineTask, TimeOfDay } from '../types/routine';
+import { RoutineTask, TaskSection, TimeOfDay } from '../types/routine';
 
 export const TIME_OF_DAY_ORDER: TimeOfDay[] = ['morning', 'afternoon', 'night'];
 
@@ -72,9 +72,14 @@ export function formatMinutes(minutes: number): string {
   return `${hour12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-export function taskTimeOfDay(task: RoutineTask): TimeOfDay {
+export function taskTimeOfDay(task: RoutineTask): TaskSection {
   return task.time_of_day ?? 'morning';
 }
+
+// The day top to bottom, Anytime last.
+export const TASK_SECTION_ORDER: TaskSection[] = [...TIME_OF_DAY_ORDER, 'anytime'];
+
+export const TASK_SECTION_LABELS: Record<TaskSection, string> = { ...TIME_OF_DAY_LABELS, anytime: 'Anytime' };
 
 // "Pushups x3" / "Water ×8" → { text: 'Pushups', targetCount: 3 }.
 // A bare "x3" with nothing before it stays literal text.
@@ -94,6 +99,9 @@ export const SECTION_COLORS: Record<TimeOfDay, string> = {
   afternoon: '#F3BF4C',
   night: '#7482F5',
 };
+
+// Anytime items have no part of the day, so they stay neutral.
+export const TASK_SECTION_COLORS: Record<TaskSection, string> = { ...SECTION_COLORS, anytime: '#A8A8A8' };
 
 export function withAlpha(hex: string, alpha: number): string {
   const n = parseInt(hex.slice(1), 16);

@@ -16,7 +16,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { getConsent } from '../services/consentService';
 import api from '../services/api';
 import { RoutineTask, RoutineGoal } from '../types/routine';
-import { TIME_OF_DAY_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay, timeToMinutes } from '../utils/timeOfDay';
+import { TASK_SECTION_LABELS, TIME_OF_DAY_ORDER, getCurrentTimeOfDay, taskTimeOfDay, timeToMinutes } from '../utils/timeOfDay';
 import { useRoutinePreferences } from '../context/RoutinePreferencesContext';
 import { CreateDailyChatApiResponse } from '../types/chat';
 import HomeRings from '../components/HomeRings';
@@ -461,7 +461,11 @@ const MerciaHomeScreen: React.FC = () => {
   // Current time block first, then the rest of the day, then anything
   // still open from earlier blocks.
   const nowIndex = TIME_OF_DAY_ORDER.indexOf(getCurrentTimeOfDay(new Date(), routineBoundaries));
-  const blockRank = (t: RoutineTask) => (TIME_OF_DAY_ORDER.indexOf(taskTimeOfDay(t)) - nowIndex + 3) % 3;
+  // Anytime items come after every part of the day.
+  const blockRank = (t: RoutineTask) => {
+    const section = taskTimeOfDay(t);
+    return section === 'anytime' ? 3 : (TIME_OF_DAY_ORDER.indexOf(section) - nowIndex + 3) % 3;
+  };
   const timeRank = (t: RoutineTask) => (t.scheduled_time ? timeToMinutes(t.scheduled_time) : 24 * 60);
   const openTasks = todayTasks
     .map((task, index) => ({ task, index }))
@@ -559,7 +563,7 @@ const MerciaHomeScreen: React.FC = () => {
         {upNextTasks.length > 0 && (
           <View style={styles.upNextCard}>
             <Text style={styles.upNextLabel}>
-              UP NEXT · {TIME_OF_DAY_LABELS[taskTimeOfDay(upNextTasks[0])].toUpperCase()}
+              UP NEXT · {TASK_SECTION_LABELS[taskTimeOfDay(upNextTasks[0])].toUpperCase()}
             </Text>
             {upNextTasks.map(task => (
               <TouchableOpacity
