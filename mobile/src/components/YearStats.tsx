@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { SECTION_COLORS } from '../utils/timeOfDay';
+import { TASK_SECTION_COLORS } from '../utils/timeOfDay';
 import {
   ArchivedYearData, Bucket, GROUP_COLORS, SECTIONS, WEEKDAYS, cap, monthName, num, pct, plural,
 } from '../screens/statsArchiveData';
@@ -49,6 +49,9 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
   const worst = rated.reduce((w, i) => (w < 0 || wdRates[i] < wdRates[w] ? i : w), -1);
   const canCompare = rated.length > 1 && wdRates[best] !== wdRates[worst];
 
+  // Years saved before Anytime existed have no Anytime row.
+  const shownSections = SECTIONS.filter(s => s !== 'anytime' || d.bySection.anytime);
+
   const gymMax = d.gym ? Math.max(...d.gym.split.map(s => s.sessions), 1) : 1;
   const soFar = (x: number | null | undefined, unit: string) => (live && x != null ? ` · this ${unit} so far ${pct(x)}` : '');
 
@@ -68,22 +71,22 @@ const YearStats: React.FC<{ data: ArchivedYearData; live?: LiveExtras }> = ({ da
         />
       </Block>
       <Block title="Days">
-        <Row label="Perfect days" value={num(d.perfectDays)} sub="every Morning, Afternoon and Night item crossed off" />
+        <Row label="Perfect days" value={num(d.perfectDays)} sub="every item of the day crossed off" />
         <Row label="Missed days" value={num(d.missedDays)} sub="no action at all" />
         <Row label="Consistency" value={pct(d.consistency)} sub={`${num(d.actionDays)} of ${num(d.countedDays)} days with an action`} last />
       </Block>
 
       <Group name="Routine" spaced />
       <Block title="By part of day">
-        {SECTIONS.map((s, i) => {
+        {shownSections.map((s, i) => {
           const b = d.bySection[s];
           return (
-            <View key={s} style={[styles.row, i < SECTIONS.length - 1 && styles.divider]}>
+            <View key={s} style={[styles.row, i < shownSections.length - 1 && styles.divider]}>
               <View style={styles.rowTop}>
                 <Text style={styles.label}>{cap(s)}</Text>
                 <Text style={styles.value}>{pct(b?.rate)}</Text>
               </View>
-              <Bar ratio={b?.rate ?? 0} color={SECTION_COLORS[s]} />
+              <Bar ratio={b?.rate ?? 0} color={TASK_SECTION_COLORS[s]} />
               <Text style={styles.sub}>{b ? crossed(b) : '—'}</Text>
             </View>
           );

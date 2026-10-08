@@ -67,6 +67,8 @@ async function stateFor(userId: string, now: Date): Promise<{ state: UserState; 
   for (const t of tasksRes.data ?? []) {
     const added = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t.created_at));
     if (added > today || done.has(t.id)) continue;
+    // Anytime items belong to no part of the day, so no part's reminder lists them.
+    if (t.time_of_day === 'anytime') continue;
     const part = (['morning', 'afternoon', 'night'] as const).includes(t.time_of_day) ? (t.time_of_day as keyof UserState['left']) : 'morning';
     left[part].push(t.text);
   }

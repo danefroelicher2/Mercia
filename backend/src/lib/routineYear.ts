@@ -12,8 +12,10 @@ import { GymYear, OverallYear, StreaksYear, gymYear, overallYear, streaksYear } 
 //   edited or deleted later; checking off a past day re-counts it against its
 //   saved list. Days the app isn't opened still close (0 of N).
 //   - By part of day / by weekday = (crossed off + points) ÷ items on list.
-//   - Perfect day = every item in Morning, Afternoon and Night crossed off
-//     (goals excluded; a day with nothing planned isn't perfect).
+//     Anytime items (no part of the day) get their own row; goal points go
+//     to the part of the day they were earned in, so never to Anytime.
+//   - Perfect day = every item crossed off, Anytime included (goals
+//     excluded; a day with nothing planned isn't perfect).
 //
 // ACTIONS (mercia.user_action_days — one row per day the user did anything):
 //   - Missed day = a finished day with no action at all.
@@ -29,8 +31,9 @@ import { GymYear, OverallYear, StreaksYear, gymYear, overallYear, streaksYear } 
 //
 // GYM, STREAKS and OVERALL for the year come from lib/yearGymStreaks.
 
-export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
+export const SECTIONS = ['morning', 'afternoon', 'night', 'anytime'] as const;
 export type Section = (typeof SECTIONS)[number];
+type PartOfDay = Exclude<Section, 'anytime'>;
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const GOAL_POINTS: Record<string, number> = { weekly: 1.5, monthly: 3 };
 const DAY_MS = 86400_000;
@@ -100,7 +103,7 @@ async function loadProfile(userId: string, tzOverride?: string): Promise<Profile
   };
 }
 
-function sectionAt(minutes: number, p: Profile): Section {
+function sectionAt(minutes: number, p: Profile): PartOfDay {
   if (minutes < p.afternoonStart) return 'morning';
   if (minutes < p.nightStart) return 'afternoon';
   return 'night';
@@ -138,6 +141,7 @@ async function countDay(userId: string, date: string, p: Profile): Promise<DayRo
   for (const t of tasksRes.data ?? []) {
     // On that day's list: this weekday's items that existed by the end of it.
     if (t.type !== 'today' || localDate(t.created_at, p.timezone) > date) continue;
+    // Rows from before time_of_day existed read as Morning.
     const s: Section = (SECTIONS as readonly string[]).includes(t.time_of_day) ? t.time_of_day : 'morning';
     rows[s].planned++;
     rows[s].task_ids.push(t.id);
@@ -216,7 +220,7 @@ export async function recountGoalPoints(userId: string, date: string): Promise<v
   if (rowsRes.error) throw rowsRes.error;
   if (goalsRes.error) throw goalsRes.error;
   if (!(rowsRes.data ?? []).length) return; // day not closed / not tracked
-  const points: Record<Section, number> = { morning: 0, afternoon: 0, night: 0 };
+  const points: Record<Section, number> = { morning: 0, afternoon: 0, night: 0, anytime: 0 };
   for (const g of goalsRes.data ?? []) {
     const pts = GOAL_POINTS[g.goal_type];
     if (pts) points[sectionAt(localMinutes(g.created_at, p.timezone), p)] += pts;

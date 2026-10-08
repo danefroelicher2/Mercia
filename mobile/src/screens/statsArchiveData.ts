@@ -56,7 +56,7 @@ export const GROUP_COLORS: Record<string, string> = {
   Overall: '#E4E4E4',
 };
 
-export const SECTIONS = ['morning', 'afternoon', 'night'] as const;
+export const SECTIONS = ['morning', 'afternoon', 'night', 'anytime'] as const;
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export const pct = (r: number | null | undefined) => (r == null ? '—' : `${Math.round(r * 100)}%`);
