@@ -49,14 +49,14 @@ const createTaskSchema = z.object({
   type: z.enum(['today']),
   dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   targetCount: z.number().int().min(1).max(999).optional(),
-  timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
+  timeOfDay: z.enum(['morning', 'afternoon', 'night', 'anytime']).optional(),
   scheduledTime: z.string().regex(SCHEDULED_TIME).nullable().optional(),
 });
 
 const updateTaskSchema = z
   .object({
     text: z.string().trim().min(1).max(500).optional(),
-    timeOfDay: z.enum(['morning', 'afternoon', 'night']).optional(),
+    timeOfDay: z.enum(['morning', 'afternoon', 'night', 'anytime']).optional(),
     targetCount: z.number().int().min(1).max(999).optional(),
     // 24h "HH:MM"; null removes the time (item goes back to Anytime)
     scheduledTime: z.string().regex(SCHEDULED_TIME).nullable().optional(),
